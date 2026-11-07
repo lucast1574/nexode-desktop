@@ -23,10 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Count downloads across all releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 .github/scripts/generate_downloads_badge.py
+        run: cargo xtask downloads-badge
       - name: Commit updated badge
         run: |
           if git diff --quiet -- docs/badges/downloads.json; then

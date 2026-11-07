@@ -1,3 +1,4 @@
+mod badges;
 mod branding;
 mod browser_package;
 mod diagnostics;
@@ -9,6 +10,7 @@ mod score;
 mod sdk_version;
 mod size_budget;
 mod structure;
+mod ws_cache;
 use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
 fn root() -> Result<PathBuf> {
@@ -19,9 +21,22 @@ fn root() -> Result<PathBuf> {
         .context("repository parent")?
         .to_owned())
 }
+const USAGE: &str = "Usage: cargo xtask <command> [arguments]
+Checks: check-branding, check-modules, check-boundaries
+Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors, check-wildcards [--update]
+SDK: version-sdk <runtime-tag>
+Browser: package-browser <extension-source> <output>
+Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
+Diagnostics: analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
+Rehearsal: update-rehearsal [--help]
+Repository: downloads-badge [--help], star-history [--help]";
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("--help" | "-h" | "help") => println!("{USAGE}"),
+        Some("analyze-ws-cache") => ws_cache::run(args)?,
+        Some("downloads-badge") => badges::run(false, args)?,
+        Some("star-history") => badges::run(true, args)?,
         Some("find-unlocked-env-tests") => {
             let path = args
                 .next()
@@ -101,9 +116,7 @@ fn main() -> Result<()> {
             let result = sdk_version::version_packages(&root()?, &tag)?;
             println!("tag={}\nversion={}", result.tag, result.version);
         }
-        _ => bail!(
-            "usage: cargo xtask <check-branding | version-sdk <runtime-tag> | package-browser <extension-source> <output>>"
-        ),
+        _ => bail!("{USAGE}"),
     }
     Ok(())
 }

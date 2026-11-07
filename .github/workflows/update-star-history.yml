@@ -21,10 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Generate chart using repository-authorized star data
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 .github/scripts/generate_star_history.py
+        run: cargo xtask star-history
       - name: Commit updated chart
         run: |
           if git diff --quiet -- docs/images/star-history.svg; then

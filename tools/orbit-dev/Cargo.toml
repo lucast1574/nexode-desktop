@@ -19,6 +19,7 @@ sha2 = "0.10"
 tar = "0.4"
 flate2 = "1"
 dirs = "5"
+chrono = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
