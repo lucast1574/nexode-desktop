@@ -189,7 +189,7 @@ fresh-session default selection and paired latency measurement, see
 both completion and the recorded provider before attributing timings to the
 subscription route. BYOK results do not establish subscription availability.
 
-Run `python3 scripts/browser_handoff_fixture.py` to serve the disposable pages
+Run `cargo xtask browser-fixture` to serve the disposable pages
 on an ephemeral loopback port. It never opens a browser or reads credentials.
 Open its printed URL in a dedicated test tab. Reset that tab to `/` before each
 navigation test. Use `/blocked` for the authentication handback test.
@@ -201,7 +201,7 @@ reuse a prior local Nexode fixture, and use an existing browser session:
 
 ```bash
 BROWSER_SESSION=<existing-session-name> \
-  python3 scripts/test_browser_handoff_live.py --tab-id <disposable-tab-id>
+  cargo xtask test-browser-handoff-live --tab-id <disposable-tab-id>
 ```
 
 This makes small paid Jev calls and tests the transport, two-link navigation,

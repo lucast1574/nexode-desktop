@@ -8,6 +8,8 @@ La migración está en curso. Este documento no declara al repositorio libre de 
 - Inventario remoto implementado en `nexode-remote-inspect`, con un comando interno del binario Orbit. Se retiraron el colector Python y su suite, portando sus escenarios a Rust.
 - Comprobación de marca y manifests: `cargo xtask check-branding`.
 - Guardrails de módulos, dependencias, tamaños, panics, errores descartados y reexports: Rust; se conservan los límites registrados.
+- Fixtures locales de navegador y proveedor OpenAI-compatible: Rust; tests de protocolo y servidor sin Python. El runner live del navegador es Rust y sigue siendo opt-in.
+- Informes de arquitectura, caché WebSocket, badges y gráfico de estrellas: Rust.
 - Ensayo de actualizaciones: `cargo xtask update-rehearsal`, servidor HTTP local, tar/gzip y SHA-256 en Rust; TUI conectada al comando Cargo.
 - Diagnóstico de locks de entorno y comparación Terminal-Bench: `find-unlocked-env-tests` y `tb-compare`.
 - Evaluador de planes exportados: `cargo xtask score-plans`, sin rutas privadas del autor original.

@@ -17,7 +17,7 @@ Final coordinated command:
 
 ```sh
 cargo test -p nexode-app-core --lib browser -- --nocapture
-BROWSER_SESSION=<existing-session> python3 scripts/test_browser_handoff_live.py --tab-id <disposable-tab>
+BROWSER_SESSION=<existing-session> cargo xtask test-browser-handoff-live --tab-id <disposable-tab>
 ```
 
 Observed run `2059807twx`, exit 0 at 09:40:32 UTC:

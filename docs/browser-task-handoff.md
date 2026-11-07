@@ -68,7 +68,7 @@ For live acceptance, check browser readiness, create a dedicated disposable
 `about:blank` tab, and use its existing browser session:
 
 ```sh
-BROWSER_SESSION=<existing-session> python3 scripts/test_browser_handoff_live.py --tab-id <disposable-tab>
+BROWSER_SESSION=<existing-session> cargo xtask test-browser-handoff-live --tab-id <disposable-tab>
 ```
 
 The runner refuses non-fixture user tabs. It uses loopback pages and tests navigation,

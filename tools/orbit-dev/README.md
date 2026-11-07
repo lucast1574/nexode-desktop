@@ -53,3 +53,7 @@ Diagnostics: `cargo xtask find-unlocked-env-tests [source-directory]` and `cargo
 Repository assets: `cargo xtask downloads-badge` and `cargo xtask star-history` use `gh api` pagination. Supply `--repo OWNER/REPO` or `GITHUB_REPOSITORY`. `--input pages.json` allows offline verification; `--output` changes the destination. The chart accepts `--today YYYY-MM-DD` for reproducible rendering.
 
 Architecture reports: `cargo xtask compile-isolation [--json] [--top N] [--strict-target-state]` and `cargo xtask analyze-root-crate [--json] [--full]`. Both are read-only; isolation failures are advisory unless strict mode is requested.
+
+Local test servers: `cargo xtask browser-fixture [--port N]` and `cargo xtask fake-openai-server <port>`. The provider requires `FAKE_LOG` and supports `FAKE_LABEL`, `FAKE_CONTROL_DIR`, and `FAKE_PORT_FILE`. Both bind only loopback. `scripts/orbit_dev.sh --build-only` prepares a native binary before tests clear their environment.
+
+Live browser acceptance is opt-in: `BROWSER_SESSION=... cargo xtask test-browser-handoff-live --tab-id ID`. It requires an existing disposable fixture/about:blank tab and configured inference credentials. Unit tests never run this live command.

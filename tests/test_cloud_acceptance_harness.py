@@ -17,7 +17,6 @@ import xml.etree.ElementTree as ET
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import test_cloud_acceptance as acceptance
-import fake_openai_server as provider
 
 
 class Reports(unittest.TestCase):
@@ -64,69 +63,7 @@ class Reports(unittest.TestCase):
                                  os.environ.copy(), Path(temp) / "child.log", 0.1)
 
 
-class Provider(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        provider.LOG = str(self.root / "requests.jsonl")
-        provider.CONTROL = self.root
-        self.server = provider.ThreadingHTTPServer(("127.0.0.1", 0), provider.H)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.thread.start()
-        self.addCleanup(self.stop)
-
-    def stop(self):
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join(timeout=5)
-
-    def request(self, messages, stream=False):
-        request = urllib.request.Request(f"http://127.0.0.1:{self.server.server_port}/v1/chat/completions",
-                                         json.dumps({"messages": messages, "stream": stream}).encode(),
-                                         {"Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return response.read().decode()
-
-    def test_todo_uses_real_tool_call_wire_shape(self):
-        messages = [{"role": "user", "content": "[e2e:todo] [e2e:hold:abc] work"}]
-        reply = json.loads(self.request(messages))
-        choice = reply["choices"][0]
-        self.assertEqual(choice["finish_reason"], "tool_calls")
-        call = choice["message"]["tool_calls"][0]
-        self.assertEqual(call["function"]["name"], "todo")
-        self.assertEqual(json.loads(call["function"]["arguments"])["todos"][0]["status"], "in_progress")
-        self.assertFalse((self.root / "abc.held").exists())
-
-    def test_gate_waits_for_release_and_does_not_repeat_tool(self):
-        messages = [{"role": "user", "content": "[e2e:todo] [e2e:hold:abc] work"},
-                    {"role": "assistant", "content": None, "tool_calls": []},
-                    {"role": "tool", "tool_call_id": "call_acceptance_todo", "content": "saved"}]
-        replies = []
-        thread = threading.Thread(target=lambda: replies.append(self.request(messages, stream=True)))
-        thread.start()
-        try:
-            deadline = time.monotonic() + 5
-            while not (self.root / "abc.held").exists() and time.monotonic() < deadline:
-                time.sleep(0.01)
-            self.assertTrue((self.root / "abc.held").exists())
-            self.assertTrue(thread.is_alive(), "provider must remain blocked before release")
-        finally:
-            (self.root / "abc.release").touch()
-            thread.join(timeout=5)
-        self.assertFalse(thread.is_alive())
-        self.assertIn("[DONE]", replies[0])
-        self.assertNotIn('"tool_calls"', replies[0])
-        self.assertEqual(len(Path(provider.LOG).read_text().splitlines()), 1)
-
-    def test_later_user_prompt_does_not_retrigger_historical_gate(self):
-        messages = [{"role": "user", "content": "[e2e:hold:old]"},
-                    {"role": "assistant", "content": "done"},
-                    {"role": "user", "content": "continue on cloud"}]
-        reply = json.loads(self.request(messages))
-        self.assertEqual(reply["choices"][0]["finish_reason"], "stop")
-        self.assertFalse((self.root / "old.held").exists())
-
+# Provider wire/gate contracts now run in tools/orbit-dev/src/fake_openai.rs.
 
 class Isolation(unittest.TestCase):
     def test_attachment_rejects_idle_outgoing_client_and_wrong_session(self):

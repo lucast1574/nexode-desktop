@@ -151,7 +151,8 @@ class CloudTUI:
         provider_env = dict(self.env, FAKE_LOG=str(self.root / "model.jsonl"),
                             FAKE_CONTROL_DIR=str(self.control),
                             FAKE_PORT_FILE=str(self.root / "model.port"))
-        self.spawn([sys.executable, str(SCRIPTS / "fake_openai_server.py"), "0"],
+        provider_binary = subprocess.check_output([str(SCRIPTS / "orbit_dev.sh"), "--build-only"], text=True, timeout=600).strip()
+        self.spawn([provider_binary, "fake-openai-server", "0"],
                    "provider.log", provider_env)
         port = wait_for(lambda: (self.root / "model.port").read_text()
                         if (self.root / "model.port").exists() else None, "provider readiness")

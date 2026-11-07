@@ -1,8 +1,10 @@
 mod badges;
 mod branding;
+mod browser_fixture;
 mod browser_package;
 mod compile_report;
 mod diagnostics;
+mod fake_openai;
 mod process;
 mod rehearsal;
 mod root_report;
@@ -27,7 +29,8 @@ const USAGE: &str = "Usage: cargo xtask <command> [arguments]
 Checks: check-branding, check-modules, check-boundaries
 Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors, check-wildcards [--update]
 SDK: version-sdk <runtime-tag>
-Browser: package-browser <extension-source> <output>
+Browser: browser-fixture [--port N], test-browser-handoff-live --tab-id ID, package-browser <extension-source> <output>
+Fixtures: fake-openai-server <port> (FAKE_LOG required)
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
 Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
 Rehearsal: update-rehearsal [--help]
@@ -36,6 +39,9 @@ fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
+        Some("fake-openai-server") => fake_openai::run(args)?,
+        Some("browser-fixture") => browser_fixture::run(args)?,
+        Some("test-browser-handoff-live") => browser_fixture::live(&root()?, args)?,
         Some("analyze-root-crate") => root_report::run(&root()?, args)?,
         Some("compile-isolation") => compile_report::run(&root()?, args)?,
         Some("analyze-ws-cache") => ws_cache::run(args)?,

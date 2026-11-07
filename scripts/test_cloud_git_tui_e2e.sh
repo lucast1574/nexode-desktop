@@ -2,6 +2,7 @@
 # Exercise the real SSH TUI with independent local and remote Git checkouts.
 # Everything, including SSH keys/configuration and both daemons, is isolated.
 set -euo pipefail
+ORBIT_DEV_BIN=$("$(dirname "$0")/orbit_dev.sh" --build-only)
 : "${NEXODE_BIN:?Set NEXODE_BIN to the rebuilt nexode binary}"
 NEXODE_BIN=$(realpath "$NEXODE_BIN")
 W=$(mktemp -d "${NEXODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/cloud-git-tui.XXXXXX")
@@ -79,7 +80,7 @@ ForceCommand $W/remote-shell
 LogLevel ERROR
 EOF
 /usr/bin/sshd -f "$W/ssh/sshd_config" -E "$W/ssh/log"
-FAKE_LOG="$W/model.log" FAKE_LABEL=model python3 "$(dirname "$0")/fake_openai_server.py" "$MODEL_PORT" > "$W/model-output.log" 2>&1 &
+FAKE_LOG="$W/model.log" FAKE_LABEL=model "$ORBIT_DEV_BIN" fake-openai-server "$MODEL_PORT" > "$W/model-output.log" 2>&1 &
 MODEL_PID=$!
 PATH="$W/bin:$PATH" ssh -o BatchMode=yes cloud-git-fixture 'printf fixture-ready' > "$W/probe" || fail 'SSH fixture startup'
 # By default, emulate /cloud's explicit source metadata from a non-repo launch

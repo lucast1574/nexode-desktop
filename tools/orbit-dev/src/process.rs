@@ -144,3 +144,85 @@ mod tests {
         }
     }
 }
+
+/// Run a configured command without pipe deadlocks, preserving both output
+/// streams and bounding runtime. Temporary spool files never reach the repo.
+pub fn capture(command: &mut Command, timeout: Duration) -> Result<std::process::Output> {
+    use std::io::{Read, Seek, SeekFrom};
+    use std::process::Stdio;
+    let mut stdout = tempfile::tempfile()?;
+    let mut stderr = tempfile::tempfile()?;
+    command
+        .stdin(Stdio::null())
+        .stdout(stdout.try_clone()?)
+        .stderr(stderr.try_clone()?);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command.spawn().context("start bounded child process")?;
+    let deadline = Instant::now()
+        .checked_add(timeout)
+        .context("timeout overflow")?;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {}
+            Err(error) => {
+                kill_tree(&mut child);
+                let _ = child.wait();
+                return Err(error.into());
+            }
+        }
+        if Instant::now() >= deadline {
+            kill_tree(&mut child);
+            let _ = child.wait();
+            anyhow::bail!("command timed out after {:.1}s", timeout.as_secs_f64());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    ensure!(
+        stdout.metadata()?.len() <= 64 * 1024 * 1024
+            && stderr.metadata()?.len() <= 64 * 1024 * 1024,
+        "command output exceeded 64 MiB"
+    );
+    stdout.seek(SeekFrom::Start(0))?;
+    stderr.seek(SeekFrom::Start(0))?;
+    let mut out = Vec::new();
+    let mut err = Vec::new();
+    stdout.read_to_end(&mut out)?;
+    stderr.read_to_end(&mut err)?;
+    Ok(std::process::Output {
+        status,
+        stdout: out,
+        stderr: err,
+    })
+}
+
+#[cfg(all(test, unix))]
+mod capture_tests {
+    use super::*;
+    #[test]
+    fn captures_both_streams_and_preserves_failure() {
+        let mut c = Command::new("sh");
+        c.args(["-c", "printf evidence; printf diagnostic >&2; exit 7"]);
+        let output = capture(&mut c, Duration::from_secs(2)).unwrap();
+        assert_eq!(output.status.code(), Some(7));
+        assert_eq!(output.stdout, b"evidence");
+        assert_eq!(output.stderr, b"diagnostic");
+    }
+    #[test]
+    fn capture_timeout_is_an_error_and_kills_process_group() {
+        let mut c = Command::new("sh");
+        c.args(["-c", "sleep 60 & wait"]);
+        let start = Instant::now();
+        assert!(
+            capture(&mut c, Duration::from_millis(100))
+                .unwrap_err()
+                .to_string()
+                .contains("timed out")
+        );
+        assert!(start.elapsed() < Duration::from_secs(3));
+    }
+}

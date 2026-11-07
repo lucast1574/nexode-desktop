@@ -36,9 +36,9 @@ def main():
             'FAKE_LOG': str(root / 'requests.jsonl'), 'FAKE_LABEL': 'detached',
             'FAKE_PORT_FILE': str(root / 'port'), 'FAKE_CONTROL_DIR': str(gates),
         }
-        fake = Path(__file__).with_name('fake_openai_server.py').resolve()
+        fake = subprocess.check_output([str(Path(__file__).with_name('orbit_dev.sh')), '--build-only'], text=True, timeout=600).strip()
         with (root / 'provider.log').open('w') as output:
-            provider = subprocess.Popen([sys.executable, str(fake), '0'], env=env, stdout=output, stderr=output)
+            provider = subprocess.Popen([fake, 'fake-openai-server', '0'], env=env, stdout=output, stderr=output)
             supervisor_pid = None
             try:
                 deadline = time.monotonic() + 10

@@ -90,7 +90,9 @@ jobs:
           fi
 
       - name: Validate acceptance harness contracts
-        run: python3 tests/test_cloud_acceptance_harness.py
+        run: |
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev fake_openai::
+          python3 tests/test_cloud_acceptance_harness.py
 
       - name: Check module declarations resolve
         run: cargo xtask check-modules

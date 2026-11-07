@@ -7,6 +7,7 @@ set -euo pipefail
 # Re-exec with an allowlisted environment before starting any client or daemon.
 # Even a caller-supplied W is only a parent: never reuse or delete an old run.
 if [[ ${1:-} != --isolated ]]; then
+  ORBIT_DEV_BIN=$("$(dirname "$0")/orbit_dev.sh" --build-only)
   NEXODE_BIN=$(realpath -e "${NEXODE_BIN:?set NEXODE_BIN to the nexode binary under test}")
   SCRIPT=$(realpath -e "$0")
   W=$(mktemp -d "${W:-${NEXODE_SCRATCH_DIR:-/tmp}}/cloud-test.XXXXXX")
@@ -17,7 +18,7 @@ if [[ ${1:-} != --isolated ]]; then
   done
   exec env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 \
     HOME="$W/home" TMPDIR="$W/tmp" XDG_RUNTIME_DIR="$W/runtime" NEXODE_RUNTIME_DIR="$W/runtime" \
-    NEXODE_TEST_WORKSPACE="$W" W="$W" NEXODE_BIN="$NEXODE_BIN" \
+    NEXODE_TEST_WORKSPACE="$W" W="$W" NEXODE_BIN="$NEXODE_BIN" ORBIT_DEV_BIN="$ORBIT_DEV_BIN" \
     "${EXTRA[@]}" bash "$SCRIPT" --isolated
 fi
 REPO=$W/repo
@@ -72,17 +73,8 @@ fail() { printf '  FAIL %s\n' "$*"; exit 1; }
 
 # Bind port zero inside the real fake server, then publish the selected port.
 # This avoids the pick-a-free-port / close / rebind race in concurrent runs.
-FAKE_LOG=$W/model.log FAKE_LABEL=model python3 - "$(dirname "$0")/fake_openai_server.py" "$W/port" > "$W/provider.log" 2>&1 <<'PY' &
-import http.server, pathlib, runpy, sys
-script, port_file = sys.argv[1:]
-original = http.server.HTTPServer.server_activate
-def activate(server):
-    original(server)
-    pathlib.Path(port_file).write_text(str(server.server_address[1]))
-http.server.HTTPServer.server_activate = activate
-sys.argv = [script, '0']
-runpy.run_path(script, run_name='__main__')
-PY
+FAKE_LOG=$W/model.log FAKE_LABEL=model FAKE_PORT_FILE="$W/port" \
+  "$ORBIT_DEV_BIN" fake-openai-server 0 > "$W/provider.log" 2>&1 &
 SRV=$!
 for ((attempt=0; attempt<100; attempt++)); do
   [[ -s "$W/port" ]] && break

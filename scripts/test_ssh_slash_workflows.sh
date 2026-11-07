@@ -2,6 +2,7 @@
 # Real native SSH + TUI + daemon acceptance. Only model responses are synthetic.
 # Never reads the operator's auth/config or mutates their daemon/workspace.
 set -euo pipefail
+ORBIT_DEV_BIN=$("$(dirname "$0")/orbit_dev.sh" --build-only)
 : "${NEXODE_BIN:?Set NEXODE_BIN to the rebuilt binary}"
 NEXODE_BIN=$(realpath "$NEXODE_BIN")
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -74,7 +75,7 @@ LogLevel ERROR
 EOF
 /usr/bin/sshd -f "$W/ssh/sshd_config" -E "$W/ssh/log"
 FAKE_LOG="$W/model.log" FAKE_LABEL=workflow FAKE_CONTROL_DIR="$W/control" \
-    python3 "$SCRIPT_DIR/fake_openai_server.py" "$MODEL_PORT" > "$W/model-output.log" 2>&1 &
+    "$ORBIT_DEV_BIN" fake-openai-server "$MODEL_PORT" > "$W/model-output.log" 2>&1 &
 MODEL_PID=$!
 PATH="$W/bin:$PATH" ssh -o BatchMode=yes slash-fixture 'printf fixture-ready' > "$W/probe"
 grep -Fq fixture-ready "$W/probe" || fail 'real SSH authentication failed'
