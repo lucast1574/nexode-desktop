@@ -232,11 +232,11 @@ More importantly, the browse listing no longer prints each entry's setup
 instructions. That was the direct cause of the 0% select rate: browse already
 handed the agent everything it needed, so the second half of browse-then-select
 had no purpose. Setup now lives only in the select response.
-`scripts/verify_discovery_select.py` verifies that handoff end to end against a
+`cargo xtask verify-discovery-select` verifies that handoff end to end against a
 local fake catalog, with no model credits and no live endpoint:
 
 ```bash
-python scripts/verify_discovery_select.py ./target/selfdev/nexode
+cargo xtask verify-discovery-select ./target/selfdev/nexode
 ```
 
 That script also covers off-catalog selects. The endpoint signals "no such

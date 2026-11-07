@@ -171,3 +171,8 @@ reproduces the old/fixed diagram fit plans. `--png` decodes alpha bounds nativel
 in Rust; `--alpha-bbox L,T,R,B` accepts measured bounds. Camera and clipping
 assertions return nonzero for failed conditions; a camera assertion without
 visible content evidence is an error. No Pillow or Python is needed.
+
+`cargo xtask verify-discovery-select [NEXODE_BINARY]` runs a real isolated Linux
+daemon against a loopback-only catalog without inference calls. It verifies
+browse/setup separation, explicit selection and off-catalog demand receipts.
+Cleanup targets only processes carrying the private fixture workspace marker.

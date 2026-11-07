@@ -131,6 +131,7 @@ fn main() -> Result<()> {
             let code = mermaid_probe::run(args)?;
             std::process::exit(code);
         }
+        Some("verify-discovery-select") => discovery::select_acceptance::run(args)?,
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,
