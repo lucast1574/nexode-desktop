@@ -947,6 +947,7 @@ dependencies = [
  "clap",
  "dirs",
  "flate2",
+ "getrandom 0.4.3",
  "hmac",
  "libc",
  "regex",

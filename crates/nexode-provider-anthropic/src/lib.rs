@@ -33,7 +33,7 @@ use history_repair::*;
 /// made the model tell users that Nexode is built on the Claude Agent SDK,
 /// which is false. Do not add an identity sentence back unless a fresh probe
 /// shows the billing block alone is rejected. If you change this, re-run
-/// `scripts/anthropic_oauth_identity_probe.py claude-opus-4-5` (not Haiku).
+/// `cargo xtask oauth-probe identity claude-opus-4-5` (not Haiku).
 /// Full write-up: docs/ANTHROPIC_OAUTH_IDENTITY_PROBE_2026_11_05.md
 pub const OAUTH_BILLING_HEADER: &str = "cc_version=2.1.280; cc_entrypoint=sdk-cli; cch=33f85;";
 

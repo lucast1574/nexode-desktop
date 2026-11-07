@@ -152,7 +152,7 @@ available.
 ## Re-running
 
 ```
-scripts/anthropic_oauth_identity_probe.py claude-opus-4-5
+cargo xtask oauth-probe identity claude-opus-4-5
 ```
 
 Uses the first Anthropic account in `~/.nexode/auth.json`. Each variant costs

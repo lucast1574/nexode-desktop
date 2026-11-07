@@ -105,3 +105,12 @@ binds binaries to the exact source, run, attempt, toolchain and build receipt.
 and only signs with explicit `--execute` on the target operating system.
 `signing-check` supplies shared identity, keychain, smoke and receipt guards.
 Signing workflows build `ORBIT_DEV_BIN` before exposing protected credentials.
+
+OAuth diagnostics: `cargo xtask oauth-helper` creates a private PKCE flow valid for
+15 minutes; `cargo xtask oauth-helper --exchange` reads the returned code or callback
+from stdin and atomically saves credentials, preserving unrelated keys. Pending state
+lives in `$NEXODE_HOME/oauth-helper.json` (default `~/.nexode`).
+`cargo xtask oauth-probe headers|identity|originator [MODEL] --dry-run` previews the
+original diagnostic request variants without credentials or network traffic. Omit
+`--dry-run` only to explicitly make live provider calls. `--auth-file` and `--account`
+select credentials; responses redact the access token. Unit tests use loopback servers.
