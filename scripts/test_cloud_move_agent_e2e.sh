@@ -28,38 +28,7 @@ printf -v REPO_Q %q "$REPO"
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
-  env -u NEXODE_TEST_WORKSPACE timeout --kill-after=2s 12s python3 - "$W" "$$" <<'PY' || status=1
-import os, signal, sys, time
-marker = b'NEXODE_TEST_WORKSPACE=' + os.fsencode(sys.argv[1])
-exclude = {os.getpid(), int(sys.argv[2])}
-def owned():
-    found = []
-    for name in os.listdir('/proc'):
-        if not name.isdigit() or int(name) in exclude:
-            continue
-        try:
-            if marker in open('/proc/' + name + '/environ', 'rb').read().split(b'\0'):
-                found.append(int(name))
-        except (OSError, ProcessLookupError):
-            pass
-    return found
-def stop(sig):
-    for pid in owned():
-        try: os.kill(pid, sig)
-        except ProcessLookupError: pass
-stop(signal.SIGTERM)
-deadline = time.monotonic() + 5
-while owned() and time.monotonic() < deadline:
-    time.sleep(.1)
-stop(signal.SIGKILL)
-deadline = time.monotonic() + 2
-while owned() and time.monotonic() < deadline:
-    time.sleep(.1)
-remaining = owned()
-if remaining:
-    print('Cleanup failed, surviving test processes:', remaining, file=sys.stderr)
-    sys.exit(1)
-PY
+  env -u NEXODE_TEST_WORKSPACE timeout --kill-after=2s 12s "$ORBIT_DEV_BIN" cloud-fixture cleanup-workspace "$W" "$$" || status=1
   if (( status != 0 )); then echo "FAILED: artifacts retained at $W" >&2; fi
   exit "$status"
 }
@@ -123,7 +92,7 @@ echo hi > a.txt; git add -A; git commit -qm init
 
 echo "== local turn"
 "${RUN[@]}" run --json "turn one on the laptop" > "$W/t1.json"
-SID=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["session_id"])' "$W/t1.json")
+SID=$("$ORBIT_DEV_BIN" cloud-fixture session-id "$W/t1.json")
 echo "   session $SID"
 if grep -q '\[model\] ack' "$W/t1.json"; then pass "local turn produced a reply"; else fail "local turn"; fi
 
@@ -150,14 +119,7 @@ if grep -q 'saw_cloud_notice=True' "$W/t2.json"; then
 else
   cat "$W/t2.json"; fail "cloud notice"
 fi
-python3 - "$W/model.log" <<'PY' || fail "cloud context"
-import json, sys
-last = [json.loads(l) for l in open(sys.argv[1])][-1]
-flat = json.dumps(last["messages"])
-assert "turn one on the laptop" in flat, "earlier turn missing from cloud context"
-assert "continue the task" in flat
-print("  PASS cloud turn saw the full earlier conversation")
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-cloud-context "$W/model.log" || fail "cloud context"
 CLOUD "cd $REPO_Q && echo 'cloud edit' > b.txt"
 
 echo "== return"
@@ -171,13 +133,5 @@ if test -f "$REPO/b.txt"; then pass "b.txt present locally"; else fail "b.txt"; 
 
 echo "== local turn after return"
 "${RUN[@]}" --resume "$SID" run --json "back on the laptop" > "$W/t3.json"
-python3 - "$W/model.log" <<'PY' || fail "local context after return"
-import json, sys
-last = [json.loads(l) for l in open(sys.argv[1])][-1]
-flat = json.dumps(last["messages"])
-for needle in ["turn one on the laptop", "continue the task", "returned from cloud host", "back on the laptop"]:
-    assert needle in flat, needle
-assert "should be blocked" not in flat, "blocked prompt leaked into transcript"
-print("  PASS local turn sees laptop turn + cloud turn + return notice, no blocked prompt")
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-local-context "$W/model.log" || fail "local context after return"
 echo "ALL AGENT E2E CHECKS PASSED ($W)"

@@ -387,3 +387,6 @@ with native argument vectors. Dry-run emits JSON actions without typing keys.
 `orbit-dev test-cloud-credentials /absolute/path/to/nexode [--case NAME]` checks 14 synthetic OAuth/router handoff scenarios using isolated local directories and pipes. It rejects secrets in diagnostics and archives (including gzip tar), verifies private file permissions, conflict rollback, dry-run behavior, refreshed-token return and one-way API-key transfer. `--case return_conflict_ownership_recovery` selects the ownership recovery scenario.
 
 The compositor verifier now launches `capture-alt-shift-e OUTPUT` (native raw terminal mode with automatic restoration) and reads niri JSON using `niri-window app APP_ID` / `niri-window focused`. The keyboard capture is tested with a real PTY; the compositor check still requires an interactive niri/Kitty/wtype environment.
+
+
+The Linux command `test-cloud-acceptance --binary PATH [--repeat 2] [--layers cli agent credentials group tui] [--scenario NAME] [--artifacts NEWDIR]` runs the complete isolated cloud gate with JSON/JUnit reports, retained timeout output, real loopback SSH and tmux TUI scenarios. See [cloud acceptance](../../docs/cloud-acceptance.md) for prerequisites and coverage.

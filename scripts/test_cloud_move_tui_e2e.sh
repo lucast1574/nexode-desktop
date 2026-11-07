@@ -3,5 +3,5 @@
 # shared with the full CLI/agent/credential gate, including isolated artifacts.
 set -euo pipefail
 : "${NEXODE_BIN:?Set NEXODE_BIN to the nexode binary under test}"
-exec python3 "$(dirname "$0")/test_cloud_acceptance.py" \
+exec "$(dirname "$0")/orbit_dev.sh" test-cloud-acceptance \
   --binary "$NEXODE_BIN" --layers tui "$@"

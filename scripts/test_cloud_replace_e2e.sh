@@ -4,12 +4,14 @@ set -euo pipefail
 if [[ ${1:-} != --isolated ]]; then
   BINARY=$(realpath -e "${NEXODE_BIN:?set NEXODE_BIN to the binary under test}")
   SCRIPT=$(realpath -e "$0")
+  ORBIT_DEV_BIN=${ORBIT_DEV_BIN:-$("$(dirname "$SCRIPT")/orbit_dev.sh" --build-only)}
+  ORBIT_DEV_BIN=$(realpath -e "$ORBIT_DEV_BIN")
   W=$(mktemp -d "${NEXODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/cloud-replace-test.XXXXXX")
   mkdir -p "$W/home" "$W/runtime" "$W/tmp"
   exec env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 HOME="$W/home" \
     TMPDIR="$W/tmp" XDG_RUNTIME_DIR="$W/runtime" NEXODE_RUNTIME_DIR="$W/runtime" \
     NEXODE_HOME="$W/home/.nexode" NEXODE_NO_AUTO_UPDATE=1 NEXODE_NO_TELEMETRY=1 \
-    NEXODE_NON_INTERACTIVE=1 W="$W" NEXODE_BIN="$BINARY" bash "$SCRIPT" --isolated
+    NEXODE_NON_INTERACTIVE=1 W="$W" NEXODE_BIN="$BINARY" ORBIT_DEV_BIN="$ORBIT_DEV_BIN" bash "$SCRIPT" --isolated
 fi
 trap 'echo "Acceptance artifacts: $W"' EXIT
 mkdir -p "$W/local/project space" "$W/cloud/projects" "$W/cloud/home"
@@ -77,15 +79,7 @@ run_replace --dry-run --json > "$W/existing-dry-run.json"
 run_replace --yes --json > "$W/replaced.json"
 cmp "$REPO/file.txt" "$CLOUD_REPO/file.txt"
 [[ ! -e "$CLOUD_REPO/cloud-only.txt" && ! -e "$CLOUD_REPO/ignored.txt" ]]
-BACKUP=$(python3 - "$W/replaced.json" "$W/local" "$W/cloud/projects" <<'PY'
-import json, sys
-report = json.load(open(sys.argv[1]))
-path = report['backup_path']
-assert path, report
-assert path.startswith(sys.argv[2] + '/'), path
-print(sys.argv[3] + path[len(sys.argv[2]):])
-PY
-)
+BACKUP=$("$ORBIT_DEV_BIN" cloud-fixture replacement-backup "$W/replaced.json" "$W/local" "$W/cloud/projects")
 [[ $(git -C "$BACKUP" rev-parse HEAD) == "$CLOUD_HEAD" ]]
 [[ $(cat "$BACKUP/file.txt") == 'cloud dirty' ]]
 [[ $(cat "$BACKUP/cloud-only.txt") == 'cloud only' ]]

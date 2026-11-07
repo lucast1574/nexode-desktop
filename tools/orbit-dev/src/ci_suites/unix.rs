@@ -70,7 +70,7 @@ impl Drop for Group {
         }
     }
 }
-pub(super) fn execute(command: &mut Command, timeout: Duration) -> Result<i32> {
+pub(crate) fn execute(command: &mut Command, timeout: Duration) -> Result<i32> {
     command.process_group(0);
     let child = command.spawn().context("start Cargo suite")?;
     let mut group = Group { child, armed: true };

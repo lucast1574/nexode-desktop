@@ -2,6 +2,7 @@
 # Actual CLI/daemon group transfer on two isolated homes and repository disks.
 set -euo pipefail
 if [[ ${1:-} != --isolated ]]; then
+  ORBIT_DEV_BIN=$("$(dirname "$0")/orbit_dev.sh" --build-only)
   BINARY=$(realpath -e "${NEXODE_BIN:?set NEXODE_BIN to the binary under test}")
   SCRIPT=$(realpath -e "$0")
   W=$(mktemp -d "${NEXODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/cloud-group-test.XXXXXX")
@@ -9,7 +10,7 @@ if [[ ${1:-} != --isolated ]]; then
   exec env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 HOME="$W/home" \
     TMPDIR="$W/tmp" XDG_RUNTIME_DIR="$W/runtime" NEXODE_RUNTIME_DIR="$W/runtime" \
     NEXODE_HOME="$W/home/.nexode" NEXODE_NO_AUTO_UPDATE=1 NEXODE_NO_TELEMETRY=1 \
-    NEXODE_NON_INTERACTIVE=1 W="$W" NEXODE_BIN="$BINARY" bash "$SCRIPT" --isolated
+    ORBIT_DEV_BIN="$ORBIT_DEV_BIN" NEXODE_NON_INTERACTIVE=1 W="$W" NEXODE_BIN="$BINARY" bash "$SCRIPT" --isolated
 fi
 RUNTIME=$(mktemp -d /tmp/jcg.XXXXXX)
 mkdir "$RUNTIME/local" "$RUNTIME/cloud"
@@ -29,7 +30,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-for prerequisite in bwrap python3 git setsid rg timeout; do command -v "$prerequisite" >/dev/null; done
+for prerequisite in bwrap git setsid rg timeout; do command -v "$prerequisite" >/dev/null; done
 REPO="$W/local/project"
 mkdir -p "$REPO" "$W/cloud/projects" "$W/cloud/home" "$NEXODE_HOME/sessions" "$NEXODE_HOME/todos" "$NEXODE_RUNTIME_DIR/durable-state/swarm"
 git -C "$REPO" init -q
@@ -43,25 +44,7 @@ printf 'untracked\n' > "$REPO/untracked.txt"
 mkdir -p "$REPO/.nexode"
 printf '{"requirements":[{"kind":"env_var","name":"GROUP_RESOURCE_TOKEN"}]}\n' > "$REPO/.nexode/cloud-environment.json"
 export GROUP_RESOURCE_TOKEN=synthetic-group-resource
-python3 - "$NEXODE_HOME" "$REPO" "$NEXODE_RUNTIME_DIR" <<'PY'
-import datetime,json,pathlib,sys,time
-home,repo,runtime=map(pathlib.Path,sys.argv[1:])
-now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-for sid in ['group-root','group-worker','independent','excluded']:
-    session={'id':sid,'title':sid,'created_at':now,'updated_at':now,'working_dir':str(repo),'status':'Active',
-             'messages':[{'id':'message-'+sid,'role':'user','timestamp':now,'content':[{'type':'text','text':'Fixture '+sid}]}]}
-    (home/'sessions'/f'{sid}.json').write_text(json.dumps(session))
-    (home/'todos'/f'{sid}.json').write_text(json.dumps({'items':[],'goal':sid}))
-def member(sid,role,owner):
-    return {'session_id':sid,'working_dir':str(repo),'swarm_id':'fixture-swarm','swarm_enabled':True,
-            'status':'ready','detail':None,'friendly_name':sid,'report_back_to_session_id':owner,
-            'role':role,'is_headless':False}
-swarm={'swarm_id':'fixture-swarm','coordinator_session_id':'group-root','updated_at_unix_ms':int(time.time()*1000),
-       'plan':{'items':[{'id':'work','content':'Continue fixture','status':'pending','priority':'normal','assigned_to':'group-worker'}],
-               'version':7,'participants':['group-root','group-worker']},
-       'members':[member('group-root','coordinator',None),member('group-worker','agent','group-root')]}
-(runtime/'durable-state'/'swarm'/'fixture-swarm.json').write_text(json.dumps(swarm))
-PY
+"$ORBIT_DEV_BIN" cloud-fixture seed-group "$NEXODE_HOME" "$REPO" "$NEXODE_RUNTIME_DIR"
 {
   printf '#!/usr/bin/env bash\nset -euo pipefail\n'
   printf 'W=%q\nBINARY=%q\nRUNTIME=%q\n' "$W" "$NEXODE_BIN" "$RUNTIME"
@@ -92,14 +75,7 @@ setsid "$NEXODE_BIN" --no-update --no-selfdev serve > "$W/local-daemon.log" 2>&1
 PIDS+=("$!")
 setsid "$W/transport" '/tmp/nexode-group-test --no-update --no-selfdev serve' > "$W/cloud-daemon.log" 2>&1 &
 PIDS+=("$!")
-python3 - "$RUNTIME/local/local-debug.sock" "$RUNTIME/cloud/cloud-debug.sock" <<'PY'
-import pathlib,sys,time
-for name in sys.argv[1:]:
-    until=time.monotonic()+20
-    while not pathlib.Path(name).exists():
-        if time.monotonic()>until: raise AssertionError('daemon did not start: '+name)
-        time.sleep(.05)
-PY
+"$ORBIT_DEV_BIN" cloud-fixture wait-paths "$RUNTIME/local/local-debug.sock" "$RUNTIME/cloud/cloud-debug.sock"
 if "$NEXODE_BIN" --no-update --no-selfdev debug sessions --socket "$NEXODE_SOCKET" > "$W/debug-output" 2> "$W/debug-error"; then
   echo 'FAIL: group migration must not require unrestricted debug control' >&2
   exit 1
@@ -120,52 +96,13 @@ if move_group > "$W/uncertain.json" 2> "$W/uncertain.err"; then
   echo 'FAIL: simulated lost activation response reported success' >&2
   exit 1
 fi
-python3 - "$NEXODE_HOME" <<'PY'
-import json,pathlib,sys
-home=pathlib.Path(sys.argv[1])
-for sid in ['group-root','group-worker','independent']:
-    lease=json.loads((home/'session_leases'/f'{sid}.json').read_text())
-    assert lease['away_host']=='fixture-cloud',lease
-assert not (home/'session_leases'/'excluded.json').exists()
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-group-away "$NEXODE_HOME"
 rm "$W/lose-activation-response"
 move_group > "$W/recovered.json"
-python3 - "$NEXODE_HOME" "$W/cloud/home/.nexode" "$RUNTIME/cloud/durable-state/swarm" <<'PY'
-import json,pathlib,sys
-local,cloud,state=map(pathlib.Path,sys.argv[1:])
-for sid in ['group-root','group-worker','independent']:
-    original=json.loads((local/'sessions'/f'{sid}.json').read_text())
-    moved=json.loads((cloud/'sessions'/f'{sid}.json').read_text())
-    assert moved['id']==sid
-    original_message=dict(original['messages'][0])
-    moved_message=dict(moved['messages'][0])
-    from datetime import datetime
-    assert datetime.fromisoformat(original_message.pop('timestamp'))==datetime.fromisoformat(moved_message.pop('timestamp').replace('Z','+00:00'))
-    assert moved_message==original_message
-    assert moved['migration_epoch']==1,moved
-    text='\n'.join(b.get('text','') for m in moved['messages'] for b in m['content'])
-    if sid=='group-root':
-        assert 'setup once for the workspace' in text,text
-    else:
-        assert 'do not independently repeat workspace setup' in text,text
-    assert (cloud/'todos'/f'{sid}.json').read_bytes()==(local/'todos'/f'{sid}.json').read_bytes()
-    assert not json.loads((cloud/'session_leases'/f'{sid}.json').read_text()).get('away_host')
-assert not (cloud/'sessions'/'excluded.json').exists()
-swarm=json.loads((state/'fixture-swarm.json').read_text())
-assert swarm['coordinator_session_id']=='group-root',swarm
-assert {'group-root','group-worker'}=={m['session_id'] for m in swarm['members']},swarm
-assert swarm['plan']['version']==7,swarm
-assert swarm['plan']['items'][0]['assigned_to']=='group-worker',swarm
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-group-recovered "$NEXODE_HOME" "$W/cloud/home/.nexode" "$RUNTIME/cloud/durable-state/swarm"
 cmp "$REPO/file.txt" "$W/cloud/projects/project/file.txt"
 cmp "$REPO/untracked.txt" "$W/cloud/projects/project/untracked.txt"
-python3 - "$W/cloud/home/.nexode/cloud-environment" "$W/environment-transfers" <<'PY'
-import json,pathlib,sys
-files=list(pathlib.Path(sys.argv[1]).glob('*.json'))
-assert len(files)==1,files
-assert json.loads(files[0].read_text())['GROUP_RESOURCE_TOKEN']=='synthetic-group-resource'
-assert pathlib.Path(sys.argv[2]).read_text().splitlines()==['receive'],'setup must replay once for the whole group'
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-group-environment "$W/cloud/home/.nexode/cloud-environment" "$W/environment-transfers"
 if rg -q 'synthetic-group-resource' "$W/preview.json" "$W/recovered.json" "$W/uncertain.err"; then
   echo 'FAIL: opaque environment value appeared in command output' >&2
   exit 1

@@ -12,6 +12,7 @@ set -euo pipefail
 # Re-exec with an allowlisted environment before starting any client or daemon.
 # Even a caller-supplied W is only a parent: never reuse or delete an old run.
 if [[ ${1:-} != --isolated ]]; then
+  ORBIT_DEV_BIN=$("$(dirname "$0")/orbit_dev.sh" --build-only)
   NEXODE_BIN=$(realpath -e "${NEXODE_BIN:?set NEXODE_BIN to the nexode binary under test}")
   SCRIPT=$(realpath -e "$0")
   W=$(mktemp -d "${W:-${NEXODE_SCRATCH_DIR:-/tmp}}/cloud-test.XXXXXX")
@@ -22,7 +23,7 @@ if [[ ${1:-} != --isolated ]]; then
   done
   exec env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 \
     HOME="$W/home" TMPDIR="$W/tmp" XDG_RUNTIME_DIR="$W/runtime" NEXODE_RUNTIME_DIR="$W/runtime" \
-    NEXODE_TEST_WORKSPACE="$W" W="$W" NEXODE_BIN="$NEXODE_BIN" \
+    NEXODE_TEST_WORKSPACE="$W" W="$W" NEXODE_BIN="$NEXODE_BIN" ORBIT_DEV_BIN="$ORBIT_DEV_BIN" \
     "${EXTRA[@]}" bash "$SCRIPT" --isolated
 fi
 REPO=$W/repo
@@ -32,38 +33,7 @@ printf -v REPO_Q %q "$REPO"
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
-  env -u NEXODE_TEST_WORKSPACE timeout --kill-after=2s 12s python3 - "$W" "$$" <<'PY' || status=1
-import os, signal, sys, time
-marker = b'NEXODE_TEST_WORKSPACE=' + os.fsencode(sys.argv[1])
-exclude = {os.getpid(), int(sys.argv[2])}
-def owned():
-    found = []
-    for name in os.listdir('/proc'):
-        if not name.isdigit() or int(name) in exclude:
-            continue
-        try:
-            if marker in open('/proc/' + name + '/environ', 'rb').read().split(b'\0'):
-                found.append(int(name))
-        except (OSError, ProcessLookupError):
-            pass
-    return found
-def stop(sig):
-    for pid in owned():
-        try: os.kill(pid, sig)
-        except ProcessLookupError: pass
-stop(signal.SIGTERM)
-deadline = time.monotonic() + 5
-while owned() and time.monotonic() < deadline:
-    time.sleep(.1)
-stop(signal.SIGKILL)
-deadline = time.monotonic() + 2
-while owned() and time.monotonic() < deadline:
-    time.sleep(.1)
-remaining = owned()
-if remaining:
-    print('Cleanup failed, surviving test processes:', remaining, file=sys.stderr)
-    sys.exit(1)
-PY
+  env -u NEXODE_TEST_WORKSPACE timeout --kill-after=2s 12s "$ORBIT_DEV_BIN" cloud-fixture cleanup-workspace "$W" "$$" || status=1
   if (( status != 0 )); then echo "FAILED: artifacts retained at $W" >&2; fi
   exit "$status"
 }
@@ -136,21 +106,7 @@ LOCAL_HEAD=$(git rev-parse HEAD)
 # ---- a real session JSON in the isolated local home ---------------------
 SID=session_e2e_$(date +%s)
 mkdir -p "$NEXODE_HOME/sessions" "$NEXODE_HOME/todos"
-python3 - "$NEXODE_HOME/sessions/$SID.json" "$SID" "$REPO" <<'PY'
-import json, sys, datetime
-path, sid, repo = sys.argv[1:]
-now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-def msg(i, role, blocks): return {"id": f"message_{i}", "role": role, "content": blocks, "timestamp": now}
-json.dump({
-  "id": sid, "title": "cloud e2e", "created_at": now, "updated_at": now,
-  "working_dir": repo, "status": "Active",
-  "messages": [
-    msg(1, "user", [{"type": "text", "text": "Please change main.rs to print v2"}]),
-    msg(2, "assistant", [{"type": "text", "text": "Editing main.rs now."},
-                          {"type": "tool_use", "id": "toolu_1", "name": "bash", "input": {"command": "nexode cloud move"}}]),
-  ],
-}, open(path, "w"))
-PY
+"$ORBIT_DEV_BIN" cloud-fixture seed-session "$NEXODE_HOME/sessions/$SID.json" "$SID" "$REPO"
 echo '[{"id":"1","content":"finish v2","status":"in_progress","priority":"high"}]' > "$NEXODE_HOME/todos/$SID.json"
 
 echo "== 1. dry run changes nothing"
@@ -177,20 +133,7 @@ check "cloud has transcript" CLOUD "test -f /home/cloud/.nexode/sessions/$SID.js
 check "cloud has todos" CLOUD "grep -q 'finish v2' /home/cloud/.nexode/todos/$SID.json"
 check "cloud lease says here" lease_is_here "$CLOUD_ROOT/home/.nexode/session_leases/$SID.json"
 CLOUD "cat /home/cloud/.nexode/sessions/$SID.json" > "$W/cloud-session.json"
-python3 - "$W/cloud-session.json" <<'PY' || fail "agent-facing migration notice"
-import json, sys
-s = json.load(open(sys.argv[1]))
-last = s["messages"][-1]
-texts = [b.get("text", "") for b in last["content"] if b.get("type") == "text"]
-results = [b for b in last["content"] if b.get("type") == "tool_result"]
-notice = "\n".join(texts)
-assert "moved from `laptop-e2e` to cloud host `cloud-e2e`" in notice, notice
-assert "same path" in notice and "uncommitted" in notice, notice
-assert "Build caches" in notice, notice
-assert results and results[0]["tool_use_id"] == "toolu_1", "dangling tool call not closed"
-assert s["migration_epoch"] == 1
-print("  PASS agent-facing migration notice + dangling tool call closed")
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-move-notice "$W/cloud-session.json" || fail "agent-facing migration notice"
 
 echo "== 3. local copy can no longer run or overwrite"
 refuse_move() { ! J cloud move --session "$SID" "${RB[@]}" --allow-active 2>/dev/null; }
@@ -202,13 +145,7 @@ echo "== 4. work happens on both sides"
 # cloud agent: commits the wip + adds a new file, leaves one uncommitted edit
 CLOUD "cd $REPO_Q && git add -A && git commit -qm 'cloud: finish v2' && echo 'cloud feature' > cloud.txt && git add cloud.txt && git commit -qm 'cloud: add cloud.txt' && printf 'shared line 1\nshared line 2\nshared line 3 edited in cloud\n' > notes.txt"
 # append a cloud-side turn to the transcript (what the cloud agent would do)
-CLOUD "python3 - <<'PY'
-import json
-p='/home/cloud/.nexode/sessions/$SID.json'
-s=json.load(open(p))
-s['messages'].append({'id':'message_cloud','role':'assistant','content':[{'type':'text','text':'Done on the cloud: committed v2 and added cloud.txt.'}]})
-json.dump(s,open(p,'w'))
-PY"
+"$ORBIT_DEV_BIN" cloud-fixture append-cloud-turn "$CLOUD_ROOT/home/.nexode/sessions/$SID.json"
 # meanwhile the user keeps editing locally in a non-conflicting spot
 cd "$REPO"
 printf 'shared line 1 edited locally\nshared line 2\nshared line 3\n' > notes.txt
@@ -232,16 +169,7 @@ check "local-only file kept" test -f "$REPO/local.txt"
 check "ignored build output untouched" test -f "$REPO/target/big.bin"
 check "local lease is home again" lease_is_here "$NEXODE_HOME/session_leases/$SID.json"
 check "cloud lease no longer owns" grep -q '"away_host": "returned-complete"' "$CLOUD_ROOT/home/.nexode/session_leases/$SID.json"
-python3 - "$NEXODE_HOME/sessions/$SID.json" <<'PY' || fail "returned transcript"
-import json, sys
-s = json.load(open(sys.argv[1]))
-texts = [b.get("text","") for m in s["messages"] for b in m["content"] if b.get("type")=="text"]
-assert any("Done on the cloud" in t for t in texts), "cloud turn missing"
-assert "returned from cloud host `cloud-e2e`" in texts[-1], texts[-1]
-assert "merged into the local checkout" in texts[-1], texts[-1]
-assert s["migration_epoch"] == 2
-print("  PASS returned transcript has cloud turns + return notice (epoch 2)")
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-return-notice "$NEXODE_HOME/sessions/$SID.json" || fail "returned transcript"
 
 echo "== 6. round trip again, this time with a real conflict"
 J cloud move --session "$SID" "${RB[@]}" --json > /dev/null

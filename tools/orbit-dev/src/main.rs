@@ -6,6 +6,10 @@ mod browser_cold;
 mod browser_fixture;
 mod browser_package;
 mod ci_suites;
+#[cfg(target_os = "linux")]
+mod cloud_acceptance;
+#[cfg(target_os = "linux")]
+mod cloud_checks;
 #[cfg(unix)]
 mod cloud_credentials;
 #[cfg(target_os = "linux")]
@@ -121,6 +125,18 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("cloud-fixture") => {
+            #[cfg(target_os = "linux")]
+            cloud_checks::run(args)?;
+            #[cfg(not(target_os = "linux"))]
+            bail!("cloud fixtures require Linux");
+        }
+        Some("test-cloud-acceptance") => {
+            #[cfg(target_os = "linux")]
+            std::process::exit(cloud_acceptance::run(&root()?, args)?);
+            #[cfg(not(target_os = "linux"))]
+            bail!("cloud acceptance requires Linux namespaces");
+        }
         Some("capture-alt-shift-e") => {
             #[cfg(unix)]
             key_capture::run(args)?;

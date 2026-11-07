@@ -4,15 +4,17 @@ set -euo pipefail
 if [[ ${1:-} != --isolated ]]; then
   BINARY=$(realpath -e "${NEXODE_BIN:?set NEXODE_BIN to the binary under test}")
   SCRIPT=$(realpath -e "$0")
+  ORBIT_DEV_BIN=${ORBIT_DEV_BIN:-$("$(dirname "$SCRIPT")/orbit_dev.sh" --build-only)}
+  ORBIT_DEV_BIN=$(realpath -e "$ORBIT_DEV_BIN")
   W=$(mktemp -d "${NEXODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/cloud-environment-test.XXXXXX")
   mkdir -p "$W/home" "$W/runtime" "$W/tmp"
   exec env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 HOME="$W/home" \
     TMPDIR="$W/tmp" XDG_RUNTIME_DIR="$W/runtime" NEXODE_RUNTIME_DIR="$W/runtime" \
     NEXODE_HOME="$W/home/.nexode" NEXODE_NO_AUTO_UPDATE=1 NEXODE_NO_TELEMETRY=1 \
-    NEXODE_NON_INTERACTIVE=1 W="$W" NEXODE_BIN="$BINARY" bash "$SCRIPT" --isolated
+    NEXODE_NON_INTERACTIVE=1 W="$W" NEXODE_BIN="$BINARY" ORBIT_DEV_BIN="$ORBIT_DEV_BIN" bash "$SCRIPT" --isolated
 fi
 trap 'echo "Acceptance artifacts: $W"' EXIT
-for prerequisite in bwrap python3 rg; do
+for prerequisite in bwrap rg; do
   command -v "$prerequisite" >/dev/null || { echo "Missing test prerequisite: $prerequisite" >&2; exit 1; }
 done
 mkdir -p "$W/local/project space/.git" "$W/cloud/projects/project space/.git" \
@@ -41,15 +43,11 @@ chmod +x "$W/bin/ssh"
 export PATH="$W/bin:$PATH" NEXODE_CLOUD_REMOTE_BINARY=/tmp/nexode-env-test
 cd "$REPO"
 run_env() { "$NEXODE_BIN" --no-update --no-selfdev cloud env "$@"; }
+expect_rejection() {
+  if "$@"; then echo "FAIL: rejected request unexpectedly succeeded" >&2; exit 1; fi
+}
 assert_status() {
-  python3 - "$1" "$2" <<'PY'
-import json, sys
-r=json.load(open(sys.argv[1]))
-assert set(r)=={'ok','code','applied','skipped'}, r
-assert r['ok'] is (sys.argv[2]=='true'), r
-assert r['code'] in ('available','received','unavailable'), r
-assert isinstance(r['applied'],int) and isinstance(r['skipped'],int)
-PY
+  "$ORBIT_DEV_BIN" cloud-fixture assert-environment-status "$1" "$2"
 }
 push_request() {
   run_env push --host isolated-cloud --request "$2" > "$W/results/$1.json" 2> "$W/results/$1.err"
@@ -62,13 +60,7 @@ cmp "$REPO/.env" "$CLOUD_REPO/.env"
 cmp "$W/home/.config/gh/hosts.yml" "$W/cloud/home/.config/gh/hosts.yml"
 [[ $(stat -c '%a' "$CLOUD_REPO/.env") == 600 ]]
 [[ $(stat -c '%a' "$W/cloud/home/.config/gh/hosts.yml") == 600 ]]
-python3 - "$W/cloud/home/.nexode/cloud-environment" <<'PY'
-import glob,json,sys,os
-files=glob.glob(sys.argv[1]+'/*.json')
-assert len(files)==1, files
-assert json.load(open(files[0]))['CLOUD_TEST_RESOURCE_TOKEN']=='opaque-token-sentinel'
-assert os.stat(files[0]).st_mode & 0o777 == 0o600
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-environment-token "$W/cloud/home/.nexode/cloud-environment"
 # Different existing data must never be overwritten by a later transfer.
 printf 'newer-cloud-credential\n' > "$W/cloud/home/.config/gh/hosts.yml"
 printf 'newer-cloud-file\n' > "$CLOUD_REPO/.env"
@@ -86,19 +78,19 @@ printf '%s' '{"action":"fetch","resource":{"kind":"project_file","path":".env.ca
   run_env fulfill --session test-session > "$W/results/callback.json" 2> "$W/results/callback.err"
 assert_status "$W/results/callback.json" true
 cmp "$REPO/.env.callback" "$CLOUD_REPO/.env.callback"
-NEXODE_CLOUD_ENV_SESSION=other run_env fulfill --session test-session <<< '{"action":"status"}' > "$W/results/wrong-session.json"
+NEXODE_CLOUD_ENV_SESSION=other expect_rejection run_env fulfill --session test-session <<< '{"action":"status"}' > "$W/results/wrong-session.json"
 assert_status "$W/results/wrong-session.json" false
-NEXODE_SSH_REMOTE=other run_env fulfill --session test-session <<< '{"action":"status"}' > "$W/results/wrong-host.json"
+NEXODE_SSH_REMOTE=other expect_rejection run_env fulfill --session test-session <<< '{"action":"status"}' > "$W/results/wrong-host.json"
 assert_status "$W/results/wrong-host.json" false
 printf '{"session_id":"test-session","epoch":1,"away_host":"isolated-cloud","repo_root":"%s","updated_at":"2000-01-01T00:00:00Z"}\n' "$REPO" > "$NEXODE_HOME/session_leases/test-session.json"
-run_env fulfill --session test-session <<< '{"action":"status"}' > "$W/results/expired.json"
+expect_rejection run_env fulfill --session test-session <<< '{"action":"status"}' > "$W/results/expired.json"
 assert_status "$W/results/expired.json" false
 # Restricted API rejects arbitrary files, executable environment controls and SSH keys.
 for REQUEST in \
   '{"action":"fetch","resource":{"kind":"project_file","path":"../private"}}' \
   '{"action":"fetch","resource":{"kind":"env_var","name":"BASH_ENV"}}' \
   '{"action":"fetch","resource":{"kind":"credential","name":"ssh"}}'; do
-  run_env push --host isolated-cloud --request "$REQUEST" > "$W/results/rejected.json"
+  expect_rejection run_env push --host isolated-cloud --request "$REQUEST" > "$W/results/rejected.json"
   assert_status "$W/results/rejected.json" false
 done
 # Statuses and metadata must never contain synthetic secret bytes.

@@ -17,6 +17,7 @@ on:
       - 'crates/**'
       - 'scripts/**'
       - 'tests/**'
+      - 'tools/orbit-dev/**'
       - 'docs/cloud-acceptance.md'
   pull_request:
     branches: [main, master]
@@ -31,6 +32,7 @@ on:
       - 'crates/**'
       - 'scripts/**'
       - 'tests/**'
+      - 'tools/orbit-dev/**'
       - 'docs/cloud-acceptance.md'
 
 permissions:
@@ -73,13 +75,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang mold tmux openssh-server bubblewrap util-linux python3 ripgrep
+          sudo apt-get install -y -qq clang mold tmux openssh-server bubblewrap util-linux ripgrep
           # The fixture runs its own unprivileged loopback-only sshd, not the service.
           sudo install -d -m 0755 /run/sshd
-          # cloud_acceptance_tui.py deliberately invokes this exact absolute path.
-          if [[ ! -e /usr/bin/sshd ]]; then
-            sudo ln -s /usr/sbin/sshd /usr/bin/sshd
-          fi
           # Ubuntu's AppArmor userns restriction blocks the fixture's unshare/mount.
           # Change only this ephemeral hosted runner, never a developer's host.
           if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
@@ -92,7 +90,8 @@ jobs:
       - name: Validate acceptance harness contracts
         run: |
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev fake_openai::
-          python3 tests/test_cloud_acceptance_harness.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev cloud_acceptance::
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test cloud_acceptance
 
       - name: Check module declarations resolve
         run: cargo xtask check-modules
@@ -122,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(id -u)" -ne 0
-          python3 scripts/test_cloud_acceptance.py \
+          scripts/orbit_dev.sh test-cloud-acceptance \
             --binary "$GITHUB_WORKSPACE/target/x86_64-unknown-linux-gnu/release/nexode" \
             --repeat 2 \
             --artifacts "$RUNNER_TEMP/cloud-acceptance"

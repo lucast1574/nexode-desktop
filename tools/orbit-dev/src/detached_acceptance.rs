@@ -29,10 +29,15 @@ impl Drop for Fixture {
 }
 #[cfg(target_os = "linux")]
 pub fn cleanup_workspace(root: &Path) -> Result<()> {
+    cleanup_workspace_except(root, &[])
+}
+#[cfg(target_os = "linux")]
+pub fn cleanup_workspace_except(root: &Path, excluded: &[i32]) -> Result<()> {
     let marker = format!("NEXODE_TEST_WORKSPACE={}", root.display());
     let owned = |pid: i32| {
-        fs::read(format!("/proc/{pid}/environ"))
-            .is_ok_and(|env| env.split(|b| *b == 0).any(|v| v == marker.as_bytes()))
+        !excluded.contains(&pid)
+            && fs::read(format!("/proc/{pid}/environ"))
+                .is_ok_and(|env| env.split(|b| *b == 0).any(|v| v == marker.as_bytes()))
     };
     let mut pids = Vec::new();
     for entry in fs::read_dir("/proc")? {

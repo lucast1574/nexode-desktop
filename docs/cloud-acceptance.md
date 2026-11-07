@@ -1,6 +1,6 @@
 # Cloud handoff acceptance
 
-`python3 scripts/test_cloud_acceptance.py --binary PATH --repeat 2` is the
+`scripts/orbit_dev.sh test-cloud-acceptance --binary PATH --repeat 2` is the
 Linux acceptance entry point. It runs the CLI, agent, credentials and TUI layers
 against the supplied executable, twice with fresh fixture directories. It is a
 regression gate, not evidence that a managed cloud service or live login works.
@@ -34,9 +34,9 @@ other terminals must reconnect to their migrated sessions.
 | `agent` | `scripts/test_cloud_move_agent_e2e.sh`: real agent turns before move, in the bubblewrap destination and after return. Checks conversation continuity, cloud notice in provider context and refusal to run the away local copy. Transport is local, not SSH. |
 | `credentials` | `orbit-dev test-cloud-credentials`: synthetic OpenAI/Claude OAuth and router credentials over local pipes. Checks round trips, all-account transfer, permissions, secret-free archives/diagnostics, stale and expired tokens, dry run, identity/refresh conflicts, ownership rollback, one-way router transfer and failure before transfer with an incompatible remote. No production authentication or refresh endpoint is used. |
 | `group` | `scripts/test_cloud_group_e2e.sh`: real local/cloud daemons with isolated homes and a bubblewrap transport. Checks automatic swarm selection, explicit independent-session inclusion, excluded sessions, one shared repository and environment replay, preserved conversation/todo/swarm state, preview, and safe retry after a lost activation response. No live cloud account or model is used. |
-| `tui` | `scripts/cloud_acceptance_tui.py`: the **actual interactive TUI in tmux**, a real loopback OpenSSH server and client, isolated local/cloud homes, real daemons, and a user/mount namespace providing separate repository contents at the same absolute path. No cloud-transport override is used in this layer. |
+| `tui` | `tools/orbit-dev/src/cloud_acceptance/tui.rs`: the **actual interactive TUI in tmux**, a real loopback OpenSSH server and client, isolated local/cloud homes, real daemons, and a user/mount namespace providing separate repository contents at the same absolute path. No cloud-transport override is used in this layer. |
 
-The agent and TUI use `scripts/fake_openai_server.py`, a deterministic local
+The agent and TUI use the native `orbit-dev fake-openai-server` fixture, a deterministic local
 OpenAI-compatible provider. It records requests and can hold/release turns.
 Provider context assertions test the handoff protocol, not model intelligence.
 The TUI submits real terminal keystrokes. It reads the client's debug `state`
@@ -68,9 +68,8 @@ Missing tools or failed namespace/bubblewrap probes are **failures, never skips*
 
 ## Linux prerequisites and isolation
 
-Install Python 3, Bash, Git, tmux, OpenSSH client/server, bubblewrap and util-linux
-(`unshare`, `mount`, `timeout`). The TUI fixture invokes `/usr/bin/sshd`; where the
-package installs `/usr/sbin/sshd`, provide the corresponding symlink. OpenSSH also
+Install Rust, Bash, Git, tmux, OpenSSH client/server, bubblewrap and util-linux
+(`unshare`, `mount`, `timeout`). The TUI fixture discovers sshd from PATH or the standard /usr/sbin and /usr/bin locations. OpenSSH also
 needs `/run/sshd`. Package installation and this host setup may need administrator
 privileges. **Do not run the acceptance runner with sudo or as root.**
 
@@ -94,7 +93,8 @@ production tokens, account files or SSH keys to the fixtures or workflow.
 Check the test machinery itself with:
 
 ```bash
-python3 tests/test_cloud_acceptance_harness.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml cloud_acceptance
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test cloud_acceptance
 ```
 
 These fast contracts check failure propagation, timeouts, report generation,
@@ -104,7 +104,7 @@ running the actual acceptance matrix below.
 Use an already-built executable, with an absolute path recommended:
 
 ```bash
-python3 scripts/test_cloud_acceptance.py \
+scripts/orbit_dev.sh test-cloud-acceptance \
   --binary /absolute/path/to/nexode --repeat 2 \
   --artifacts "$PWD/cloud-acceptance-results"
 ```
@@ -114,11 +114,11 @@ under `NEXODE_SCRATCH_DIR`, or the system temporary directory, and prints its pa
 Run a single TUI case or a single lower layer when diagnosing a failure:
 
 ```bash
-python3 scripts/test_cloud_acceptance.py --binary /absolute/path/to/nexode \
+scripts/orbit_dev.sh test-cloud-acceptance --binary /absolute/path/to/nexode \
   --layers tui --scenario transfer_outage_retry --repeat 1
-python3 scripts/test_cloud_acceptance.py --binary /absolute/path/to/nexode \
+scripts/orbit_dev.sh test-cloud-acceptance --binary /absolute/path/to/nexode \
   --layers credentials --repeat 1
-python3 scripts/test_cloud_acceptance.py --binary /absolute/path/to/nexode \
+scripts/orbit_dev.sh test-cloud-acceptance --binary /absolute/path/to/nexode \
   --layers group --repeat 1
 ```
 
@@ -140,7 +140,7 @@ report or successful cleanup.
 
 `.github/workflows/cloud-acceptance.yml` runs daily at 09:23 UTC, on manual dispatch,
 and on relevant PRs/pushes targeting `main` or `master`. Its intentionally broad
-`src/**`, `crates/**`, `scripts/**` and `tests/**` filters include TUI input/remote
+`src/**`, `crates/**`, `scripts/**`, `tools/orbit-dev/**` and `tests/**` filters include TUI input/remote
 handling, cloud CLI, transport, credential code and harness changes. Cargo/build
 configuration and this documentation also trigger it.
 
@@ -157,7 +157,7 @@ days, including hidden files. A failure before the runner starts may leave no
 artifact. The bundle includes `report.json`, `junit.xml`, per-stage output logs,
 provider requests, SSH logs, captured TUI `frame*.txt`, and retained fixture homes
 and workspaces. The root evidence directory is mode 0700 locally. Credential-suite
-temporary homes are normally cleaned by unittest, while other fixture homes remain.
+temporary homes are normally cleaned by Rust RAII guards, while other fixture homes remain.
 Those homes can contain **synthetic-only credentials and disposable private SSH
 keys**. Artifact retention is deliberate for diagnosis, not an invitation to use
 real secrets. An externally timed-out run may have only partial reports/frames.
