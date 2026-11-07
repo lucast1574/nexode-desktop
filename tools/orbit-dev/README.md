@@ -134,3 +134,9 @@ prove a real tenant-hosted build or native ARM runtime behavior.
 configuration, nested resource overrides, trial artifacts and suspicious log
 mentions offline. Invalid configs cannot appear in the submit-ready group.
 Partial runs remain reported separately. This does not submit benchmark results.
+
+`cargo xtask waybar-status [--no-cloud] [--once]` emits native Waybar JSON.
+It subscribes to local debug events and refreshes cloud counts independently.
+Remote checks require a matching native `orbit-dev` on already-running hosts;
+`--remote-binary PATH` selects it. `--cloud-probe [--home PATH]` counts presence
+markers locally, including shared-daemon sessions. No remote Python is invoked.

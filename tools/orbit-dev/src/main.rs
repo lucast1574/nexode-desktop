@@ -30,6 +30,7 @@ mod sdk_version;
 mod size_budget;
 mod startup_bench;
 mod structure;
+mod waybar;
 mod ws_cache;
 use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
@@ -110,6 +111,7 @@ fn main() -> Result<()> {
             let code = ci_suites::run(&root()?, args)?;
             std::process::exit(code);
         }
+        Some("waybar-status") => waybar::run(args)?,
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,

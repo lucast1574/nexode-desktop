@@ -1,6 +1,8 @@
 # Waybar session status
 
-Install `nexode-sessions-status` into `~/.config/waybar/` and make it executable.
+Build `cargo build --release --locked --manifest-path tools/orbit-dev/Cargo.toml`
+and install `tools/orbit-dev/target/release/orbit-dev` on PATH (or set
+`ORBIT_DEV_BIN`). Install the `nexode-sessions-status` launcher into `~/.config/waybar/` and make it executable.
 Configure a streaming custom module (do not set an interval):
 
 ```json
@@ -13,8 +15,8 @@ Configure a streaming custom module (do not set an interval):
 }
 ```
 
-The existing spinner, session, and swarm counters remain local. The cloud icon
-adds **streaming/alive**, for example `☁ 2/7`. The tooltip labels both counts.
+The streaming, session, and swarm counters remain local and use text labels.
+Cloud adds **streaming/alive**, for example `Cloud 2/7`. The tooltip labels both counts.
 Cloud counts include root, detached, and internal/swarm sessions on the account's
 managed machine and running ephemeral machines. Arbitrary third-party SSH hosts
 are not included.
@@ -35,11 +37,15 @@ although a host stopping between the status check and proxy connection can race
 with the proxy's normal wake behavior.
 
 Requirements: `~/.local/bin/nexode`, account login, prepared cloud SSH configs,
-SSH, and Python 3.9+ locally and remotely. The probe sends this public script to
-Python over SSH without installing files on the cloud host.
+SSH, and a native `orbit-dev` executable on PATH on each running cloud host.
+Use `--remote-binary /absolute/path/to/orbit-dev` for a different remote location.
+The executable must match the remote operating system and architecture. Missing
+remote tooling produces unknown counts; this module never installs it or runs Python.
+Use `--no-cloud` for local-only status without API or SSH calls. `--once` emits one
+snapshot. `--cloud-probe --home PATH` reads an isolated local presence registry.
 
 Run regression tests:
 
 ```sh
-python3 -m unittest discover -s scripts/waybar -v
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml waybar::
 ```
