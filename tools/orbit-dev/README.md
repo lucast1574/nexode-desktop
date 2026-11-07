@@ -114,3 +114,9 @@ lives in `$NEXODE_HOME/oauth-helper.json` (default `~/.nexode`).
 original diagnostic request variants without credentials or network traffic. Omit
 `--dry-run` only to explicitly make live provider calls. `--auth-file` and `--account`
 select credentials; responses redact the access token. Unit tests use loopback servers.
+
+`cargo xtask memory-snapshot [--json] [--include-aux] [--socket PATH]` reports
+Linux smaps RSS/PSS, anonymous, shared/private and swap memory by server/client.
+`cargo xtask monitor [--socket PATH]` displays the Unix debug event dashboard,
+with subscription, periodic pings, automatic reconnect and bounded UTF-8 framing.
+Both commands replace their Python diagnostics; neither starts an inference turn.

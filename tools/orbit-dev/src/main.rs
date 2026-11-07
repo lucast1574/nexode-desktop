@@ -10,6 +10,8 @@ mod discord_release;
 mod discovery;
 mod fake_openai;
 mod handoff;
+mod memory_snapshot;
+mod monitor;
 mod oauth;
 mod process;
 #[cfg(unix)]
@@ -96,6 +98,8 @@ fn main() -> Result<()> {
             | "sign-release"),
         ) => handoff::run(command, args)?,
         Some(command @ ("oauth-helper" | "oauth-probe")) => oauth::run(command, args)?,
+        Some("monitor") => monitor::run(args)?,
+        Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,
         Some("mock-sponsor") => discovery::sponsor::run(args)?,
         Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,
