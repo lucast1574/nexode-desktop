@@ -176,3 +176,12 @@ visible content evidence is an error. No Pillow or Python is needed.
 daemon against a loopback-only catalog without inference calls. It verifies
 browse/setup separation, explicit selection and off-catalog demand receipts.
 Cleanup targets only processes carrying the private fixture workspace marker.
+
+`cargo xtask measure-key-echo [NEXODE_BINARY] [--socket PATH] [--debug-socket PATH]`
+uses a native vt100 emulator and an owned Unix PTY to distinguish first output
+from the character actually appearing in the composer. It creates a new session
+on the selected existing daemon, types eight characters without submitting a
+prompt, and fails if any character never becomes visible. `--working-dir` and
+`--json` support isolated acceptance. Capability replies survive split reads;
+UTF-8 and composer history are recorded by the reader thread. Interruptions clean
+up the owned client. Tests reject driver echo and measure delayed application echo.

@@ -35,6 +35,7 @@ mod size_budget;
 mod startup_bench;
 mod structure;
 mod token_compare;
+mod tui_probe;
 mod waybar;
 mod ws_cache;
 use anyhow::{Context, Result, bail};
@@ -132,6 +133,10 @@ fn main() -> Result<()> {
             std::process::exit(code);
         }
         Some("verify-discovery-select") => discovery::select_acceptance::run(args)?,
+        Some("measure-key-echo") => {
+            let code = tui_probe::run(args)?;
+            std::process::exit(code);
+        }
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,

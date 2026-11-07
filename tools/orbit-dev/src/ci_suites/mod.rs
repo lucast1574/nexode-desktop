@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 #[cfg(unix)]
-mod unix;
+pub(crate) mod unix;
 const SUITES: [(&str, u64, &[&str]); 3] = [
     ("lib-bins", 1800, &["test", "--locked", "--lib", "--bins"]),
     (

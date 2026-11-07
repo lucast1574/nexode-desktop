@@ -9,9 +9,9 @@ static SIGNAL: AtomicI32 = AtomicI32::new(0);
 extern "C" fn record(signal: libc::c_int) {
     SIGNAL.store(signal, Ordering::Relaxed);
 }
-pub(super) struct Signals(Vec<(i32, libc::sigaction)>);
+pub(crate) struct Signals(Vec<(i32, libc::sigaction)>);
 impl Signals {
-    pub(super) fn install() -> Result<Self> {
+    pub(crate) fn install() -> Result<Self> {
         SIGNAL.store(0, Ordering::Relaxed);
         let mut saved = Self(vec![]);
         for signal in [libc::SIGINT, libc::SIGTERM] {
@@ -94,4 +94,9 @@ pub(super) fn execute(command: &mut Command, timeout: Duration) -> Result<i32> {
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+pub(crate) fn interrupted() -> Option<i32> {
+    let signal = SIGNAL.load(Ordering::Relaxed);
+    (signal != 0).then_some(signal)
 }
