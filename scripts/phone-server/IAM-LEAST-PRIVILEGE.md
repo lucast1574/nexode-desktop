@@ -23,8 +23,8 @@ Also replace the instance's `AmazonBedrockFullAccess` with inference-only permis
 Repository evidence:
 
 - `README.md` states account `302154194530`, region `us-east-1`, instance `i-08214cf66cd3f80c7`, Elastic IP `54.196.207.97`, and API ID `8c3wp4cbag`.
-- `wake-lambda.py` calls `ec2:DescribeInstances` and `ec2:StartInstances` for that instance.
-- `breaker-lambda.py` calls `ec2:DescribeInstances`, `ec2:StopInstances`, and `sns:Publish` to `arn:aws:sns:us-east-1:302154194530:nexode-guard-warn`.
+- `orbit-dev phone-lambda wake` calls `ec2:DescribeInstances` and `ec2:StartInstances` for that instance.
+- `orbit-dev phone-lambda breaker` calls `ec2:DescribeInstances`, `ec2:StopInstances`, and `sns:Publish` to `arn:aws:sns:us-east-1:302154194530:nexode-guard-warn`.
 - The Bedrock provider calls `ListFoundationModels`, `ListInferenceProfiles`, and the streaming Converse API. Converse streaming is authorized by `bedrock:InvokeModelWithResponseStream`.
 - The rebuild instructions require EC2, EIP, security group, IAM instance profile, Lambda, API Gateway v2, SNS, CloudWatch alarms, and Budgets administration.
 - TestFlight automation is App Store Connect only and requires no AWS permission.

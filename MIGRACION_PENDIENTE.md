@@ -4,7 +4,7 @@ Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migraci
 
 ## Alcance y estado
 
-- Quedan **46 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **42 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -73,10 +73,10 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 
 ### Servicios del teléfono y TestFlight
 
-- [ ] `scripts/phone-server/breaker-lambda.py`
-- [ ] `scripts/phone-server/test_wake_lambda.py`
-- [ ] `scripts/phone-server/testflight-setup.py`
-- [ ] `scripts/phone-server/wake-lambda.py`
+- [x] `scripts/phone-server/breaker-lambda.py` — migrado a Rust en `tools/orbit-dev`.
+- [x] `scripts/phone-server/test_wake_lambda.py` — migrado a Rust en `tools/orbit-dev`.
+- [x] `scripts/phone-server/testflight-setup.py` — migrado a Rust en `tools/orbit-dev`.
+- [x] `scripts/phone-server/wake-lambda.py` — migrado a Rust en `tools/orbit-dev`.
 
 ### Otros scripts y pruebas
 
@@ -89,9 +89,9 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 Estas rutas de shell contienen invocaciones de Python, bloques incrustados o configuración de PYTHONPATH. Migrar también estos puntos: borrar únicamente archivos `.py` no elimina la dependencia.
 
 - [ ] `scripts/antigravity_multiturn_coverage.sh`
-- [ ] `scripts/bench_compile.sh`
+- [x] `scripts/bench_compile.sh` — migrado a Rust en `tools/orbit-dev`.
 - [ ] `scripts/bench_selfdev_build.sh`
-- [ ] `scripts/bench_selfdev_checkpoints.sh`
+- [x] `scripts/bench_selfdev_checkpoints.sh` — migrado a Rust en `tools/orbit-dev`.
 - [ ] `scripts/benchmark_tools.sh`
 - [ ] `scripts/compare_discovery_rate.sh`
 - [ ] `scripts/compile_time_probe.sh`

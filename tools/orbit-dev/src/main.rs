@@ -8,6 +8,7 @@ mod browser_package;
 mod ci_suites;
 #[cfg(target_os = "linux")]
 mod cloud_runtime;
+mod compile_bench;
 mod compile_report;
 mod demo_shop;
 #[cfg(unix)]
@@ -26,6 +27,7 @@ mod monitor;
 mod niri_fuzz;
 mod oauth;
 mod pair_service;
+mod phone;
 mod process;
 #[cfg(unix)]
 mod pty;
@@ -42,6 +44,7 @@ mod sdk_version;
 mod size_budget;
 mod startup_bench;
 mod structure;
+mod testflight;
 mod token_compare;
 mod tui_probe;
 mod waybar;
@@ -68,6 +71,16 @@ Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [-
 Rehearsal: update-rehearsal [--help]
 Repository: downloads-badge [--help], star-history [--help]";
 fn main() -> Result<()> {
+    if std::env::args_os().next().is_some_and(|s| {
+        std::path::Path::new(&s)
+            .file_stem()
+            .is_some_and(|s| s == "bootstrap")
+    }) {
+        return phone::run(std::iter::once(
+            std::env::var("ORBIT_PHONE_MODE")
+                .context("ORBIT_PHONE_MODE must be wake or breaker")?,
+        ));
+    }
     if std::env::args_os()
         .next()
         .and_then(|s| {
@@ -81,6 +94,11 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("bench-compile") => std::process::exit(compile_bench::run(&root()?, args)?),
+        Some("bench-selfdev-checkpoints") => compile_bench::checkpoints(&root()?, args)?,
+        Some("phone-lambda") => phone::run(args)?,
+        Some("package-phone-lambda") => phone::package(args)?,
+        Some("testflight-setup") => testflight::run(args)?,
         Some("generate-release-notes") => release_notes::run(args)?,
         Some("test-desktop-selfdev") => {
             #[cfg(unix)]

@@ -32,8 +32,8 @@ AWS Budget $10 ──▶ SNS nexode-guard-stop ──▶ breaker lambda ──�
 | `units/idle-autostop.{service,timer}` | `/etc/systemd/system/` | 5-min check, poweroff after 30 min idle |
 | `idle-autostop.sh` | `/usr/local/bin/` | idle = no gateway/SSH clients AND nexode has no outbound :443 (not streaming) |
 | `orbit-dev pair-service` | `/usr/local/bin/orbit-dev` | Native Rust legacy fallback; normal pairing uses SSM |
-| `wake-lambda.py` | Lambda `nexode-phone-wake` (behind API Gateway `8c3wp4cbag`) | wake page: starts instance, polls SSM health, generates pair codes through SSM |
-| `breaker-lambda.py` | Lambda `nexode-guard-breaker` | stops the instance; subscribed to SNS `nexode-guard-stop` |
+| `orbit-dev phone-lambda wake` | Lambda `nexode-phone-wake` (behind API Gateway `8c3wp4cbag`) | wake page: starts instance, polls SSM health, generates pair codes through SSM |
+| `orbit-dev phone-lambda breaker` | Lambda `nexode-guard-breaker` | stops the instance; subscribed to SNS `nexode-guard-stop` |
 | `IAM-LEAST-PRIVILEGE.md` | repository documentation | scoped runtime/deploy policies and lockout-safe `jade-deploy` rotation plan |
 
 ## Server config (instance)
@@ -82,7 +82,7 @@ The legacy `AWS/Billing/EstimatedCharges` alarms were removed because the accoun
 1. Launch a vendor-patched AL2023 x86_64 image with an encrypted 30GB gp3 root volume, the Bedrock + SSM instance role, and a security group with no inbound rules. Associate an Elastic IP for outbound internet while running. Before accepting connections, verify the running kernel is fixed for CVE-2026-98432 using the AWS advisory and the [Linux host safety runbook](../../docs/security-linux-cve-2026-98432.md). Installing a kernel without rebooting does not satisfy this check.
 2. Install nexode, Tailscale, tmux, and git. Join the tailnet as `nexode-phone`; set the nexode gateway host to `100.109.78.41`.
 3. Copy `units/nexode-serve.service` and the idle-autostop unit/script; enable linger and the required services. The legacy pair service is not required.
-4. Deploy `wake-lambda.py` as `waker.py`, set `WAKE_TOKEN`, `INSTANCE_ID`, and `NEXODE_GATEWAY_HOST=100.109.78.41`, and grant scoped EC2/SSM permissions. API Gateway HTTP API routes to the Lambda.
+4. Package the static Rust binary as `bootstrap` for the `provided.al2023` Lambda runtime, set `ORBIT_PHONE_MODE=wake`, set `WAKE_TOKEN`, `INSTANCE_ID`, and `NEXODE_GATEWAY_HOST=100.109.78.41`, and grant scoped EC2/SSM permissions. API Gateway HTTP API routes to the Lambda.
 5. Create the SNS topics/subscriptions and connect the $10 Budget's 100% actual notification to `nexode-guard-stop`.
 6. Enable CloudTrail, Access Analyzer, account-level S3 Block Public Access, EBS encryption by default, and bounded CloudWatch log retention.
 7. Test: breaker stops the host; wake link starts it; SSM reports online; tailnet `/health` works; pair button returns a code targeting the tailnet address.
@@ -107,3 +107,29 @@ loopback and the current user; `--run-as` opts into noninteractive sudo. Both
 `Authorization: Bearer TOKEN` and the legacy `?t=TOKEN` are accepted. Responses
 remain uncached JSON with the code, host, port, pairing URI and expiry. No host,
 cloud account or remote connection is embedded in the implementation.
+
+## Native Lambda and TestFlight tooling
+
+Historical deployment details above describe the former deployment; this source
+migration does not update any running AWS function or App Store account.
+
+Build `tools/orbit-dev` for `x86_64-unknown-linux-musl` (install the Rust target and
+musl C compiler), then run `cargo xtask package-phone-lambda <binary> <output.zip>`.
+The archive contains an executable `bootstrap`; choose Lambda `provided.al2023`
+and x86_64. Set `ORBIT_PHONE_MODE=wake` or `breaker`, `INSTANCE_ID`, and `AWS_REGION`.
+Lambda supplies `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
+and `AWS_LAMBDA_RUNTIME_API`. Requests use native SigV4, without boto3 or AWS CLI.
+For wake, also set `WAKE_TOKEN`, `NEXODE_GATEWAY_HOST`, and optionally
+`NEXODE_GATEWAY_PORT` (7643). `NEXODE_PAIR_COMMAND` defaults to
+`/home/ec2-user/.local/bin/nexode pair`, run through `sudo -iu ec2-user env`.
+For the breaker, set `SNS_TOPIC_ARN` explicitly. No instance/account/host/token
+from the old source is used as a deployment default. `phone-lambda MODE --event
+FILE` processes one local event against the configured AWS account; use fixtures
+in `cargo test`, not this live command, for offline validation.
+
+`cargo xtask testflight-setup --key-id ID --issuer UUID --key-path KEY.p8
+--tester-email EMAIL --tester-name NAME [--bundle-id com.nexode.mobile]
+[--group internal]` uses native ES256 signing and App Store Connect HTTP calls.
+It reuses existing groups/testers and checks every association response. Running
+it changes the configured account; local tests sign synthetic keys and use fake
+API responses without publishing or inviting anyone.

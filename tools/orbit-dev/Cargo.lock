@@ -996,6 +996,7 @@ dependencies = [
  "png",
  "regex",
  "reqwest",
+ "ring",
  "roxmltree",
  "rusqlite",
  "serde_json",
