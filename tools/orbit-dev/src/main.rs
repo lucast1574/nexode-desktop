@@ -134,7 +134,10 @@ fn main() -> Result<()> {
         }
         Some("verify-discovery-select") => discovery::select_acceptance::run(args)?,
         Some(
-            command @ ("measure-key-echo" | "profile-real-spawn" | "bench-startup-visible-ready"),
+            command @ ("measure-key-echo"
+            | "profile-real-spawn"
+            | "bench-startup-visible-ready"
+            | "profile-single-spawn"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

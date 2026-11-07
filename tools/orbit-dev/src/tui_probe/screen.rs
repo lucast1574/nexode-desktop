@@ -15,6 +15,8 @@ use std::{
 pub(super) struct Snapshot {
     pub rows: Vec<String>,
     pub frames: u64,
+    pub first_output: Option<Instant>,
+    pub last_output: Option<Instant>,
     pub history: VecDeque<(u64, Instant, Option<String>)>,
     pub error: Option<String>,
     pub eof: bool,
@@ -121,6 +123,8 @@ impl Client {
                         {
                             let mut state = view.lock().unwrap();
                             state.frames += 1;
+                            state.first_output.get_or_insert(at);
+                            state.last_output = Some(at);
                             state.rows = rows;
                             if state
                                 .history

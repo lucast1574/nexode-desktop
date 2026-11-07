@@ -201,3 +201,10 @@ a short probe without submitting a prompt; selected installed tools still run
 with their normal environment. Reports preserve missing runs and fail when
 readiness is absent. Timing includes process creation. Tests use isolated shell
 fixtures and do not launch third-party agents or use provider accounts.
+
+`cargo xtask profile-single-spawn --binary PATH [--timeout 20] [--json]`
+starts an owned temporary server and resumed PTY client, captures first-output
+time and startup log lines, then closes both processes. Successful runs retain
+the reported temporary log directory. Missing output or logs fail the check.
+The native runner was also exercised against a real local Nexode binary with
+a disposable HOME and a dummy credential, without submitting a model prompt.

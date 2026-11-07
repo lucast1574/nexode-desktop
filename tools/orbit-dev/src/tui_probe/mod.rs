@@ -6,13 +6,17 @@ mod profile;
 #[cfg(unix)]
 mod screen;
 #[cfg(unix)]
+mod single;
+#[cfg(unix)]
 mod visible;
 use anyhow::Result;
 pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "bench-startup-visible-ready" {
+        let result = if command == "profile-single-spawn" {
+            single::run(args)
+        } else if command == "bench-startup-visible-ready" {
             visible::run(args)
         } else if command == "profile-real-spawn" {
             profile::run(args)
