@@ -1,3 +1,5 @@
+> Historical upstream verification. The contribution policy cited below no longer applies to Nexode Orbit.
+
 # Jev whole-task handoff verification
 
 ## Scope and reproducible run

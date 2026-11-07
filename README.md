@@ -19,7 +19,7 @@ cargo build --locked --release --bin nexode
 ./target/release/nexode
 ```
 
-En Windows, el binario es `target\release\nexode.exe`. Consulta [Windows](docs/WINDOWS.md) para los requisitos y [Contributing](CONTRIBUTING.md) para dependencias de desarrollo.
+En Windows, el binario es `target\release\nexode.exe`. Consulta [Windows](docs/WINDOWS.md) para los requisitos.
 
 Para instalar una compilación local en el PATH del usuario en Linux/macOS:
 
@@ -71,11 +71,13 @@ Los videos y capturas originales no se presentan como demos de Nexode. Esta copi
 cargo fmt --all -- --check
 cargo check --locked --all-targets --all-features
 cargo clippy --locked --all-targets --all-features -- -D warnings
-python3 scripts/check_branding.py
+cargo xtask check-branding
 ```
 
 Consulta [la guía del rebranding](docs/REBRANDING.md) y [el contrato visual](assets/brand/DESIGN.md).
 
 ## Licencia
 
-MIT. Se conserva íntegra la licencia original y sus atribuciones en [LICENSE](LICENSE) y [NOTICE](NOTICE).
+El código heredado conserva sus condiciones MIT y atribuciones en [NOTICE](NOTICE). Los SDK mantienen los avisos necesarios para su distribución.
+
+Actualmente no se aceptan contribuciones externas.

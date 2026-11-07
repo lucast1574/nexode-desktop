@@ -2,7 +2,7 @@ Nexode Orbit is derived from Jcode by Jeremy Huang and contributors.
 Upstream source: https://github.com/1jehuang/jcode
 Source snapshot: c28c6aa7a060e6ac421317432ee3b4549069f823
 
-The original MIT copyright and permission notice is preserved in LICENSE.
+The original MIT copyright and permission notice is reproduced below.
 The TypeScript SDK retains its original LICENSE as well.
 
 Nexode visual assets were supplied through the user's Nexode monorepo:
@@ -12,3 +12,27 @@ Orbital icon: frontend/public/favicon.svg
 
 Rebranding does not imply ownership of third-party dependencies or change
 their licenses. External browser bridge and provider names remain theirs.
+
+--- Original license notice ---
+
+MIT License
+
+Copyright (c) 2025 Jeremy Huang
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
