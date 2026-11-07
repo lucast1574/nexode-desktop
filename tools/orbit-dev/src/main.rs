@@ -273,6 +273,7 @@ fn main() -> Result<()> {
             | "stress-test"
             | "socket-connect"
             | "debug-call"
+            | "benchmark-tools"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

@@ -51,7 +51,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [x] `scripts/heap_diff_idle_sessions.py` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/profile_remote_resume_burst.py` → `orbit-dev profile-remote-resume-burst` (PTY real, CPU/RSS y timeout explícito).
 - [x] `scripts/profile_spawn.py` → `orbit-dev profile-spawn` (dos ejecuciones reales cliente/daemon, métricas completas de /proc).
-- [x] `scripts/stress_test.py` → `orbit-dev stress-test` (40 sesiones reales; CPU/recursos y comprobaciones de limpieza).
+- [x] `scripts/stress_test.py` → `orbit-dev stress-test` (40 sesiones reales; recursos y comprobaciones de limpieza).
 - [x] `scripts/test_analyze_runtime_memory_log.py` — analizador Rust; 16 escenarios de equivalencia y CLI sin intérprete.
 - [x] `scripts/test_memory.py` → `orbit-dev test-memory` (pruebas locales reales y contrato live con fixture; Jev/extracción live opt-in).
 
@@ -92,7 +92,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - [x] `scripts/bench_compile.sh` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/bench_selfdev_build.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/bench_selfdev_checkpoints.sh` — migrado a Rust en `tools/orbit-dev`.
-- [ ] `scripts/benchmark_tools.sh`
+- [x] `scripts/benchmark_tools.sh` — benchmark Rust; 54 ejecuciones reales de herramientas, CSV y contrato con fixture.
 - [ ] `scripts/compare_discovery_rate.sh`
 - [x] `scripts/compile_time_probe.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/generate_release_notes.sh` — lanzador de `generate-release-notes` nativo.

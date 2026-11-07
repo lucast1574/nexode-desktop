@@ -58,6 +58,8 @@ mod stress;
 #[cfg(unix)]
 mod theme;
 #[cfg(unix)]
+mod tool_bench;
+#[cfg(unix)]
 mod usage_probe;
 #[cfg(unix)]
 mod visible;
@@ -66,7 +68,9 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if matches!(command, "socket-connect" | "debug-call") {
+        let result = if command == "benchmark-tools" {
+            tool_bench::run(args)
+        } else if matches!(command, "socket-connect" | "debug-call") {
             socket_cli::run(command, args)
         } else if command == "stress-test" {
             #[cfg(target_os = "linux")]

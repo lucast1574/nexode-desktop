@@ -454,3 +454,11 @@ returns the debug response JSON, handles ACKs and fragmented responses, and fail
 on server rejection. `stress_test_40.sh` now uses these helpers and `json-field`;
 its shell syntax and helper protocols were verified, while the complete external
 TUI shell workload remains opt-in.
+
+`benchmark-tools [ITERATIONS=5] --fresh --binary PATH --repo CHECKOUT --csv FILE`
+(or `--socket DEBUG`) benchmarks 27 tool operations with current `todo` and
+`session_search` contracts, real JSON quoting, edit-fixture reset before every
+iteration, response validation, CSV output and sorted timing summaries. All writes
+use temporary files and an owned session. `--live` on an external configured daemon
+adds semantic memory recall. Two repetitions of all 27 local cases passed against
+the real runtime. The historical shell entrypoint delegates to this command.
