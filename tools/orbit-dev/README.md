@@ -288,3 +288,10 @@ login acceptance matrix. It uses private temporary homes, piped/PTY stdin and
 separate output streams; no browser or OAuth exchange is completed. The native
 local CLI passed all eight cases, including headless auto-detection and JSON
 output with QR opt-in set.
+
+`verify-auth-import /absolute/path/to/nexode` replaces the Python credential
+import CLI suite. Nine cases cover both providers, private storage, byte/inode/
+mode preservation, invalid and oversized payloads, validation before stdin,
+incremental EOF handling, concurrent one-winner import, PTY rejection and stalled
+input timeout. All nine passed against the local CLI with synthetic secrets,
+isolated homes and blocked provider proxies; no personal credentials were read.

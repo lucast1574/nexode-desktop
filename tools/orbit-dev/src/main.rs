@@ -1,3 +1,4 @@
+mod auth_import;
 mod badges;
 mod bench_audit;
 mod branding;
@@ -75,6 +76,7 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("verify-auth-import") => auth_import::run(args)?,
         Some("verify-login-qr") => login_qr::run(args)?,
         Some("pair-service") => pair_service::run(args)?,
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
