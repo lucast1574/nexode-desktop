@@ -368,7 +368,7 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Ambient(AmbientCommand),
 
-    /// Optional Nexode Cloud/Jade integration commands
+    /// Move and manage sessions on remote machines
     #[command(subcommand)]
     Cloud(CloudCommand),
 
@@ -769,11 +769,6 @@ pub(crate) enum CloudCommand {
         #[command(subcommand)]
         action: CloudEphemeralCommand,
     },
-    /// Upload, list, verify, and view cloud-synced sessions
-    Sessions {
-        #[command(subcommand)]
-        action: CloudSessionsCommand,
-    },
 
     /// Prepare the destination without reading or moving a live session.
     #[command(hide = true)]
@@ -1068,9 +1063,6 @@ pub(crate) struct CloudMoveTarget {
     #[arg(long, hide = true)]
     pub(crate) transport: Option<String>,
 }
-
-mod cloud_sessions;
-pub(crate) use cloud_sessions::*;
 
 #[path = "args/restart.rs"]
 mod restart;

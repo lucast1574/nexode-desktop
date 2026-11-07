@@ -6,9 +6,8 @@ use std::process::{Command as ProcessCommand, Stdio};
 use std::time::Instant;
 
 use super::args::{
-    AmbientCommand, Args, AuthCommand, CloudCommand, CloudSessionsCommand, Command, MemoryCommand,
-    ModelCommand, ProviderCommand, RestartCommand, ServerCommand, SessionCommand,
-    TranscriptModeArg,
+    AmbientCommand, Args, AuthCommand, Command, MemoryCommand, ModelCommand, ProviderCommand,
+    RestartCommand, ServerCommand, SessionCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -465,11 +464,6 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         },
         Some(Command::Ambient(subcmd)) => {
             commands::run_ambient_command(map_ambient_subcommand(subcmd)).await?;
-        }
-        Some(Command::Cloud(CloudCommand::Sessions { action })) => {
-            commands::run_cloud_command(commands::CloudSubcommand::Sessions(
-                map_cloud_sessions_subcommand(action),
-            ))?;
         }
         Some(Command::Cloud(subcmd)) => {
             super::cloud_move::run_cli(subcmd)?;

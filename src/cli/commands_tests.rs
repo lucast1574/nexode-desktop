@@ -1648,8 +1648,6 @@ async fn one_shot_cleanup_preserves_the_original_command_error() {
     }
 }
 
-#[path = "commands/tests/cloud_sessions_tests.rs"]
-mod cloud_sessions;
 #[path = "commands/tests/ndjson_metadata_tests.rs"]
 mod ndjson_metadata;
 

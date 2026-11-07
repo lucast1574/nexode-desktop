@@ -28,11 +28,7 @@ backend de Nexode Cloud.
 
 ## Trabajo pendiente
 
-Quedan scripts Python de guardrails, CI, releases, benchmarks, diagnóstico,
-pruebas de integración y self-dev. También quedan fragmentos Python incrustados
-en wrappers. Hay integraciones con helpers de otros repositorios (Jade y Desktop)
-cuyos fuentes no están incluidos aquí. No se han eliminado para simular una
-migración terminada ni se han sustituido por wrappers que ejecuten Python.
+Quedan scripts Python de benchmarks, diagnóstico y pruebas SSH/TUI, además de fragmentos incrustados en wrappers. El inventario detallado está en `MIGRACION_PENDIENTE.md`. La integración heredada `nexode cloud sessions`, dependiente del helper privado `jade_sessions.py`, se retiró por indicación del mantenedor. Sus archivos locales de configuración no se borran automáticamente. Los comandos actuales `cloud move`, `return`, `env`, `replace` y `ephemeral` se conservan.
 
 Continúa la migración de releases, diagnóstico y suites SSH/TUI/benchmarks. Cada reemplazo debe mantener sus contratos y comprobarse
 antes de retirar el original.

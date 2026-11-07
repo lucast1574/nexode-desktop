@@ -2113,7 +2113,6 @@ pub(crate) fn run_cli(command: super::args::CloudCommand) -> Result<()> {
         C::Env { action } => environment::run_cli(action),
         C::Ephemeral { action } => super::cloud_ephemeral::run_cli(action),
         C::Runtime { action } => super::cloud_runtime::run_cli(action),
-        C::Sessions { .. } => unreachable!("handled by the cloud sessions dispatcher"),
         C::Prepare { target, json } => {
             let host = prepare_host(&target_of(target))?;
             if json {

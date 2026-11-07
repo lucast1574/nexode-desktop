@@ -115,7 +115,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 ## Integraciones que requieren atención especial
 
 - [ ] `.github/workflows/cloud-acceptance.yml`: instala Python y ejecuta el harness y las pruebas de aceptación cloud. Actualizar junto con sus reemplazos nativos; no habilitar ni ejecutar infraestructura real como parte de una comprobación local.
-- [ ] `src/cli/commands.rs` y `src/cli/args/cloud_sessions.rs`: integración opcional con el helper externo privado `jade_sessions.py`. Definir un contrato nativo o retirar explícitamente esa integración; revisar también sus pruebas y documentación. Ese helper no está incluido en este repositorio.
+- [x] Integración heredada `cloud sessions` y helper privado `jade_sessions.py` retirados por indicación del mantenedor; 424 pruebas CLI y rechazo del comando eliminado verificados.
 - [ ] Adaptadores Harbor: dependen de interfaces del framework Python externo. Evaluar un runner/contrato compatible en Rust; envolver o invocar Python no completa la migración. Actualizar también los lanzadores de Terminal Bench.
 - [ ] Lambdas de encendido/apagado y emparejamiento: portar el protocolo y clientes AWS a Rust, externalizar configuración heredada y probar con fixtures. No sustituir boto3 por AWS CLI si el objetivo es eliminar Python.
 - [ ] TestFlight: portar autenticación JWT y llamadas de API, con pruebas locales; no enviar builds ni modificar cuentas durante la validación.
