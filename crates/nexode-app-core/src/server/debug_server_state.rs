@@ -539,7 +539,7 @@ async fn build_server_memory_incident_payload(
                     "priority": 3,
                     "action": "Re-run this report after cleanup and verify both live_sessions and allocator_live_bytes fall.",
                     "why": "A falling live heap confirms session retention was causal.",
-                    "commands": ["nexode debug 'server:memory-incident'", "python scripts/analyze_runtime_memory_log.py --days 1"]
+                    "commands": ["nexode debug 'server:memory-incident'", "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"]
                 }),
                 serde_json::json!({
                     "priority": 4,
@@ -571,7 +571,7 @@ async fn build_server_memory_incident_payload(
                 serde_json::json!({
                     "priority": 1,
                     "action": "Capture full attribution and identify which tracked subsystem is missing from the live heap.",
-                    "commands": ["nexode debug 'server:memory'", "python scripts/analyze_runtime_memory_log.py --days 1"]
+                    "commands": ["nexode debug 'server:memory'", "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"]
                 }),
                 serde_json::json!({
                     "priority": 2,

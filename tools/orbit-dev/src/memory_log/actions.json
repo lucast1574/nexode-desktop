@@ -1,0 +1,97 @@
+{
+  "runaway_live_session_population": [
+    {
+      "priority": 1,
+      "action": "Pause or cap the workload creating headless sessions.",
+      "why": "These are live allocations; allocator purge is not the first response.",
+      "commands": [
+        "nexode debug 'server:memory-incident'",
+        "nexode debug 'swarm:list'"
+      ]
+    },
+    {
+      "priority": 2,
+      "action": "Inspect the largest live swarm and clean only workers confirmed disposable by its owning coordinator.",
+      "commands": [
+        "Use `swarm list` and `swarm cleanup` from the owning coordinator"
+      ]
+    },
+    {
+      "priority": 3,
+      "action": "Re-measure and require live_sessions, allocator live, and PSS to fall together.",
+      "commands": [
+        "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+      ]
+    },
+    {
+      "priority": 4,
+      "action": "Purge only after session cleanup if freed-but-held memory remains high.",
+      "commands": [
+        "nexode debug 'allocator:purge'"
+      ]
+    }
+  ],
+  "allocator_retention": [
+    {
+      "priority": 1,
+      "action": "Capture a before/after allocator purge and compare PSS.",
+      "commands": [
+        "nexode debug 'allocator:purge'",
+        "nexode debug 'server:memory-incident'"
+      ]
+    },
+    {
+      "priority": 2,
+      "action": "If retained pages repeatedly regrow, inspect allocation churn and allocator decay.",
+      "commands": [
+        "nexode debug 'allocator'",
+        "nexode debug 'allocator:decay:1000'"
+      ]
+    }
+  ],
+  "session_payload_growth": [
+    {
+      "priority": 1,
+      "action": "Start with the heaviest sessions and dominant payload category in this report.",
+      "commands": [
+        "nexode debug 'server:memory'"
+      ]
+    }
+  ],
+  "unattributed_live_heap": [
+    {
+      "priority": 1,
+      "action": "Capture full server attribution and add counters for the missing owner.",
+      "commands": [
+        "nexode debug 'server:memory'"
+      ]
+    },
+    {
+      "priority": 2,
+      "action": "Use a jemalloc-prof build and heap dump if coverage remains below 50%.",
+      "commands": [
+        "nexode debug 'allocator:profile:on'",
+        "nexode debug 'allocator:profile:dump /tmp/nexode-server.heap'"
+      ]
+    }
+  ],
+  "non_heap_or_mapping_growth": [
+    {
+      "priority": 1,
+      "action": "Inspect smaps, pmap, thread count, and shared mappings.",
+      "commands": [
+        "cat /proc/<pid>/smaps_rollup",
+        "pmap -x <pid> | sort -k3 -nr | head"
+      ]
+    }
+  ],
+  "within_normal_operating_range": [
+    {
+      "priority": 1,
+      "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+      "commands": [
+        "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+      ]
+    }
+  ]
+}

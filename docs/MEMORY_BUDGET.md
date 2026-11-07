@@ -29,7 +29,7 @@ Use existing debug surfaces instead of ad hoc instrumentation:
 - Agent/session memory profile via debug socket: `agent:memory`
 - Fast server incident classification: `server:memory-incident`
 - Full server attribution: `server:memory`
-- Process-lifetime timeline: `python scripts/analyze_runtime_memory_log.py --days 1`
+- Process-lifetime timeline: `scripts/orbit_dev.sh analyze-runtime-memory-log --days 1`
 
 Primary sources in code:
 - `src/tui/app/debug_cmds.rs`
