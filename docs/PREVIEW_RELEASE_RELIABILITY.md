@@ -82,8 +82,8 @@ python3 scripts/test_preview_release.py
 python3 tests/test_release_ci.py
 python3 tests/test_ci_workflow_guards.py
 actionlint .github/workflows/preview-recovery.yml .github/workflows/preview.yml .github/workflows/ci.yml
-python3 scripts/check_panic_budget.py
-python3 scripts/check_swallowed_error_budget.py
+cargo xtask check-panics
+cargo xtask check-swallowed-errors
 ```
 
 For a blocked preview, inspect **CI**, not just the preview's gate error.

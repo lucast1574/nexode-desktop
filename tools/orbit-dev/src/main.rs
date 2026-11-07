@@ -1,6 +1,8 @@
 mod branding;
 mod browser_package;
 mod process;
+mod safety_budget;
+mod safety_scan;
 mod score;
 mod sdk_version;
 mod size_budget;
@@ -18,6 +20,26 @@ fn root() -> Result<PathBuf> {
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some(command @ ("check-panics" | "check-swallowed-errors" | "check-wildcards")) => {
+            let mode = args.next();
+            anyhow::ensure!(
+                mode.as_deref()
+                    .is_none_or(|s| s == "--update" || s == "--dump"),
+                "expected --update or --dump"
+            );
+            anyhow::ensure!(args.next().is_none(), "unexpected arguments");
+            let kind = match command {
+                "check-panics" => safety_budget::Kind::Panic,
+                "check-swallowed-errors" => safety_budget::Kind::Swallowed,
+                _ => safety_budget::Kind::Wildcard,
+            };
+            safety_budget::run(
+                &root()?,
+                kind,
+                mode.as_deref() == Some("--update"),
+                mode.as_deref() == Some("--dump"),
+            )?;
+        }
         Some(command @ ("check-code-size" | "check-test-size")) => {
             let update = match args.next().as_deref() {
                 None => false,

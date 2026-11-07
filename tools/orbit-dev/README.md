@@ -43,3 +43,5 @@ providers and native integrations for maintenance commands.
 The size checks preserve the existing baselines, reject new oversized files and growth,
 and only rewrite a baseline with an explicit `--update`. They may expose existing
 size debt; migration does not silently relax those gates.
+
+Safety budgets: `cargo xtask check-panics`, `check-swallowed-errors`, and `check-wildcards`. Checks preserve existing baselines. Use `--dump` to inspect counts and `--update` only for intentional baseline changes.

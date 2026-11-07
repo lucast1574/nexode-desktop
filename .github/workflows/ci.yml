@@ -96,12 +96,12 @@ jobs:
       - name: Enforce panic-prone usage ratchet
         if: ${{ !cancelled() }}
         shell: bash
-        run: python3 scripts/check_panic_budget.py
+        run: cargo xtask check-panics
 
       - name: Enforce swallowed-error usage ratchet
         if: ${{ !cancelled() }}
         shell: bash
-        run: python3 scripts/check_swallowed_error_budget.py
+        run: cargo xtask check-swallowed-errors
 
       - name: Enforce crate dependency boundaries
         if: ${{ !cancelled() }}
@@ -116,7 +116,7 @@ jobs:
       - name: Enforce wildcard re-export ratchet
         if: ${{ !cancelled() }}
         shell: bash
-        run: python3 scripts/check_wildcard_reexport_budget.py
+        run: cargo xtask check-wildcards
 
       - name: Enforce no unused dependencies
         if: ${{ !cancelled() }}
@@ -142,7 +142,7 @@ jobs:
           python3 tests/test_install_justrust_hosted_ci.py
           python3 tests/test_public_release_builds.py
           python3 tests/test_release_ci.py
-          python3 scripts/test_safety_budgets.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml safety_
           python3 tests/test_bash_platform_guards.py
           python3 scripts/test_quick_release.py
           python3 scripts/test_preview_release.py

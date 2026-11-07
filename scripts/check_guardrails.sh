@@ -50,15 +50,8 @@ run_gate() {
 # Ratchet scripts share a --update flag to accept intentional growth.
 run_ratchet() {
     local label=$1 script=$2
-    if [[ "$script" == check-code-size || "$script" == check-test-size ]]; then
-        if $FIX; then cargo xtask "$script" --update >/dev/null 2>&1; fi
-        run_gate "$label" cargo xtask "$script"
-        return $?
-    fi
-    if $FIX; then
-        python3 "scripts/$script" --update >/dev/null 2>&1
-    fi
-    run_gate "$label" python3 "scripts/$script"
+    if $FIX; then cargo xtask "$script" --update >/dev/null 2>&1; fi
+    run_gate "$label" cargo xtask "$script"
 }
 
 echo "=== Format ==="
@@ -89,10 +82,10 @@ run_gate "Cargo.lock is up to date" cargo metadata --locked --format-version 1
 run_gate "warning budget" bash scripts/check_warning_budget.sh
 run_ratchet "oversized-file ratchet" check-code-size
 run_ratchet "oversized-test ratchet" check-test-size
-run_ratchet "panic-prone usage ratchet" check_panic_budget.py
-run_ratchet "swallowed-error usage ratchet" check_swallowed_error_budget.py
+run_ratchet "panic-prone usage ratchet" check-panics
+run_ratchet "swallowed-error usage ratchet" check-swallowed-errors
 run_gate "crate dependency boundaries" cargo xtask check-boundaries
-run_gate "wildcard re-export ratchet" python3 scripts/check_wildcard_reexport_budget.py
+run_gate "wildcard re-export ratchet" cargo xtask check-wildcards
 
 # Onboarding state-space invariants. The onboarding flow is a graph, and the
 # properties that keep users unstuck (no dead ends, every failure has a recovery

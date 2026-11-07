@@ -134,10 +134,8 @@ class WorkflowGuardTests(unittest.TestCase):
                 self.assertNotRegex(step, r'\bcontinue-on-error:\s*true\b')
         self.assertNotIn('continue-on-error: true', quality)
         self.assertIn('cargo clippy --locked --all-targets --all-features -- -D warnings', quality)
-        for command in ('check-code-size', 'check-test-size'):
+        for command in ('check-code-size', 'check-test-size', 'check-panics', 'check-swallowed-errors'):
             self.assertIn(f'run: cargo xtask {command}\n', quality)
-        for script in ('check_panic_budget.py', 'check_swallowed_error_budget.py'):
-            self.assertIn(f'run: python3 scripts/{script}\n', quality)
 
     def test_compiler_lookup_failure_is_not_masked_by_export(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()

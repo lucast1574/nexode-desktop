@@ -2,7 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, path::Path};
-fn is_test(path: &Path) -> bool {
+pub(crate) fn is_test(path: &Path) -> bool {
     path.components().any(|part| {
         let s = part.as_os_str().to_string_lossy();
         s == "tests" || s.ends_with("_tests") || s.ends_with("_test") || s.starts_with("tests_")
