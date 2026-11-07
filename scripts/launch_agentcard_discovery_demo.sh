@@ -19,8 +19,8 @@ case "${1:-}" in
     exit 0
     ;;
   --dry-run)
-    printf 'repo=%s\nshop=%s\nprompt=%s\n' "$REPO_ROOT" "$REPO_ROOT/scripts/demo_shop.py" "$PROMPT"
-    test -x "$REPO_ROOT/scripts/demo_shop.py"
+    printf 'repo=%s\nshop=%s\nprompt=%s\n' "$REPO_ROOT" "$REPO_ROOT/tools/orbit-dev/src/demo_shop.rs" "$PROMPT"
+    test -f "$REPO_ROOT/tools/orbit-dev/src/demo_shop.rs"
     exit 0
     ;;
   "") ;;
@@ -31,8 +31,8 @@ case "${1:-}" in
 esac
 
 mkdir -p "$DEMO_DIR/bin"
-ln -sfn "$REPO_ROOT/scripts/demo_shop.py" "$DEMO_DIR/bin/nexode-demo-shop"
-chmod +x "$REPO_ROOT/scripts/demo_shop.py"
+orbit_dev_bin="$("$REPO_ROOT/scripts/orbit_dev.sh" --build-only)"
+ln -sfn "$orbit_dev_bin" "$DEMO_DIR/bin/nexode-demo-shop"
 export PATH="$DEMO_DIR/bin:$PATH"
 export NEXODE_DEMO_SHOP_STATE="$DEMO_DIR/shop-state.json"
 nexode-demo-shop reset >>"$LOG_FILE" 2>&1
@@ -62,33 +62,7 @@ kitty \
 session_id=""
 for _ in $(seq 1 100); do
   if "$NEXODE_BIN" debug clients:map >"$after_file" 2>>"$LOG_FILE"; then
-    session_id="$(python - "$before_file" "$after_file" "$DEMO_DIR" <<'PY'
-import json
-import sys
-
-before_path, after_path, demo_dir = sys.argv[1:]
-
-
-def load(path):
-    try:
-        with open(path, encoding="utf-8") as file:
-            return json.load(file)
-    except Exception:
-        return {"clients": []}
-
-
-before_ids = {client.get("session_id") for client in load(before_path).get("clients", [])}
-candidates = [
-    client
-    for client in load(after_path).get("clients", [])
-    if client.get("session_id") not in before_ids
-    and client.get("working_dir") == demo_dir
-]
-candidates.sort(key=lambda client: client.get("connected_secs_ago", 999999))
-if candidates:
-    print(candidates[0]["session_id"])
-PY
-)"
+    session_id="$("$orbit_dev_bin" demo-session "$before_file" "$after_file" "$DEMO_DIR")"
   fi
   [[ -n "$session_id" ]] && break
   sleep 0.2

@@ -3,6 +3,7 @@ mod branding;
 mod browser_fixture;
 mod browser_package;
 mod compile_report;
+mod demo_shop;
 mod detached_acceptance;
 mod diagnostics;
 mod discovery;
@@ -37,17 +38,30 @@ Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors,
 SDK: version-sdk <runtime-tag>
 Browser: browser-fixture [--port N], test-browser-handoff-live --tab-id ID, package-browser <extension-source> <output>
 Benchmarks: benchmark-attribution [--help], bench-startup [binary] [--check], bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
-Fixtures: mock-sponsor [--help], openrelay-discovery-server [--help], openrelay-check [endpoint|rpc|trace], test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
+Fixtures: demo-shop [--help], demo-session <before> <after> <directory>, mock-sponsor [--help], openrelay-discovery-server [--help], openrelay-check [endpoint|rpc|trace], test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
 Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
 Rehearsal: update-rehearsal [--help]
 Repository: downloads-badge [--help], star-history [--help]";
 fn main() -> Result<()> {
+    if std::env::args_os()
+        .next()
+        .and_then(|s| {
+            std::path::PathBuf::from(s)
+                .file_stem()
+                .map(|s| s.to_owned())
+        })
+        .is_some_and(|s| s == "nexode-demo-shop")
+    {
+        return demo_shop::run(std::env::args().skip(1));
+    }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
         Some("benchmark-attribution") => discovery::attribution::run(&root()?, args)?,
         Some("openrelay-check") => discovery::openrelay_check::run(args)?,
+        Some("demo-shop") => demo_shop::run(args)?,
+        Some("demo-session") => demo_shop::session(args)?,
         Some("mock-sponsor") => discovery::sponsor::run(args)?,
         Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,
         Some("bench-startup") => startup_bench::run(args)?,

@@ -71,3 +71,5 @@ Discovery and attribution fixtures are native Rust:
 - `cargo xtask openrelay-discovery-server --ready-file /tmp/discovery-ready.json` serves the local OpenRelay listing. `openrelay-check` validates readiness metadata, RPC chain identity, and recorded agent traces for the existing live shell runner.
 
 `cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test discovery_services` runs the public CLI/HTTP round trips with an empty PATH. It creates no real sponsor accounts or external model calls.
+
+`cargo xtask demo-shop` replaces the offline storefront simulator. It preserves search, cart, budget checks and the intentionally paused checkout (exit 3), with integer-cent totals and atomic state writes. The demo launcher exposes the built native binary as `nexode-demo-shop`; `demo-session` selects its new session without an embedded interpreter.

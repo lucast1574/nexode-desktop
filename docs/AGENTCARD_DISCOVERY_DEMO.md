@@ -30,7 +30,7 @@ Expected flow:
 
 ## Safety and determinism
 
-`scripts/demo_shop.py` is local-only. It has no networking, credential input,
+`cargo xtask demo-shop` is local-only. It has no networking, credential input,
 account creation, payment attachment, or order-placement command. Each launcher
 run resets its JSON cart state. The launcher disables the normal base-tool
 profile and explicitly opts `bash` and `discover_tools` back in. Harness
