@@ -1,0 +1,74 @@
+# Dependency Security Triage
+
+Last reviewed: 2026-11-03
+
+This file tracks the current `cargo audit` findings for nexode and the intended remediation path.
+It is not an allowlist. It is a triage record so advisories are visible and actionable.
+
+## Current advisories
+
+| Advisory | Crate | Dependency path | Affected area in nexode | Triage | Planned action |
+|---|---|---|---|---|---|
+| `RUSTSEC-2025-0141` | `bincode` | `syntect -> bincode` | Markdown/code highlighting in the TUI | Unmaintained transitive dependency. No direct exposure in the provider/auth flow. | Track `syntect` upgrades or replace `syntect` if upstream does not move off `bincode` soon. |
+| `RUSTSEC-2024-0436` | `paste` | `ratatui -> paste`, `tokenizers -> paste`, `tract-* -> paste` | TUI rendering, tokenizers, embedding/model support | Widely transitive. Not isolated to one module. | Prefer upstream dependency upgrades before any local workaround. Re-evaluate after bumping `ratatui`, `tokenizers`, and `tract-*`. |
+| `RUSTSEC-2026-0002` | `lru` | `ratatui -> lru` | TUI rendering/cache internals | Unsoundness warning in a UI dependency. Not in auth/provider logic, but still ships in-process. | Upgrade `ratatui` / `ratatui-image` together once compatible. |
+| `RUSTSEC-2026-0097` | `rand` | `azure_core`, `tungstenite`, `tract-*`, `ratatui-image`, and others | Azure auth, websocket, embedding, and UI transitive paths | Unsoundness warning involving custom loggers using `rand::rng()`. Nexode does not intentionally use that pattern, but the crate is broad in the graph. | Prefer upstream upgrades to `rand` 0.9-compatible dependency stacks. |
+| `RUSTSEC-2026-0141` | `lettre` | `nexode-notify-email -> lettre` | Notification email sending | Vulnerability applies to the Boring TLS backend hostname verification path. Nexode's `lettre` dependency uses rustls/native-tls features, not `boring-tls`, so this is not believed exploitable in the current build. | Keep ignored in `scripts/security_preflight.sh`; remove ignore after `lettre` ships a patched release or if feature use changes. |
+| `RUSTSEC-2026-0098` | `rustls-webpki` | `rustls` dependency stack | TLS certificate validation in rustls consumers | Name constraints for URI names incorrectly accepted. Transitive via TLS libraries. | Upgrade rustls/webpki stack when compatible releases are available. |
+| `RUSTSEC-2026-0099` | `rustls-webpki` | `rustls` dependency stack | TLS certificate validation in rustls consumers | Name constraints accepted for wildcard certificates. Transitive via TLS libraries. | Upgrade rustls/webpki stack when compatible releases are available. |
+| `RUSTSEC-2026-0104` | `rustls-webpki` | `rustls` dependency stack | TLS certificate revocation list parsing | Reachable panic in CRL parsing. Transitive via TLS libraries. | Upgrade rustls/webpki stack when compatible releases are available. |
+| `RUSTSEC-2026-0049` | `rustls-webpki` | `rustls` dependency stack (`aws-smithy` rustls 0.21, `imap`/`rustls-connector` rustls 0.22) | TLS certificate revocation list handling | CRLs not considered authoritative by Distribution Point due to faulty matching logic. Transitive via the older rustls stacks; fix needs rustls-webpki >=0.103.10, which requires major bumps of the `aws-sdk`/`imap` stacks. | Upgrade rustls/webpki stack when compatible releases are available. |
+| `RUSTSEC-2026-0187` | `lopdf` | `nexode-pdf -> pdf-extract 0.8.2 -> lopdf 0.34` | PDF text extraction (`/pdf`, image/PDF reads) | Stack overflow parsing deeply nested PDF objects. Only reached when extracting text from a (potentially malicious) PDF the user opens; not in the auth/provider/network path. `pdf-extract 0.8.2` pins `lopdf 0.34`, so it cannot be bumped to the fixed `>=0.42` without an upstream `pdf-extract` release. | Upgrade once `pdf-extract` ships a release depending on `lopdf >=0.42`; remove the ignore then. |
+| `RUSTSEC-2023-0086` | `lexical-core` | `imap -> imap-proto -> lexical-core` | Gmail/IMAP support path | Old unsound transitive dependency in the mail stack. Higher priority than the UI-only findings because it touches network-parsed data. | Investigate upgrading or replacing `imap` / `imap-proto`. If no maintained path exists, isolate or remove the IMAP dependency. |
+
+## Resolved native SSH advisories (2026-11-03)
+
+- Upgraded `nexode-sdk`'s optional native SSH transport from `russh 0.54.5`
+  to `0.65.0`. The lockfile now selects `russh-cryptovec 0.62.0` and
+  `crypto-bigint 0.7.10`, above the patched thresholds for
+  `RUSTSEC-2026-0154`, `RUSTSEC-2026-0153`, and `RUSTSEC-2026-0387`.
+- `rsa` and `internal-russh-forked-ssh-key` are no longer in the lockfile,
+  removing `RUSTSEC-2023-0071` rather than suppressing it. Keep russh default
+  features disabled and enable only `ring`. Native SSH already generates
+  Ed25519 authentication keys, and CloudTarget accepts only Ed25519 and P-256
+  host keys. RSA-only native SSH endpoints are not supported, and the external
+  OpenSSH transport is unchanged.
+- Migrated key generation to `rand 0.10`'s cryptographically secure thread RNG.
+  The new certificate-aware host-key callback explicitly rejects certificates,
+  preserving raw pinned-key verification with no TOFU or CA trust fallback.
+- Regression coverage includes a real loopback encrypted SSH handshake,
+  Ed25519 public-key authentication, session exec/data, and wrong-pin rejection.
+  Run `justrust check -p nexode-sdk --all-features` and
+  `justrust test -p nexode-sdk --all-features` on hosted infrastructure.
+- `cargo audit --json` reports zero vulnerabilities with advisory database
+  commit `263a4d951a0867d4bddc29dddd6d59427c78f9a7` (updated 2026-11-02).
+  All four repaired advisory IDs are absent. Unmaintained, unsound, and yanked
+  dependency warnings remain. `scripts/security_preflight.sh --strict` passes
+  with its existing, unchanged triage list.
+
+## Priority order
+
+1. `rustls-webpki` TLS advisories via rustls stack
+2. `lexical-core` via `imap-proto`
+3. `lettre` if Nexode ever enables `boring-tls`
+4. `lru` via `ratatui`
+5. `bincode` via `syntect`
+6. `paste` / `rand` via multiple transitive dependencies
+
+## Notes
+
+- None of the advisories above were introduced by the provider-auth refactor.
+- The provider/auth hardening work should continue independently of these dependency upgrades.
+- `RUSTSEC-2026-0217` (`tract-nnef` 0.21.10, integer overflow in the NNEF tensor
+  parser) was resolved on 2026-07-30 by moving `nexode-embedding` to `tract` 0.23.
+  The in-line `0.21.16` fix was unreachable: `tract-data 0.21.16` pins
+  `half ^2.5`. The 0.23 line drops that pin. This mattered because the parser
+  runs over a model downloaded at runtime rather than one shipped in the binary,
+  so an ignore would not have been clearly safe. See #657.
+- `RUSTSEC-2024-0320` (`yaml-rust`) was removed from the dependency graph on 2026-03-05 by trimming `syntect` features to built-in syntax/theme dumps instead of YAML loading.
+- `RUSTSEC-2026-0194` / `RUSTSEC-2026-0195` (`quick-xml` 0.39.2): reached only through `wayland-scanner`, a build-time proc-macro in the desktop crate's winit stack. It parses trusted, vendored Wayland protocol XML during compilation and never touches untrusted input at runtime. Remediation is upstream: `wayland-scanner` needs to move to `quick-xml >= 0.41`. Triaged and ignored in `scripts/security_preflight.sh` on 2026-07-04.
+- `scripts/security_preflight.sh` ignores the vulnerability advisories that are explicitly triaged above (`lettre` and `rustls-webpki`) so CI can remain actionable. New vulnerabilities still fail CI by default.
+- Before changing dependency versions, run:
+  - `cargo check`
+  - `cargo test -j 1`
+  - `scripts/security_preflight.sh`
