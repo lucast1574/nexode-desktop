@@ -1,0 +1,14 @@
+Nexode Harness is derived from Jcode by Jeremy Huang and contributors.
+Upstream source: https://github.com/1jehuang/jcode
+Source snapshot: c28c6aa7a060e6ac421317432ee3b4549069f823
+
+The original MIT copyright and permission notice is preserved in LICENSE.
+The TypeScript SDK retains its original LICENSE as well.
+
+Nexode visual assets were supplied through the user's Nexode monorepo:
+https://github.com/ronnaldrangel/nexode, commit f913b50.
+Wordmark: frontend/public/logo/logo_white.svg
+Orbital icon: frontend/public/favicon.svg
+
+Rebranding does not imply ownership of third-party dependencies or change
+their licenses. External browser bridge and provider names remain theirs.

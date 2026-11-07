@@ -1,0 +1,35 @@
+/target
+Cargo.lock
+__pycache__/
+/.wrangler/
+/tmp/
+# Local onboarding sandbox + auth fixtures. May contain REAL OAuth tokens copied
+# from $HOME (see scripts/onboarding_sandbox.sh seed-real-logins). Never commit.
+/.tmp/
+/.nexode/generated-images/
+/telemetry-worker/backups/
+target-ttest/
+target-ttest*/
+
+# Local capture artefacts are not committed baselines.
+captures/
+
+# Stray experiment/debug artifacts at the repo root. Real assets live under
+# assets/, docs/, and tests/ and are committed explicitly.
+/*.log
+/*.avif
+/*.mp4
+/*.png
+
+# Local dependencies, outputs, credentials and imported session notes
+node_modules/
+/sdk/**/dist/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/fork-prompt-session-*.json
+/.claude/
+# Application builds need a reproducible dependency lockfile.
+!/Cargo.lock

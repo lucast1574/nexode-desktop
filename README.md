@@ -1,0 +1,70 @@
+<p align="center">
+  <img src="assets/brand/nexode-harness-banner.svg" alt="Nexode Harness — Rust coding agent" width="960">
+</p>
+
+# Nexode Harness
+
+Agente de programación en Rust con interfaz de terminal, herramientas, sesiones persistentes, múltiples proveedores y coordinación de agentes.
+
+Repositorio: [lucast1574/nexode-harness](https://github.com/lucast1574/nexode-harness).
+
+Esta es la distribución de **Nexode Harness**. Es independiente del monorepo de [Nexode Cloud](https://github.com/ronnaldrangel/nexode): comparte su identidad visual, pero las APIs de cuenta, suscripciones y despliegue todavía no están integradas con ese backend.
+
+## Compilar y ejecutar
+
+```sh
+cargo build --locked --release --bin nexode
+./target/release/nexode --version
+./target/release/nexode --help
+./target/release/nexode
+```
+
+En Windows, el binario es `target\release\nexode.exe`. Consulta [Windows](docs/WINDOWS.md) para los requisitos y [Contributing](CONTRIBUTING.md) para dependencias de desarrollo.
+
+Para instalar una compilación local en el PATH del usuario en Linux/macOS:
+
+```sh
+bash scripts/install_release.sh --fast
+```
+
+El comando es `nexode`, la configuración se guarda en `~/.nexode` y las variables específicas usan el prefijo `NEXODE_`. El directorio puede cambiarse con `NEXODE_HOME`. No se importa automáticamente configuración de otras distribuciones.
+
+## Estructura
+
+| Carpeta | Contenido |
+| --- | --- |
+| `src/` | CLI y comandos |
+| `crates/` | Runtime, proveedores, herramientas, transporte, almacenamiento y TUI |
+| `sdk/` | SDK Rust/TypeScript y empaquetado por plataforma |
+| `assets/brand/` | Logos SVG, banner y contrato de marca |
+| `assets/app-icons/` | Iconos PNG, Windows ICO y macOS ICNS |
+| `scripts/` | Compilación, instalación y validación |
+| `docs/` | Documentación técnica y guía de esta distribución |
+
+## Estado de esta distribución
+
+- Nombre, comando, namespaces, crates, SDKs y rutas adaptados a Nexode.
+- Logo e icono tomados del monorepo Nexode, commit `f913b50`.
+- Acento verde y motivo orbital en la terminal.
+- Telemetría desactivada.
+- Actualización automática desactivada hasta configurar `NEXODE_RELEASE_REPO` al compilar.
+- Paquetes npm privados hasta decidir su publicación y confirmar el namespace.
+- Endpoints `*.nexode.invalid` deliberadamente no operativos para servicios pendientes. No son el backend de Nexode Cloud.
+- El puente de navegador sigue siendo externo, con extensión JavaScript. El control nativo del escritorio incluido sigue limitado a macOS.
+
+Los videos y capturas originales no se presentan como demos de Nexode. Esta copia no incluye una aplicación desktop gráfica separada.
+
+## Validación
+
+```sh
+cargo fmt --all -- --check
+cargo check --locked --all-targets --all-features
+cargo clippy --locked --all-targets --all-features -- -D warnings
+python3 scripts/check_branding.py
+```
+
+Consulta [la guía del rebranding](docs/REBRANDING.md) y [el contrato visual](assets/brand/DESIGN.md).
+
+## Licencia
+
+MIT. Se conserva íntegra la licencia original y sus atribuciones en [LICENSE](LICENSE) y [NOTICE](NOTICE).
