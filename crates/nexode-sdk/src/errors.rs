@@ -1,0 +1,126 @@
+//! Errors the SDK reports.
+//!
+//! Mirrors the TypeScript SDK's `HarnessError`: one error type with a machine
+//! readable code, so a caller can branch on the cause instead of matching on
+//! prose that is free to change.
+
+use std::fmt;
+
+/// What went wrong, in a form a caller can branch on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorKind {
+    /// The socket could not be dialed. Usually: the harness is not running.
+    ConnectFailed,
+    /// The version handshake was refused or answered with the wrong frame.
+    HandshakeFailed,
+    /// No reply arrived within the request timeout.
+    Timeout,
+    /// The connection is closed; nothing further can be sent on it.
+    Disconnected,
+    /// The reply was a different event kind than the request implies.
+    UnexpectedReply,
+    /// The harness answered with an error frame. Carries the wire code.
+    Harness(nexode_harness_api::ErrorCode),
+    /// I/O or JSON trouble on the transport.
+    Transport,
+    /// Starting a runtime (daemon or bridge) failed.
+    LaunchFailed,
+    /// The configured nexode executable could not be started.
+    NexodeNotFound,
+    /// The private bridge exited before its socket became ready.
+    StartupFailed,
+    /// The private bridge or SSH startup/handshake missed its deadline.
+    StartupTimeout,
+    /// An instance home was unsafe or aliased the user's own home.
+    InvalidInstanceHome,
+    /// An option was outside its documented range.
+    InvalidOption,
+    /// An operation requires a reconnectable native socket or SSH transport.
+    UnsupportedTransport,
+    /// A global event consumer fell behind its bounded queue.
+    EventBufferOverflow,
+    /// The caller cancelled a long-running operation (sign-in, host wake).
+    Cancelled,
+    /// Nexode Cloud rejected the account credentials. Sign in again.
+    CloudAuth,
+    /// The account has no Nexode Cloud entitlement or allowance left.
+    CloudNotEntitled,
+    /// The server's SSH host key did not match any pinned key.
+    HostKeyMismatch,
+}
+
+impl ErrorKind {
+    /// Stable, lowercase identifier. Matches the TS SDK's code strings so the
+    /// two SDKs describe the same failure by the same name.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::ConnectFailed => "connect_failed",
+            Self::HandshakeFailed => "handshake_failed",
+            Self::Timeout => "timeout",
+            Self::Disconnected => "disconnected",
+            Self::UnexpectedReply => "unexpected_reply",
+            Self::Transport => "transport",
+            Self::LaunchFailed => "launch_failed",
+            Self::NexodeNotFound => "nexode_not_found",
+            Self::StartupFailed => "startup_failed",
+            Self::StartupTimeout => "startup_timeout",
+            Self::InvalidInstanceHome => "invalid_instance_home",
+            Self::InvalidOption => "invalid_option",
+            Self::UnsupportedTransport => "unsupported_transport",
+            Self::EventBufferOverflow => "event_buffer_overflow",
+            Self::Cancelled => "cancelled",
+            Self::CloudAuth => "cloud_auth",
+            Self::CloudNotEntitled => "cloud_not_entitled",
+            Self::HostKeyMismatch => "host_key_mismatch",
+            Self::Harness(code) => match code {
+                nexode_harness_api::ErrorCode::UnsupportedVersion => "unsupported_version",
+                nexode_harness_api::ErrorCode::UnknownRequest => "unknown_request",
+                nexode_harness_api::ErrorCode::UnknownSession => "unknown_session",
+                nexode_harness_api::ErrorCode::InvalidRequest => "invalid_request",
+                nexode_harness_api::ErrorCode::Internal => "internal",
+            },
+        }
+    }
+}
+
+/// An SDK failure: a code plus a sentence that says what to do about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Error {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+impl Error {
+    pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    /// The stable code for this failure.
+    pub fn code(&self) -> &'static str {
+        self.kind.code()
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.kind.code(), self.message)
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<nexode_harness_api::FrameError> for Error {
+    fn from(error: nexode_harness_api::FrameError) -> Self {
+        let kind = match error {
+            nexode_harness_api::FrameError::Eof => ErrorKind::Disconnected,
+            _ => ErrorKind::Transport,
+        };
+        Self::new(kind, error.to_string())
+    }
+}
+
+/// Result alias used throughout the SDK.
+pub type Result<T> = std::result::Result<T, Error>;

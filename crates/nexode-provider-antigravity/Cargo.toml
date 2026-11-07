@@ -1,0 +1,11 @@
+[package]
+name = "nexode-provider-antigravity"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+nexode-provider-gemini = { path = "../nexode-provider-gemini" }
+nexode-schema-dialect = { path = "../nexode-schema-dialect" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -1,0 +1,9 @@
+[package]
+name = "nexode-fuzzy"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "nexode_fuzzy"
+path = "src/lib.rs"

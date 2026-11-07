@@ -1,0 +1,22 @@
+[package]
+name = "nexode-protocol"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nexode-batch-types = { path = "../nexode-batch-types" }
+nexode-config-types = { path = "../nexode-config-types" }
+nexode-message-types = { path = "../nexode-message-types" }
+nexode-plan = { path = "../nexode-plan" }
+nexode-provider-core = { path = "../nexode-provider-core" }
+nexode-selfdev-types = { path = "../nexode-selfdev-types" }
+nexode-session-types = { path = "../nexode-session-types" }
+nexode-side-panel-types = { path = "../nexode-side-panel-types" }
+nexode-applet-types = { path = "../nexode-applet-types" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+anyhow = "1"
+rand = "0.9"
