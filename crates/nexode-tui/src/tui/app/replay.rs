@@ -1,0 +1,676 @@
+use super::{App, DisplayMessage, ProcessingStatus, RunResult};
+use crate::replay::{PaneReplayInput, ReplayEvent, TimelineEvent};
+use crate::tui::backend::{RemoteEventState, ReplayRemoteState};
+use anyhow::Result;
+use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, KeyModifiers};
+use futures::StreamExt;
+use ratatui::{
+    DefaultTerminal, Frame, Terminal, backend::TestBackend, buffer::Buffer, layout::Rect,
+};
+use std::time::{Duration, Instant};
+use tokio::time::interval;
+
+pub(super) async fn run_replay(
+    mut app: App,
+    mut terminal: DefaultTerminal,
+    timeline: Vec<TimelineEvent>,
+    speed: f64,
+) -> Result<RunResult> {
+    let mut event_stream = EventStream::new();
+    let mut redraw_period = super::super::redraw_interval(&app);
+    let mut redraw_interval = interval(redraw_period);
+    let mut remote = ReplayRemoteState::default();
+
+    let replay_events = crate::replay::timeline_to_replay_events(&timeline);
+    let mut event_index: usize = 0;
+    let mut paused = false;
+    let mut replay_speed = speed;
+    let mut next_event_at: Option<tokio::time::Instant> = Some(tokio::time::Instant::now());
+    let mut replay_turn_id: u64 = 0;
+
+    loop {
+        let desired_redraw = super::super::redraw_interval(&app);
+        if desired_redraw != redraw_period {
+            redraw_period = desired_redraw;
+            redraw_interval = interval(redraw_period);
+        }
+
+        terminal.draw(|frame| crate::tui::ui::draw(frame, &app))?;
+
+        if app.should_quit {
+            break;
+        }
+
+        let replay_done = event_index >= replay_events.len();
+
+        tokio::select! {
+            _ = redraw_interval.tick() => {
+                let ops = app.stream_buffer.flush();
+                app.apply_stream_ops(ops);
+            }
+            event = event_stream.next() => {
+                if let Some(Ok(event)) = event {
+                    handle_replay_input(&mut app, &mut terminal, event, replay_done, &mut paused, &mut replay_speed, &mut next_event_at);
+                }
+            }
+            _ = async {
+                if let Some(target) = next_event_at {
+                    tokio::time::sleep_until(target).await;
+                } else {
+                    std::future::pending::<()>().await;
+                }
+            }, if !paused && !replay_done => {
+                if event_index < replay_events.len() {
+                    let replay_event = replay_events[event_index].1.clone();
+                    apply_replay_event(&mut app, &mut remote, &replay_event, &mut replay_turn_id, None);
+
+                    event_index += 1;
+
+                    if event_index < replay_events.len() {
+                        let next_delay = replay_events[event_index].0;
+                        let adjusted = (next_delay as f64 / replay_speed) as u64;
+                        next_event_at = Some(tokio::time::Instant::now() + Duration::from_millis(adjusted));
+                    } else {
+                        next_event_at = None;
+                        app.is_processing = false;
+                        app.status = ProcessingStatus::Idle;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(RunResult {
+        reload_session: None,
+        rebuild_session: None,
+        update_session: None,
+        restart_session: None,
+        hibernate_session: None,
+        cloud_handoff: None,
+        exit_code: None,
+        session_id: if app.is_remote {
+            app.remote_session_id.clone()
+        } else {
+            Some(app.session.id.clone())
+        },
+    })
+}
+
+pub(super) async fn run_swarm_replay(
+    mut terminal: DefaultTerminal,
+    panes: Vec<PaneReplayInput>,
+    speed: f64,
+    centered_override: Option<bool>,
+) -> Result<()> {
+    if panes.is_empty() {
+        anyhow::bail!("No swarm replay panes to render");
+    }
+
+    let mut panes: Vec<SwarmReplayPane> = panes
+        .into_iter()
+        .map(|pane| SwarmReplayPane::new(pane, centered_override))
+        .collect();
+    let mut event_stream = EventStream::new();
+    let mut redraw_period = Duration::from_millis(16);
+    let mut redraw_interval = interval(redraw_period);
+    let mut paused = false;
+    let mut replay_speed = speed.clamp(0.1, 20.0);
+    let mut sim_time_ms = 0.0;
+    let mut last_tick = Instant::now();
+    let total_duration_ms = panes
+        .iter()
+        .map(SwarmReplayPane::total_duration_ms)
+        .fold(0.0, f64::max);
+    let mut should_quit = false;
+
+    loop {
+        terminal.draw(|frame| {
+            draw_swarm_replay_frame(frame, &mut panes, sim_time_ms);
+        })?;
+
+        if should_quit {
+            break;
+        }
+
+        let replay_done = panes.iter().all(SwarmReplayPane::is_done);
+        if !paused && !replay_done {
+            let elapsed = last_tick.elapsed();
+            sim_time_ms = (sim_time_ms + elapsed.as_secs_f64() * 1000.0 * replay_speed)
+                .min(total_duration_ms.max(0.0));
+            last_tick = Instant::now();
+        } else {
+            last_tick = Instant::now();
+        }
+
+        tokio::select! {
+            _ = redraw_interval.tick() => {}
+            event = event_stream.next() => {
+                if let Some(Ok(event)) = event {
+                    handle_swarm_replay_input(
+                        &mut terminal,
+                        event,
+                        replay_done,
+                        &mut should_quit,
+                        &mut paused,
+                        &mut replay_speed,
+                        &mut last_tick,
+                    );
+                }
+            }
+        }
+
+        let desired_redraw = if paused {
+            Duration::from_millis(33)
+        } else {
+            Duration::from_millis(16)
+        };
+        if desired_redraw != redraw_period {
+            redraw_period = desired_redraw;
+            redraw_interval = interval(redraw_period);
+        }
+    }
+
+    Ok(())
+}
+
+fn handle_replay_input(
+    app: &mut App,
+    _terminal: &mut DefaultTerminal,
+    event: Event,
+    replay_done: bool,
+    paused: &mut bool,
+    replay_speed: &mut f64,
+    next_event_at: &mut Option<tokio::time::Instant>,
+) {
+    match event {
+        Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.should_quit = true;
+            }
+            KeyCode::Char('q') | KeyCode::Esc => {
+                app.should_quit = true;
+            }
+            KeyCode::Char(' ') => {
+                *paused = !*paused;
+                if !*paused && !replay_done {
+                    *next_event_at = Some(tokio::time::Instant::now());
+                }
+            }
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                *replay_speed = (*replay_speed * 1.5).min(20.0);
+            }
+            KeyCode::Char('-') => {
+                *replay_speed = (*replay_speed / 1.5).max(0.1);
+            }
+            _ => {
+                if let Some(amount) = app.scroll_keys.scroll_amount(key.code, key.modifiers) {
+                    if amount < 0 {
+                        app.scroll_up((-amount) as usize);
+                    } else {
+                        app.scroll_down(amount as usize);
+                    }
+                }
+            }
+        },
+        Event::Mouse(mouse) => {
+            app.handle_mouse_event(mouse);
+        }
+        Event::Resize(_, _) => {}
+        _ => {}
+    }
+}
+
+fn handle_swarm_replay_input(
+    _terminal: &mut DefaultTerminal,
+    event: Event,
+    replay_done: bool,
+    should_quit: &mut bool,
+    paused: &mut bool,
+    replay_speed: &mut f64,
+    last_tick: &mut Instant,
+) {
+    match event {
+        Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                *should_quit = true;
+            }
+            KeyCode::Char('q') | KeyCode::Esc => {
+                *should_quit = true;
+            }
+            KeyCode::Char(' ') => {
+                *paused = !*paused;
+                *last_tick = Instant::now();
+            }
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                *replay_speed = (*replay_speed * 1.5).min(20.0);
+                *last_tick = Instant::now();
+            }
+            KeyCode::Char('-') => {
+                *replay_speed = (*replay_speed / 1.5).max(0.1);
+                *last_tick = Instant::now();
+            }
+            KeyCode::Right if replay_done => {
+                *should_quit = true;
+            }
+            _ => {}
+        },
+        Event::Resize(_, _) => {
+            *last_tick = Instant::now();
+        }
+        _ => {}
+    }
+}
+
+struct SwarmReplayPane {
+    app: App,
+    remote: ReplayRemoteState,
+    event_schedule: Vec<(f64, ReplayEvent)>,
+    event_cursor: usize,
+    replay_turn_id: u64,
+}
+
+impl SwarmReplayPane {
+    fn new(input: PaneReplayInput, centered_override: Option<bool>) -> Self {
+        let event_schedule = schedule_replay_events(&input.timeline);
+        let mut app = App::new_for_replay_silent(input.session);
+        if let Some(centered) = centered_override {
+            app.set_centered(centered);
+        }
+        Self {
+            app,
+            remote: ReplayRemoteState::default(),
+            event_schedule,
+            event_cursor: 0,
+            replay_turn_id: 0,
+        }
+    }
+
+    fn total_duration_ms(&self) -> f64 {
+        self.event_schedule.last().map(|(t, _)| *t).unwrap_or(0.0)
+    }
+
+    fn is_done(&self) -> bool {
+        self.event_cursor >= self.event_schedule.len()
+    }
+
+    fn advance_to(&mut self, sim_time_ms: f64) {
+        while self.event_cursor < self.event_schedule.len()
+            && self.event_schedule[self.event_cursor].0 <= sim_time_ms
+        {
+            let event = self.event_schedule[self.event_cursor].1.clone();
+            apply_replay_event(
+                &mut self.app,
+                &mut self.remote,
+                &event,
+                &mut self.replay_turn_id,
+                Some(sim_time_ms),
+            );
+            self.event_cursor += 1;
+        }
+
+        if self.is_done() {
+            self.app.is_processing = false;
+            self.app.status = ProcessingStatus::Idle;
+        }
+
+        update_replay_elapsed_override(&mut self.app, sim_time_ms);
+    }
+
+    fn render_buffer(&self, width: u16, height: u16) -> Result<Buffer> {
+        let backend = TestBackend::new(width.max(1), height.max(1));
+        let mut terminal = Terminal::new(backend)?;
+        let completed = terminal.draw(|frame| crate::tui::render_frame(frame, &self.app))?;
+        // Preserve deferred image markers and skip flags until the outer frame
+        // has blitted every pane. TestBackend's post-diff buffer loses them.
+        Ok(completed.buffer.clone())
+    }
+}
+
+fn schedule_replay_events(timeline: &[TimelineEvent]) -> Vec<(f64, ReplayEvent)> {
+    let mut abs_time_ms = 0.0;
+    crate::replay::timeline_to_replay_events(timeline)
+        .into_iter()
+        .map(|(delay_ms, event)| {
+            abs_time_ms += delay_ms as f64;
+            (abs_time_ms, event)
+        })
+        .collect()
+}
+
+fn draw_swarm_replay_frame(frame: &mut Frame<'_>, panes: &mut [SwarmReplayPane], sim_time_ms: f64) {
+    nexode_tui_mermaid::begin_terminal_image_frame();
+    draw_swarm_replay_panes(frame, panes, sim_time_ms);
+    nexode_tui_style::adapt_buffer_for_display(frame.buffer_mut());
+    crate::tui::ui::adapt_buffer_for_emoji_preference(frame.buffer_mut());
+    nexode_tui_mermaid::finish_terminal_image_frame(frame.buffer_mut());
+}
+
+fn draw_swarm_replay_panes(frame: &mut Frame<'_>, panes: &mut [SwarmReplayPane], sim_time_ms: f64) {
+    let area = frame.area().intersection(*frame.buffer_mut().area());
+    crate::tui::color_support::clear_buf(area, frame.buffer_mut());
+    if panes.is_empty() || area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let pane_count = panes.len() as u16;
+    let cols = if pane_count <= 2 { pane_count } else { 2 };
+    let rows = pane_count.div_ceil(cols).max(1);
+    let pane_width = (area.width / cols).max(1);
+    let pane_height = (area.height / rows).max(1);
+
+    for (idx, pane) in panes.iter_mut().enumerate() {
+        pane.advance_to(sim_time_ms);
+
+        let idx = idx as u16;
+        let col = idx % cols;
+        let row = idx / cols;
+        let x = area.x + col * pane_width;
+        let y = area.y + row * pane_height;
+        let pane_area = Rect::new(
+            x,
+            y,
+            if col == cols - 1 {
+                area.width - (x - area.x)
+            } else {
+                pane_width
+            },
+            if row == rows - 1 {
+                area.height - (y - area.y)
+            } else {
+                pane_height
+            },
+        );
+
+        let rendered =
+            nexode_tui_mermaid::with_image_frame_offset(pane_area.x, pane_area.y, || {
+                pane.render_buffer(pane_area.width, pane_area.height)
+            });
+        if let Ok(buf) = rendered {
+            blit_buffer(frame.buffer_mut(), pane_area, &buf);
+        }
+    }
+}
+
+fn blit_buffer(dst: &mut Buffer, area: Rect, src: &Buffer) {
+    for sy in 0..area.height.min(src.area.height) {
+        for sx in 0..area.width.min(src.area.width) {
+            let dx = area.x + sx;
+            let dy = area.y + sy;
+            if let (Some(src_cell), Some(dst_cell)) = (src.cell((sx, sy)), dst.cell_mut((dx, dy))) {
+                *dst_cell = src_cell.clone();
+            }
+        }
+    }
+}
+
+pub(super) fn apply_replay_event(
+    app: &mut App,
+    remote: &mut impl RemoteEventState,
+    replay_event: &ReplayEvent,
+    replay_turn_id: &mut u64,
+    replay_processing_started_ms: Option<f64>,
+) {
+    match replay_event {
+        ReplayEvent::UserMessage { text } => {
+            app.push_display_message(DisplayMessage {
+                role: "user".to_string(),
+                content: text.clone(),
+                tool_calls: vec![],
+                duration_secs: None,
+                title: None,
+                tool_data: None,
+            });
+        }
+        ReplayEvent::StartProcessing => {
+            *replay_turn_id += 1;
+            app.current_message_id = Some(*replay_turn_id);
+            app.is_processing = true;
+            app.processing_started = Some(Instant::now());
+            app.status = ProcessingStatus::Thinking(Instant::now());
+            app.streaming.streaming_tps_start = None;
+            app.streaming.streaming_tps_elapsed = Duration::ZERO;
+            app.streaming.streaming_tps_collect_output = false;
+            app.streaming.streaming_total_output_tokens = 0;
+            app.streaming.streaming_tps_observed_output_tokens = 0;
+            app.streaming.streaming_tps_observed_elapsed = Duration::ZERO;
+            app.replay_processing_started_ms = replay_processing_started_ms;
+        }
+        ReplayEvent::MemoryInjection {
+            summary,
+            content,
+            count: _,
+        } => {
+            let display = DisplayMessage::memory(summary.clone(), content.clone());
+            app.push_display_message(display);
+        }
+        ReplayEvent::DisplayMessage {
+            role,
+            title,
+            content,
+        } => {
+            if role == "swarm" {
+                app.swarm_enabled = true;
+            }
+            app.push_display_message(DisplayMessage {
+                role: role.clone(),
+                content: content.clone(),
+                tool_calls: vec![],
+                duration_secs: None,
+                title: title.clone(),
+                tool_data: None,
+            });
+        }
+        ReplayEvent::SwarmStatus { members } => {
+            app.swarm_enabled = true;
+            app.remote_swarm_members = members.clone();
+        }
+        ReplayEvent::SwarmPlan {
+            swarm_id,
+            version,
+            items,
+        } => {
+            app.swarm_enabled = true;
+            app.swarm_plan_swarm_id = Some(swarm_id.clone());
+            app.swarm_plan_version = Some(*version);
+            app.swarm_plan_items = items.clone();
+        }
+        ReplayEvent::Server(server_event) => {
+            if let crate::protocol::ServerEvent::TextDelta { text } = server_event {
+                if !text.is_empty() {
+                    app.append_streaming_text(text);
+                    if matches!(app.status, ProcessingStatus::Thinking(_)) {
+                        app.status = ProcessingStatus::Streaming;
+                    }
+                    app.last_stream_activity = Some(Instant::now());
+                }
+            } else {
+                app.handle_server_event(server_event.clone(), remote);
+            }
+        }
+    }
+}
+
+pub(super) fn update_replay_elapsed_override(app: &mut App, sim_time_ms: f64) {
+    if let Some(start_ms) = app.replay_processing_started_ms {
+        let elapsed_ms = (sim_time_ms - start_ms).max(0.0);
+        app.replay_elapsed_override = Some(Duration::from_millis(elapsed_ms as u64));
+    } else {
+        app.replay_elapsed_override = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::schedule_replay_events;
+    use crate::replay::{ReplayEvent, TimelineEvent, TimelineEventKind};
+
+    #[test]
+    fn swarm_replay_composes_classic_images_into_distinct_panes() {
+        const CHILD: &str = "NEXODE_TEST_SWARM_REPLAY_CLASSIC_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            // The renderer dependency is not cfg(test), so exercise its actual
+            // Zellij detection in a child process rather than changing this
+            // test runner's process-wide environment or global picker.
+            let home = tempfile::tempdir().unwrap();
+            let test_name = std::thread::current()
+                .name()
+                .expect("named test thread")
+                .to_owned();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &test_name, "--nocapture"])
+                .env(CHILD, "1")
+                .env("NEXODE_HOME", home.path())
+                .env("ZELLIJ", "1")
+                .env("TERM", "xterm-kitty")
+                .env("NEXODE_ZELLIJ_KITTY_IMAGES", "1")
+                .env_remove("HERDR_ENV")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "isolated swarm replay regression failed:\n{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("SWARM_CLASSIC_REPLAY_VERIFIED"),
+                "isolated test did not execute the replay assertions"
+            );
+            return;
+        }
+
+        use super::{
+            Buffer, DisplayMessage, PaneReplayInput, SwarmReplayPane, draw_swarm_replay_frame,
+        };
+        use ratatui::{
+            Terminal,
+            backend::{Backend, CrosstermBackend, TestBackend},
+            layout::Rect,
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let _entered = runtime.enter();
+        nexode_tui_mermaid::force_test_kitty_picker();
+        let temporary = tempfile::tempdir().unwrap();
+        let image_path = temporary.path().join("synthetic.png");
+        image::RgbaImage::from_pixel(80, 80, image::Rgba([20, 120, 220, 255]))
+            .save(&image_path)
+            .unwrap();
+        let hash = nexode_tui_mermaid::register_external_image(&image_path, 80, 80);
+        let mut panes: Vec<_> = (0..2)
+            .map(|index| {
+                let session = crate::session::Session::create_with_id(
+                    format!("synthetic_replay_image_{index}"),
+                    None,
+                    None,
+                );
+                let mut pane = SwarmReplayPane::new(
+                    PaneReplayInput {
+                        session,
+                        timeline: vec![],
+                    },
+                    Some(false),
+                );
+                pane.app.diagram_mode = crate::config::DiagramDisplayMode::None;
+                pane.app.push_display_message(DisplayMessage {
+                    role: "assistant".to_string(),
+                    content: nexode_tui_mermaid::image_widget_placeholder_markdown(hash),
+                    tool_calls: vec![],
+                    duration_secs: None,
+                    title: None,
+                    tool_data: None,
+                });
+                pane
+            })
+            .collect();
+        let mut terminal = Terminal::new(TestBackend::new(160, 50)).unwrap();
+        let mut previous = Buffer::empty(Rect::new(0, 0, 160, 50));
+        let placement = regex::Regex::new("\x1b\\[(\\d+);(\\d+)H\x1b_Ga=p,").unwrap();
+        for frame_index in 0..2 {
+            let composed = terminal
+                .draw(|frame| draw_swarm_replay_frame(frame, &mut panes, 0.0))
+                .unwrap()
+                .buffer
+                .clone();
+            let mut wire = Vec::new();
+            CrosstermBackend::new(&mut wire)
+                .draw(previous.diff(&composed).into_iter())
+                .unwrap();
+            let wire = String::from_utf8(wire).unwrap();
+            let positions: Vec<_> = placement
+                .captures_iter(&wire)
+                .map(|capture| {
+                    (
+                        capture[1].parse::<u16>().unwrap(),
+                        capture[2].parse::<u16>().unwrap(),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                positions.len(),
+                2,
+                "both replay panes must retain their image placement"
+            );
+            assert!(
+                positions[0].1 <= 80,
+                "first placement must stay in the left pane"
+            );
+            assert!(
+                positions[1].1 > 80,
+                "second placement must translate into the right pane"
+            );
+            assert_eq!(positions[0].0, positions[1].0);
+            assert!(!wire.contains("nexode-image="));
+            assert!(!wire.contains("U=1"));
+            if frame_index != 0 {
+                assert!(
+                    !wire.contains("a=t,"),
+                    "unchanged replay panes must reuse uploaded pixels"
+                );
+                assert_eq!(wire.matches("a=d,d=i,").count(), 2);
+                assert!(wire.rfind("a=d,d=i,").unwrap() < wire.find("a=p,").unwrap());
+            }
+            previous = composed;
+        }
+        drop(panes);
+        nexode_tui_mermaid::clear_image_state();
+        let _ = nexode_tui_mermaid::take_terminal_image_cleanup_payload();
+        println!("SWARM_CLASSIC_REPLAY_VERIFIED");
+    }
+
+    #[test]
+    fn schedule_replay_events_accumulates_relative_delays() {
+        let timeline = vec![
+            TimelineEvent {
+                t: 0,
+                kind: TimelineEventKind::UserMessage {
+                    text: "hi".to_string(),
+                },
+            },
+            TimelineEvent {
+                t: 250,
+                kind: TimelineEventKind::Thinking { duration: 250 },
+            },
+            TimelineEvent {
+                t: 500,
+                kind: TimelineEventKind::StreamText {
+                    text: "there".to_string(),
+                    speed: 80,
+                },
+            },
+        ];
+
+        let scheduled = schedule_replay_events(&timeline);
+        assert_eq!(scheduled.len(), 4);
+        assert_eq!(scheduled[0].0, 0.0);
+        assert_eq!(scheduled[1].0, 250.0);
+        assert_eq!(scheduled[2].0, 500.0);
+        assert!(scheduled[3].0 > scheduled[2].0);
+        assert!(matches!(scheduled[0].1, ReplayEvent::UserMessage { .. }));
+        assert!(matches!(scheduled[1].1, ReplayEvent::StartProcessing));
+        assert!(matches!(scheduled[2].1, ReplayEvent::Server(_)));
+        assert!(matches!(scheduled[3].1, ReplayEvent::Server(_)));
+    }
+}

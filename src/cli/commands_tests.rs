@@ -1,0 +1,1764 @@
+use super::*;
+use crate::auth::{AuthState, AuthStatus, ProviderAuth};
+use crate::message::{Message, StreamEvent, ToolDefinition};
+use crate::provider::ModelRoute;
+use crate::provider::{EventStream, Provider};
+use crate::todo::ConfidenceState;
+use crate::tool::Registry;
+use async_trait::async_trait;
+use std::io::{Read, Write};
+use std::sync::Arc;
+use tokio::sync::mpsc as tokio_mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+
+#[test]
+fn run_auto_poke_default_skips_quality_reviews_but_keeps_unfinished_work() {
+    let mut spiked = test_todo(
+        "a",
+        "completed",
+        "high",
+        Some(ConfidenceState::Speculative),
+        Some(ConfidenceState::Verified),
+    );
+    spiked.confidence_history = vec![ConfidenceState::Speculative, ConfidenceState::Verified];
+    for todo in [spiked, test_todo("b", "completed", "high", None, None)] {
+        assert!(
+            build_run_auto_poke_follow_up_from_todos(
+                false,
+                &[todo],
+                false,
+                Some("stale digest".into())
+            )
+            .is_none()
+        );
+    }
+    let open = test_todo("open", "pending", "high", None, None);
+    assert!(matches!(
+        build_run_auto_poke_follow_up_from_todos(false, &[open], false, None),
+        Some(RunAutoPokeFollowUp::Incomplete { .. })
+    ));
+}
+
+#[test]
+fn run_report_names_local_profile_instead_of_openrouter_slot() {
+    // Ollama/LM Studio share the OpenRouter transport slot (#804).
+    assert_eq!(
+        run_report_provider_name(&OpenRouterSlotProvider, Some("ollama")),
+        "ollama"
+    );
+    assert_eq!(
+        run_report_provider_name(&OpenRouterSlotProvider, Some("lmstudio")),
+        "lmstudio"
+    );
+    // Public OpenRouter and unknown identities keep the slot id.
+    assert_eq!(
+        run_report_provider_name(&OpenRouterSlotProvider, Some("openrouter")),
+        "openrouter"
+    );
+    assert_eq!(
+        run_report_provider_name(&OpenRouterSlotProvider, None),
+        "openrouter"
+    );
+    assert_eq!(
+        run_report_provider_name(&OpenRouterSlotProvider, Some("  ")),
+        "openrouter"
+    );
+    // Other providers keep their established name.
+    assert_eq!(
+        run_report_provider_name(&TestProvider, Some("openai-api")),
+        "test"
+    );
+}
+
+fn spawn_single_response_http_server(status: u16, body: &str) -> String {
+    spawn_single_response_http_server_on_host("127.0.0.1", status, body)
+}
+
+fn spawn_single_response_http_server_on_host(host: &str, status: u16, body: &str) -> String {
+    let listener = std::net::TcpListener::bind((host, 0)).expect("bind test server");
+    let addr = listener.local_addr().expect("local addr");
+    let body = body.to_string();
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept connection");
+        let mut buf = [0u8; 2048];
+        let _ = stream.read(&mut buf);
+        let status_text = match status {
+            200 => "OK",
+            400 => "Bad Request",
+            404 => "Not Found",
+            500 => "Internal Server Error",
+            _ => "OK",
+        };
+        let response = format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            status,
+            status_text,
+            body.len(),
+            body
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("write response");
+    });
+    format!("http://{}:{}/v1", host, addr.port())
+}
+
+#[test]
+fn test_parse_tailscale_dns_name_trims_trailing_dot() {
+    let payload = br#"{"Self":{"DNSName":"yashmacbook.tailabc.ts.net."}}"#;
+    let parsed = parse_tailscale_dns_name(payload);
+    assert_eq!(parsed.as_deref(), Some("yashmacbook.tailabc.ts.net"));
+}
+
+#[test]
+fn test_parse_tailscale_dns_name_handles_missing_or_empty() {
+    let missing = br#"{"Self":{}}"#;
+    assert!(parse_tailscale_dns_name(missing).is_none());
+
+    let empty = br#"{"Self":{"DNSName":"   "}}"#;
+    assert!(parse_tailscale_dns_name(empty).is_none());
+}
+
+#[test]
+fn test_parse_tailscale_dns_name_invalid_json() {
+    assert!(parse_tailscale_dns_name(b"not-json").is_none());
+}
+
+#[test]
+fn configured_auth_test_targets_only_include_configured_supported_providers() {
+    let _guard = crate::storage::lock_test_env();
+    // OpenRouter has no OAuth state to set: its availability is read straight
+    // from `OPENROUTER_API_KEY` (or `openrouter.env`). Setting it here is what
+    // makes the expectation below independent of whoever runs the test having
+    // a key exported.
+    let saved_openrouter_key = std::env::var("OPENROUTER_API_KEY").ok();
+    crate::env::set_var("OPENROUTER_API_KEY", "test-key");
+
+    let status = AuthStatus {
+        anthropic: ProviderAuth {
+            state: AuthState::Available,
+            has_oauth: true,
+            oauth_state: AuthState::Available,
+            has_api_key: false,
+        },
+        openai: AuthState::NotConfigured,
+        gemini: AuthState::Available,
+        google: AuthState::Expired,
+        copilot: AuthState::Available,
+        cursor: AuthState::NotConfigured,
+        openrouter: AuthState::Available,
+        ..AuthStatus::default()
+    };
+
+    let targets = configured_auth_test_targets(&status);
+
+    match saved_openrouter_key {
+        Some(key) => crate::env::set_var("OPENROUTER_API_KEY", key),
+        None => crate::env::remove_var("OPENROUTER_API_KEY"),
+    }
+
+    assert!(targets.contains(&ResolvedAuthTestTarget::Detailed(AuthTestTarget::Claude)));
+    assert!(targets.contains(&ResolvedAuthTestTarget::Detailed(AuthTestTarget::Copilot)));
+    assert!(targets.contains(&ResolvedAuthTestTarget::Detailed(AuthTestTarget::Gemini)));
+    assert!(targets.contains(&ResolvedAuthTestTarget::Generic {
+        provider: crate::provider_catalog::OPENROUTER_LOGIN_PROVIDER,
+        choice: super::super::provider_init::ProviderChoice::Openrouter,
+    }));
+
+    assert!(!targets.contains(&ResolvedAuthTestTarget::Detailed(AuthTestTarget::Openai)));
+    assert!(!targets.contains(&ResolvedAuthTestTarget::Detailed(AuthTestTarget::Google)));
+    assert!(!targets.contains(&ResolvedAuthTestTarget::Detailed(AuthTestTarget::Cursor)));
+}
+
+#[test]
+fn explicit_supported_provider_maps_to_single_auth_target() {
+    let targets =
+        resolve_auth_test_targets(&super::super::provider_init::ProviderChoice::Gemini, false)
+            .expect("resolve target");
+    assert_eq!(
+        targets,
+        vec![ResolvedAuthTestTarget::Detailed(AuthTestTarget::Gemini)]
+    );
+}
+
+#[test]
+fn explicit_generic_provider_maps_to_generic_auth_target() {
+    let targets = resolve_auth_test_targets(
+        &super::super::provider_init::ProviderChoice::Openrouter,
+        false,
+    )
+    .expect("resolve target");
+    assert_eq!(
+        targets,
+        vec![ResolvedAuthTestTarget::Generic {
+            provider: crate::provider_catalog::OPENROUTER_LOGIN_PROVIDER,
+            choice: super::super::provider_init::ProviderChoice::Openrouter,
+        }]
+    );
+}
+
+#[test]
+fn collect_cli_model_names_prefers_available_routes_and_dedupes() {
+    let routes = vec![
+        ModelRoute {
+            model: "gpt-5.4".to_string(),
+            provider: "OpenAI".to_string(),
+            api_method: "openai-oauth".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+            usage: None,
+        },
+        ModelRoute {
+            model: "gpt-5.4".to_string(),
+            provider: "auto".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+            usage: None,
+        },
+        ModelRoute {
+            model: "openrouter models".to_string(),
+            provider: "—".to_string(),
+            api_method: "openrouter".to_string(),
+            available: false,
+            detail: "OPENROUTER_API_KEY not set".to_string(),
+            cheapness: None,
+            usage: None,
+        },
+    ];
+
+    let models = collect_cli_model_names(
+        &routes,
+        vec!["gpt-5.4".to_string(), "claude-sonnet-4".to_string()],
+    );
+
+    assert_eq!(models, vec!["gpt-5.4", "claude-sonnet-4"]);
+}
+
+fn test_route(model: &str, provider: &str, api_method: &str) -> ModelRoute {
+    ModelRoute {
+        model: model.to_string(),
+        provider: provider.to_string(),
+        api_method: api_method.to_string(),
+        available: true,
+        detail: String::new(),
+        cheapness: None,
+        usage: None,
+    }
+}
+
+#[test]
+fn cli_route_display_uses_typed_api_methods() {
+    assert_eq!(cli_api_method_display("openai-oauth"), "oauth");
+    assert_eq!(cli_api_method_display("openai-api-key"), "api key");
+    assert_eq!(
+        cli_api_method_display("openai-compatible:cerebras"),
+        "api key"
+    );
+    assert_eq!(cli_api_method_display("mock-auth:profile"), "mock-auth");
+    assert_eq!(
+        cli_route_provider_display("DeepSeek", "openrouter"),
+        "OpenRouter/DeepSeek"
+    );
+}
+
+fn test_todo(
+    id: &str,
+    status: &str,
+    priority: &str,
+    confidence: Option<ConfidenceState>,
+    completion_confidence: Option<ConfidenceState>,
+) -> crate::todo::TodoItem {
+    crate::todo::TodoItem {
+        id: id.to_string(),
+        content: format!("todo {id}"),
+        status: status.to_string(),
+        priority: priority.to_string(),
+        confidence,
+        completion_confidence,
+        ..Default::default()
+    }
+}
+
+fn dependency_todo(id: &str, dependencies: &[&str]) -> crate::todo::TodoItem {
+    let mut todo = test_todo(id, "pending", "high", None, None);
+    todo.waiting_on = dependencies.iter().map(|id| (*id).to_string()).collect();
+    todo
+}
+
+#[tokio::test]
+async fn completely_blocked_cli_pauses_without_review_and_keeps_peers_actionable() {
+    let temp = tempfile::tempdir().unwrap();
+    let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+    let mut blocked = dependency_todo("blocked", &[]);
+    blocked.completely_blocked = Some(crate::todo::TodoCompleteBlocker {
+        reason: "Required source data no longer exists".into(),
+    });
+    let (actionable, resumed) =
+        prepare_run_todo_follow_up(&manager, "owner", &[blocked.clone()], true).await;
+    assert!(actionable.is_empty());
+    assert!(resumed.is_none());
+    let notice = run_blocked_notice(&[blocked.clone()]).unwrap();
+    assert_eq!(
+        notice,
+        "✋ Completely blocked. No way forward.\nblocked: Required source data no longer exists"
+    );
+    assert!(!notice.contains("review deadline"));
+    assert!(run_external_blocker_notice(&[blocked.clone()]).is_none());
+
+    let independent = dependency_todo("independent", &[]);
+    let all = vec![blocked.clone(), independent];
+    let (actionable, _) = prepare_run_todo_follow_up(&manager, "owner", &all, true).await;
+    assert_eq!(actionable.len(), 1);
+    assert_eq!(actionable[0].id, "independent");
+    let poke = run_actionable_poke_message("original".into(), &all, &actionable);
+    assert!(poke.contains("independent"));
+    assert!(!poke.contains("Required source data"));
+
+    blocked.completely_blocked = None;
+    let (actionable, _) =
+        prepare_run_todo_follow_up(&manager, "owner", &[blocked.clone()], true).await;
+    assert_eq!(actionable.len(), 1);
+    assert_eq!(actionable[0].status, "pending");
+    assert!(run_completely_blocked_notice(&[blocked]).is_none());
+}
+
+#[test]
+fn completely_blocked_cli_ignores_terminal_tasks_and_keeps_external_notice() {
+    let mut blocked = dependency_todo("blocked", &[]);
+    blocked.completely_blocked = Some(crate::todo::TodoCompleteBlocker {
+        reason: "Required source data no longer exists".into(),
+    });
+    let mut external = dependency_todo("service", &[]);
+    external.external_blocker = Some(crate::todo::TodoExternalBlocker {
+        reason: "Service is unavailable".into(),
+        review_at: chrono::Utc::now() + chrono::Duration::minutes(10),
+    });
+    let notice = run_blocked_notice(&[blocked.clone(), external]).unwrap();
+    assert!(notice.contains("Completely blocked. No way forward."));
+    assert!(notice.contains("Service is unavailable"));
+    for status in ["completed", "cancelled"] {
+        blocked.status = status.into();
+        assert!(run_completely_blocked_notice(&[blocked.clone()]).is_none());
+        assert_eq!(
+            run_actionable_todos(&[blocked.clone()], &[], "owner").len(),
+            1
+        );
+    }
+}
+
+#[tokio::test]
+async fn external_blocker_cli_suppresses_only_blocked_work_and_reports_durable_review() {
+    let temp = tempfile::tempdir().unwrap();
+    let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+    let mut blocked = dependency_todo("acceptance", &[]);
+    blocked.external_blocker = Some(crate::todo::TodoExternalBlocker {
+        reason: "Coordinator acceptance".into(),
+        review_at: chrono::Utc::now() + chrono::Duration::minutes(10),
+    });
+    let (actionable, resumed) =
+        prepare_run_todo_follow_up(&manager, "owner", &[blocked.clone()], true).await;
+    assert!(actionable.is_empty());
+    assert!(resumed.is_none(), "durable scheduler owns the review wake");
+    let notice = run_external_blocker_notice(&[blocked.clone()]).unwrap();
+    assert!(notice.contains("Coordinator acceptance") && notice.contains("review"));
+    let mixed = vec![blocked.clone(), dependency_todo("independent", &[])];
+    let (actionable, _) = prepare_run_todo_follow_up(&manager, "owner", &mixed, true).await;
+    assert_eq!(actionable.len(), 1);
+    assert_eq!(actionable[0].id, "independent");
+    blocked.external_blocker.as_mut().unwrap().review_at =
+        chrono::Utc::now() - chrono::Duration::seconds(1);
+    let (actionable, _) = prepare_run_todo_follow_up(&manager, "owner", &[blocked], true).await;
+    assert_eq!(
+        actionable.len(),
+        1,
+        "deadline restores reassessment, never completes"
+    );
+    assert_eq!(actionable[0].status, "pending");
+}
+
+#[tokio::test]
+async fn run_await_dependency_waits_without_poking_and_resumes_on_terminal_or_timeout() {
+    let _guard = crate::storage::lock_test_env();
+    for timed_out in [false, true] {
+        let key = format!("cli-await-{}", uuid::Uuid::new_v4());
+        let id = crate::todo::await_dependency::dependency_id(&key, 1);
+        let path = crate::storage::runtime_dir()
+            .join(crate::todo::await_dependency::STATE_DIR)
+            .join(format!("{key}.json"));
+        let mut state = serde_json::json!({
+            "key": key, "session_id": "cli-await", "swarm_id": "swarm",
+            "target_status": ["completed"], "requested_ids": ["worker"],
+            "created_at_unix_ms": 1, "deadline_unix_ms": u64::MAX,
+            "background": true, "notify": true, "wake": true, "final_response": null
+        });
+        crate::storage::write_json_fast(&path, &state).unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+        let todos = vec![dependency_todo("waiting", &[&id])];
+        let mut mixed = todos.clone();
+        mixed.push(dependency_todo("independent", &[]));
+        let (actionable, _) = prepare_run_todo_follow_up(&manager, "cli-await", &mixed, true).await;
+        assert_eq!(actionable.len(), 1);
+        assert_eq!(actionable[0].id, "independent");
+        assert_eq!(run_actionable_todos(&todos, &[], "foreign").len(), 1);
+        let mut followup = std::pin::pin!(prepare_run_todo_follow_up(
+            &manager,
+            "cli-await",
+            &todos,
+            true
+        ));
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(30), &mut followup)
+                .await
+                .is_err()
+        );
+        let saved: serde_json::Value = crate::storage::read_json(&path).unwrap();
+        assert_eq!(
+            saved["wake"], false,
+            "CLI owns the continuation, not a second daemon turn"
+        );
+        if timed_out {
+            state["deadline_unix_ms"] = 0.into();
+        } else {
+            state["final_response"] =
+                serde_json::json!({"completed":true,"summary":"worker finished"});
+        }
+        crate::storage::write_json_fast(&path, &state).unwrap();
+        let (actionable, resumed) =
+            tokio::time::timeout(std::time::Duration::from_secs(2), &mut followup)
+                .await
+                .unwrap();
+        assert_eq!(actionable.len(), 1);
+        assert!(resumed.unwrap().contains(&id));
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn run_dependency_mixed_work_stays_actionable_and_scoped() {
+    let temp = tempfile::tempdir().unwrap();
+    let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+    let (finish, wait) = tokio::sync::oneshot::channel();
+    let task = manager
+        .spawn("test", "cli-owned", |_| async move {
+            let _ = wait.await;
+            Ok(crate::background::TaskResult::completed(Some(0)))
+        })
+        .await;
+    let todos = vec![
+        dependency_todo("waiting", &[&task.task_id]),
+        dependency_todo("independent", &[]),
+    ];
+    let (actionable, resumed) =
+        prepare_run_todo_follow_up(&manager, "cli-owned", &todos, true).await;
+    assert!(resumed.is_none());
+    assert_eq!(actionable.len(), 1);
+    assert_eq!(actionable[0].id, "independent");
+    let followup = build_run_auto_poke_follow_up_from_todos(true, &actionable, false, None);
+    let Some(RunAutoPokeFollowUp::Incomplete { count, message }) = followup else {
+        panic!("independent work must remain actionable");
+    };
+    assert_eq!(count, 1);
+    let message = run_actionable_poke_message(message, &todos, &actionable);
+    assert!(message.contains("Actionable todos:\n- \"todo independent\""));
+    assert!(
+        !message.contains("\"todo waiting\""),
+        "blocked work is not actionable"
+    );
+    assert!(crate::todo::is_auto_poke_message(&message));
+    let mut completed = dependency_todo("completed", &[&task.task_id]);
+    completed.status = "completed".to_string();
+    let (finished, _) = prepare_run_todo_follow_up(&manager, "cli-owned", &[completed], true).await;
+    assert_eq!(
+        finished.len(),
+        1,
+        "finished todos must retain completion validation"
+    );
+    let (foreign, resumed) =
+        prepare_run_todo_follow_up(&manager, "other-session", &todos, true).await;
+    assert_eq!(
+        foreign.len(),
+        2,
+        "another session's task cannot block this run"
+    );
+    assert!(resumed.is_none());
+    finish.send(()).unwrap();
+    manager
+        .wait(&task.task_id, std::time::Duration::from_secs(2), false)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn run_dependency_all_waits_resume_with_terminal_status_and_output() {
+    for failed in [false, true] {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+        let (finish, wait) = tokio::sync::oneshot::channel();
+        let task = manager
+            .spawn_with_notify(
+                "test",
+                None,
+                "cli-owned",
+                true,
+                true,
+                move |path| async move {
+                    let _ = wait.await;
+                    tokio::fs::write(path, "dependency output sentinel").await?;
+                    Ok(if failed {
+                        crate::background::TaskResult::failed(
+                            Some(17),
+                            "dependency failure sentinel",
+                        )
+                    } else {
+                        crate::background::TaskResult::completed(Some(0))
+                    })
+                },
+            )
+            .await;
+        let todos = vec![dependency_todo("waiting", &[&task.task_id])];
+        let mut followup = std::pin::pin!(prepare_run_todo_follow_up(
+            &manager,
+            "cli-owned",
+            &todos,
+            true
+        ));
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(30), &mut followup)
+                .await
+                .is_err(),
+            "all-wait work must not poke the model or enter completion gates"
+        );
+        assert!(!manager.status(&task.task_id).await.unwrap().wake);
+        finish.send(()).unwrap();
+        let (actionable, resumed) =
+            tokio::time::timeout(std::time::Duration::from_secs(3), &mut followup)
+                .await
+                .unwrap();
+        assert_eq!(actionable.len(), 1);
+        let message = resumed.expect("completion resumes the model");
+        assert!(message.contains("dependency output sentinel"));
+        assert!(message.contains(if failed { "Failed" } else { "Completed" }));
+        if failed {
+            assert!(message.contains("dependency failure sentinel"));
+        }
+        assert!(message.contains("Do not retry failed tasks automatically"));
+    }
+}
+
+#[tokio::test]
+async fn run_dependency_waits_any_but_does_not_resume_still_blocked_todo() {
+    let temp = tempfile::tempdir().unwrap();
+    let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+    let (finish_a, wait_a) = tokio::sync::oneshot::channel();
+    let a = manager
+        .spawn("test", "cli", |_| async move {
+            let _ = wait_a.await;
+            Ok(crate::background::TaskResult::completed(Some(0)))
+        })
+        .await;
+    let (finish_b, wait_b) = tokio::sync::oneshot::channel();
+    let b = manager
+        .spawn("test", "cli", |_| async move {
+            let _ = wait_b.await;
+            Ok(crate::background::TaskResult::completed(Some(0)))
+        })
+        .await;
+    let todos = vec![dependency_todo("both", &[&a.task_id, &b.task_id])];
+    let mut followup = std::pin::pin!(prepare_run_todo_follow_up(&manager, "cli", &todos, true));
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut followup)
+            .await
+            .is_err()
+    );
+    finish_b.send(()).unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut followup)
+            .await
+            .is_err(),
+        "one finished dependency does not unblock a todo with another running dependency"
+    );
+    finish_a.send(()).unwrap();
+    let (_, resumed) = tokio::time::timeout(std::time::Duration::from_secs(3), &mut followup)
+        .await
+        .unwrap();
+    let message = resumed.unwrap();
+    assert!(message.contains(&a.task_id));
+    assert!(message.contains(&b.task_id));
+}
+
+#[tokio::test]
+async fn run_dependency_unknown_stale_and_cancelled_do_not_wait_forever() {
+    let temp = tempfile::tempdir().unwrap();
+    let manager = crate::background::BackgroundTaskManager::with_output_dir(temp.path().into());
+    let task = manager
+        .spawn("test", "cli", |_| async move {
+            std::future::pending::<()>().await;
+            Ok(crate::background::TaskResult::completed(Some(0)))
+        })
+        .await;
+    let mut stale = manager.status(&task.task_id).await.unwrap();
+    stale.task_id = "legacy-task".to_string();
+    stale.owner_pid = None;
+    stale.owner_instance = None;
+    tokio::fs::write(
+        manager.status_path_for(&stale.task_id),
+        serde_json::to_vec(&stale).unwrap(),
+    )
+    .await
+    .unwrap();
+    let mut orphan = stale.clone();
+    orphan.task_id = "orphan-task".to_string();
+    orphan.owner_pid = Some(999_999_999);
+    orphan.owner_instance = Some("dead-owner".to_string());
+    tokio::fs::write(
+        manager.status_path_for(&orphan.task_id),
+        serde_json::to_vec(&orphan).unwrap(),
+    )
+    .await
+    .unwrap();
+    let todos = vec![
+        dependency_todo("unknown", &["missing"]),
+        dependency_todo("stale", &["legacy-task"]),
+        dependency_todo("orphan", &["orphan-task"]),
+    ];
+    let (actionable, resumed) = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        prepare_run_todo_follow_up(&manager, "cli", &todos, true),
+    )
+    .await
+    .unwrap();
+    assert_eq!(actionable.len(), 3);
+    assert!(resumed.is_none());
+    assert_eq!(
+        manager.status("orphan-task").await.unwrap().status,
+        crate::bus::BackgroundTaskStatus::Failed
+    );
+    let todos = vec![dependency_todo("cancelled", &[&task.task_id])];
+    let mut followup = std::pin::pin!(prepare_run_todo_follow_up(&manager, "cli", &todos, true));
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut followup)
+            .await
+            .is_err()
+    );
+    manager.cancel(&task.task_id).await.unwrap();
+    let (_, resumed) = tokio::time::timeout(std::time::Duration::from_secs(3), &mut followup)
+        .await
+        .unwrap();
+    assert!(resumed.unwrap().to_lowercase().contains("cancel"));
+}
+
+#[test]
+fn run_auto_poke_followup_targets_below_threshold_todos() {
+    let todos = vec![
+        test_todo(
+            "a",
+            "completed",
+            "high",
+            Some(ConfidenceState::Plausible),
+            Some(ConfidenceState::Plausible),
+        ),
+        test_todo(
+            "b",
+            "completed",
+            "low",
+            Some(ConfidenceState::Plausible),
+            Some(ConfidenceState::Plausible),
+        ),
+    ];
+
+    let followup = build_run_auto_poke_follow_up_from_todos(true, &todos, false, None);
+
+    match followup {
+        Some(RunAutoPokeFollowUp::ConfidenceSummary {
+            total_todos,
+            message,
+            ..
+        }) => {
+            assert_eq!(total_todos, 2);
+            assert!(message.starts_with(crate::todo::TODO_COMPLETION_CONTINUATION_MESSAGE));
+            assert!(message.contains("Validate further:"));
+            assert!(message.contains("\"todo a\""));
+            assert!(message.contains("\"todo b\""));
+            assert!(!message.to_ascii_lowercase().contains("threshold"));
+        }
+        _ => panic!("expected confidence-summary follow-up"),
+    }
+}
+
+#[test]
+fn run_auto_poke_followup_challenges_abrupt_confidence_once() {
+    let mut todo = test_todo(
+        "a",
+        "completed",
+        "high",
+        Some(ConfidenceState::Speculative),
+        Some(ConfidenceState::Verified),
+    );
+    todo.confidence_history = vec![ConfidenceState::Speculative, ConfidenceState::Verified];
+
+    let todos = [todo];
+    match build_run_auto_poke_follow_up_from_todos(true, &todos, false, None) {
+        Some(RunAutoPokeFollowUp::ConfidenceSummary {
+            message,
+            confidence_spike_challenge,
+            ..
+        }) => {
+            assert!(confidence_spike_challenge);
+            assert!(message.starts_with(crate::todo::TODO_CONFIDENCE_SPIKE_CONTINUATION_MESSAGE));
+        }
+        _ => panic!("expected confidence-spike challenge"),
+    }
+    assert!(build_run_auto_poke_follow_up_from_todos(true, &todos, true, None).is_none());
+}
+
+#[test]
+fn run_auto_poke_followup_silent_when_confident_and_earned() {
+    // All above threshold and no spikes: the old behavior sent an "all good"
+    // summary anyway; now we spend no tokens and end the run.
+    let todos = vec![
+        {
+            let mut todo = test_todo(
+                "a",
+                "completed",
+                "high",
+                Some(ConfidenceState::Verified),
+                Some(ConfidenceState::Verified),
+            );
+            todo.confidence_history = vec![
+                ConfidenceState::Plausible,
+                ConfidenceState::Plausible,
+                ConfidenceState::Validated,
+                ConfidenceState::Verified,
+            ];
+            todo
+        },
+        test_todo(
+            "b",
+            "completed",
+            "low",
+            Some(ConfidenceState::Validated),
+            Some(ConfidenceState::Validated),
+        ),
+    ];
+    assert!(build_run_auto_poke_follow_up_from_todos(true, &todos, false, None).is_none());
+}
+
+#[test]
+fn run_auto_poke_followup_prioritizes_incomplete_todos() {
+    let todos = vec![
+        test_todo(
+            "a",
+            "completed",
+            "high",
+            Some(ConfidenceState::Plausible),
+            Some(ConfidenceState::Plausible),
+        ),
+        test_todo(
+            "b",
+            "in_progress",
+            "medium",
+            Some(ConfidenceState::Plausible),
+            None,
+        ),
+    ];
+
+    let followup = build_run_auto_poke_follow_up_from_todos(true, &todos, false, None);
+
+    match followup {
+        Some(RunAutoPokeFollowUp::Incomplete { count, message }) => {
+            assert_eq!(count, 1);
+            assert_eq!(
+                message,
+                "You have 1 incomplete todo. Continue working, or update the todo tool."
+            );
+        }
+        _ => panic!("expected incomplete-todo follow-up"),
+    }
+}
+
+#[test]
+fn run_auto_poke_treats_completion_synonyms_and_case_as_finished() {
+    for status in ["done", "finished", "complete", "Completed", " DONE "] {
+        let todos = vec![test_todo(
+            "a",
+            status,
+            "high",
+            Some(ConfidenceState::Verified),
+            Some(ConfidenceState::Verified),
+        )];
+        assert!(
+            build_run_auto_poke_follow_up_from_todos(true, &todos, false, None).is_none(),
+            "status {status:?} should not trigger an incomplete-todo poke"
+        );
+    }
+}
+
+#[test]
+fn run_auto_poke_treats_cancelled_spelling_variants_as_finished() {
+    for status in ["cancelled", "canceled", "Cancelled"] {
+        let todos = vec![test_todo("a", status, "high", None, None)];
+        assert!(
+            build_run_auto_poke_follow_up_from_todos(true, &todos, false, None).is_none(),
+            "status {status:?} should not trigger an incomplete-todo poke"
+        );
+    }
+}
+
+/// Headless `nexode run` is what the benchmarks and scripted use go through, so
+/// the deferred quality review must reach that path too, not only the TUI.
+#[test]
+fn run_auto_poke_delivers_the_deferred_gate_digest_before_confidence() {
+    let todos = vec![test_todo(
+        "a",
+        "completed",
+        "high",
+        Some(ConfidenceState::Plausible),
+        Some(ConfidenceState::Plausible),
+    )];
+    // Without a digest, the confidence gate is what fires.
+    assert!(matches!(
+        build_run_auto_poke_follow_up_from_todos(true, &todos, false, None),
+        Some(RunAutoPokeFollowUp::ConfidenceSummary { .. })
+    ));
+    // With one, the weak points are reviewed first, since that work can change
+    // the very assessments the confidence gate judges.
+    match build_run_auto_poke_follow_up_from_todos(
+        true,
+        &todos,
+        false,
+        Some("review these points".to_string()),
+    ) {
+        Some(RunAutoPokeFollowUp::GateDigest { message }) => {
+            assert_eq!(message, "review these points");
+        }
+        _ => panic!("expected the gate digest to take precedence"),
+    }
+}
+
+/// Open todos mean the agent is still working, so the review must wait for the
+/// turn to actually end rather than interrupting mid-flight.
+#[test]
+fn run_auto_poke_prefers_incomplete_todos_over_the_gate_digest() {
+    let todos = vec![test_todo(
+        "a",
+        "in_progress",
+        "high",
+        Some(ConfidenceState::Plausible),
+        None,
+    )];
+    assert!(matches!(
+        build_run_auto_poke_follow_up_from_todos(
+            true,
+            &todos,
+            false,
+            Some("review these points".to_string())
+        ),
+        Some(RunAutoPokeFollowUp::Incomplete { .. })
+    ));
+}
+
+/// Regression: the digest is consumed from the log before the follow-up is
+/// chosen, so a turn with open todos must not destroy it. Auto-poke iterates
+/// many times with open todos on a long run, and each pass used to silently
+/// discard the observations, meaning the reminder never survived to delivery.
+#[test]
+fn open_todos_do_not_consume_the_pending_gate_digest() {
+    let _guard = crate::storage::lock_test_env();
+    let previous_home = std::env::var_os("NEXODE_HOME");
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    crate::env::set_var("NEXODE_HOME", dir.path());
+    let session = "run-gate-digest-open-todos";
+
+    crate::todo::append_gate_observations(
+        session,
+        &[crate::todo::GateObservation {
+            kind: crate::todo::GateObservationKind::IntentUnderstanding,
+            group: None,
+            state: Some("partial".to_string()),
+        }],
+    )
+    .expect("append");
+
+    let open = vec![test_todo(
+        "a",
+        "in_progress",
+        "high",
+        Some(ConfidenceState::Plausible),
+        None,
+    )];
+    assert!(matches!(
+        build_run_auto_poke_follow_up_from_todos(
+            true,
+            &open,
+            false,
+            take_run_gate_digest_if_turn_ended(session, false, &open, true),
+        ),
+        Some(RunAutoPokeFollowUp::Incomplete { .. })
+    ));
+    assert!(
+        !crate::todo::load_gate_observations(session)
+            .expect("reload")
+            .is_empty(),
+        "observations must survive a poke iteration that still has open work"
+    );
+
+    // Once the work closes, the reminder is still there to deliver.
+    let done = vec![test_todo(
+        "a",
+        "completed",
+        "high",
+        Some(ConfidenceState::Plausible),
+        Some(ConfidenceState::Verified),
+    )];
+    match build_run_auto_poke_follow_up_from_todos(
+        true,
+        &done,
+        false,
+        take_run_gate_digest_if_turn_ended(session, false, &done, true),
+    ) {
+        Some(RunAutoPokeFollowUp::GateDigest { message }) => {
+            assert!(message.starts_with(crate::todo::TODO_GATE_DIGEST_PREFIX));
+        }
+        other => panic!("expected the preserved digest to be delivered, got {other:?}"),
+    }
+    assert!(
+        crate::todo::load_gate_observations(session)
+            .expect("reload")
+            .is_empty(),
+        "delivering the digest should consume the log"
+    );
+
+    match previous_home {
+        Some(value) => crate::env::set_var("NEXODE_HOME", value),
+        None => crate::env::remove_var("NEXODE_HOME"),
+    }
+}
+
+/// The log must be consumed on delivery, or one turn's observations would leak
+/// into the next turn and be raised again against work they never described.
+#[test]
+fn take_run_gate_digest_consumes_the_log_and_respects_delivery() {
+    let _guard = crate::storage::lock_test_env();
+    let previous_home = std::env::var_os("NEXODE_HOME");
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    crate::env::set_var("NEXODE_HOME", dir.path());
+    let session = "run-gate-digest";
+
+    crate::todo::append_gate_observations(
+        session,
+        &[crate::todo::GateObservation {
+            kind: crate::todo::GateObservationKind::IntentUnderstanding,
+            group: None,
+            state: Some("partial".to_string()),
+        }],
+    )
+    .expect("append");
+
+    // Already delivered this turn: no second reminder, and the log is left for
+    // the delivering path to have handled.
+    assert!(take_run_gate_digest(session, true).is_none());
+
+    let digest = take_run_gate_digest(session, false).expect("unresolved point should surface");
+    assert!(digest.starts_with(crate::todo::TODO_GATE_DIGEST_PREFIX));
+    // Consumed, so the next turn starts clean.
+    assert!(
+        crate::todo::load_gate_observations(session)
+            .expect("reload")
+            .is_empty()
+    );
+    assert!(take_run_gate_digest(session, false).is_none());
+
+    crate::todo::append_gate_observations(
+        session,
+        &[crate::todo::GateObservation {
+            kind: crate::todo::GateObservationKind::IntentUnderstanding,
+            group: None,
+            state: Some("partial".into()),
+        }],
+    )
+    .unwrap();
+    assert!(take_run_gate_digest_if_turn_ended(session, false, &[], false).is_none());
+    assert!(
+        crate::todo::load_gate_observations(session)
+            .unwrap()
+            .is_empty()
+    );
+
+    match previous_home {
+        Some(value) => crate::env::set_var("NEXODE_HOME", value),
+        None => crate::env::remove_var("NEXODE_HOME"),
+    }
+}
+
+#[test]
+fn run_auto_poke_followup_rechecks_completion_confidence_until_it_passes() {
+    let needs_validation = vec![test_todo(
+        "a",
+        "completed",
+        "high",
+        Some(ConfidenceState::Plausible),
+        Some(ConfidenceState::Plausible),
+    )];
+    assert!(matches!(
+        build_run_auto_poke_follow_up_from_todos(true, &needs_validation, false, None),
+        Some(RunAutoPokeFollowUp::ConfidenceSummary { .. })
+    ));
+    assert!(matches!(
+        build_run_auto_poke_follow_up_from_todos(true, &needs_validation, false, None),
+        Some(RunAutoPokeFollowUp::ConfidenceSummary { .. })
+    ));
+
+    let validated = vec![test_todo(
+        "a",
+        "completed",
+        "high",
+        Some(ConfidenceState::Plausible),
+        Some(ConfidenceState::Verified),
+    )];
+    // A normal validation gain is not a reason to spend another model turn.
+    assert!(build_run_auto_poke_follow_up_from_todos(true, &validated, false, None).is_none());
+    assert!(build_run_auto_poke_follow_up_from_todos(true, &validated, true, None).is_none());
+}
+
+#[test]
+fn cli_provider_choice_filter_uses_typed_api_methods() {
+    let routes = vec![
+        test_route("claude-opus-4-6", "Anthropic", "claude-oauth"),
+        test_route("claude-opus-4-6", "Anthropic", "claude-api"),
+        test_route("gpt-5.5", "OpenAI", "openai-oauth"),
+        test_route("gpt-5.5", "OpenAI", "openai-api-key"),
+        test_route("gpt-5.6-pro[web]", "OpenAI", "chatgpt-web"),
+        test_route("deepseek/deepseek-v4-pro", "auto", "openrouter"),
+        test_route("grok-code-fast-1", "Copilot", "copilot"),
+    ];
+
+    let openai = filter_cli_model_routes_for_choice(
+        &super::super::provider_init::ProviderChoice::Openai,
+        &routes,
+    );
+    assert_eq!(openai.len(), 2);
+    assert!(openai.iter().any(|route| matches!(
+        route.api_method_kind(),
+        crate::provider::ModelRouteApiMethod::OpenAIOAuth
+    )));
+    assert!(openai.iter().any(|route| {
+        matches!(
+            route.api_method_kind(),
+            crate::provider::ModelRouteApiMethod::Other(ref value) if value == "chatgpt-web"
+        )
+    }));
+
+    let claude = filter_cli_model_routes_for_choice(
+        &super::super::provider_init::ProviderChoice::Claude,
+        &routes,
+    );
+    assert_eq!(claude.len(), 2);
+    assert!(
+        claude
+            .iter()
+            .all(|route| route.api_method_kind().is_anthropic_credential_route())
+    );
+}
+
+#[test]
+fn auth_test_retryable_error_detection_handles_rate_limits() {
+    let err = anyhow::anyhow!(
+        "Gemini request generateContent failed (HTTP 429 Too Many Requests): RESOURCE_EXHAUSTED"
+    );
+    assert!(auth_test_error_is_retryable(&err));
+}
+
+#[test]
+fn auth_test_retryable_error_detection_rejects_hard_usage_limit_exhaustion() {
+    // Regression for #1148: the text contains "rate limit" but the quota
+    // resets in weeks, so retrying is pointless.
+    let err = anyhow::anyhow!(
+        "Rate limited: The usage limit has been reached. Plan: free. Resets in 28d 19h 47m (2026-09-30 18:44 UTC)."
+    );
+    assert!(!auth_test_error_is_retryable(&err));
+    let err = anyhow::anyhow!("OpenAI request failed (HTTP 429): insufficient_quota");
+    assert!(!auth_test_error_is_retryable(&err));
+}
+
+#[test]
+fn auth_test_retryable_error_detection_rejects_schema_errors() {
+    let err = anyhow::anyhow!(
+        "Gemini request generateContent failed (HTTP 400 Bad Request): invalid argument"
+    );
+    assert!(!auth_test_error_is_retryable(&err));
+}
+
+#[tokio::test]
+async fn auth_test_choice_plan_preserves_explicit_model_for_local_provider() {
+    let plan = auth_test_choice_plan(
+        &super::super::provider_init::ProviderChoice::Ollama,
+        Some("llama3.2"),
+    )
+    .await
+    .expect("choice plan");
+
+    match plan {
+        AuthTestChoicePlan::Run { model } => assert_eq!(model.as_deref(), Some("llama3.2")),
+        AuthTestChoicePlan::Skip(detail) => panic!("unexpected skip: {detail}"),
+    }
+}
+
+#[tokio::test]
+async fn auth_test_choice_plan_leaves_non_compat_provider_unchanged() {
+    let plan = auth_test_choice_plan(
+        &super::super::provider_init::ProviderChoice::Openrouter,
+        None,
+    )
+    .await
+    .expect("choice plan");
+
+    match plan {
+        AuthTestChoicePlan::Run { model } => assert!(model.is_none()),
+        AuthTestChoicePlan::Skip(detail) => panic!("unexpected skip: {detail}"),
+    }
+}
+
+#[tokio::test]
+async fn auth_test_choice_plan_discovers_model_for_local_custom_compat_endpoint() {
+    let _env_guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&[
+        "NEXODE_OPENAI_COMPAT_API_BASE",
+        "NEXODE_OPENAI_COMPAT_API_KEY_NAME",
+        "NEXODE_OPENAI_COMPAT_ENV_FILE",
+        "NEXODE_OPENAI_COMPAT_DEFAULT_MODEL",
+        "NEXODE_OPENAI_COMPAT_LOCAL_ENABLED",
+        "NEXODE_OPENROUTER_API_BASE",
+        "NEXODE_OPENROUTER_API_KEY_NAME",
+        "NEXODE_OPENROUTER_ENV_FILE",
+        "NEXODE_OPENROUTER_ALLOW_NO_AUTH",
+    ]);
+    let api_base = spawn_single_response_http_server(200, r#"{"data":[{"id":"llama3.2"}]}"#);
+    crate::env::set_var("NEXODE_OPENAI_COMPAT_API_BASE", &api_base);
+    crate::env::remove_var("NEXODE_OPENAI_COMPAT_DEFAULT_MODEL");
+    crate::env::remove_var("NEXODE_OPENAI_COMPAT_LOCAL_ENABLED");
+    crate::provider_catalog::apply_openai_compatible_profile_env(None);
+
+    let plan = auth_test_choice_plan(
+        &super::super::provider_init::ProviderChoice::OpenaiCompatible,
+        None,
+    )
+    .await
+    .expect("choice plan");
+
+    match plan {
+        AuthTestChoicePlan::Run { model } => assert_eq!(model.as_deref(), Some("llama3.2")),
+        AuthTestChoicePlan::Skip(detail) => panic!("unexpected skip: {detail}"),
+    }
+}
+
+#[tokio::test]
+async fn auth_test_choice_plan_discovers_model_for_hosted_custom_compat_endpoint_with_api_key() {
+    let _env_guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&[
+        "NEXODE_OPENAI_COMPAT_API_BASE",
+        "NEXODE_OPENAI_COMPAT_API_KEY_NAME",
+        "NEXODE_OPENAI_COMPAT_ENV_FILE",
+        "NEXODE_OPENAI_COMPAT_DEFAULT_MODEL",
+        "NEXODE_OPENAI_COMPAT_LOCAL_ENABLED",
+        "NEXODE_OPENROUTER_API_BASE",
+        "NEXODE_OPENROUTER_API_KEY_NAME",
+        "NEXODE_OPENROUTER_ENV_FILE",
+        "NEXODE_OPENROUTER_ALLOW_NO_AUTH",
+        "OPENAI_COMPAT_API_KEY",
+        "NO_PROXY",
+        "no_proxy",
+    ]);
+    // 0.0.0.0 is accepted as an insecure HTTP test host but is not treated as
+    // localhost by resolve_openai_compatible_profile, so this exercises the
+    // hosted/API-key code path while still serving the response locally.
+    let api_base = spawn_single_response_http_server_on_host(
+        "0.0.0.0",
+        200,
+        r#"{"data":[{"id":"hosted-compatible-model"}]}"#,
+    );
+    crate::env::set_var("NEXODE_OPENAI_COMPAT_API_BASE", &api_base);
+    crate::env::set_var("OPENAI_COMPAT_API_KEY", "test-key");
+    crate::env::set_var("NO_PROXY", "0.0.0.0,127.0.0.1,localhost");
+    crate::env::set_var("no_proxy", "0.0.0.0,127.0.0.1,localhost");
+    crate::env::remove_var("NEXODE_OPENAI_COMPAT_DEFAULT_MODEL");
+    crate::env::remove_var("NEXODE_OPENAI_COMPAT_LOCAL_ENABLED");
+    crate::provider_catalog::apply_openai_compatible_profile_env(None);
+
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    assert!(resolved.requires_api_key);
+
+    let plan = auth_test_choice_plan(
+        &super::super::provider_init::ProviderChoice::OpenaiCompatible,
+        None,
+    )
+    .await
+    .expect("choice plan");
+
+    match plan {
+        AuthTestChoicePlan::Run { model } => {
+            assert_eq!(model.as_deref(), Some("hosted-compatible-model"))
+        }
+        AuthTestChoicePlan::Skip(detail) => panic!("unexpected skip: {detail}"),
+    }
+}
+
+#[tokio::test]
+async fn auth_test_choice_plan_skips_local_custom_compat_endpoint_without_models() {
+    let _env_guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&[
+        "NEXODE_OPENAI_COMPAT_API_BASE",
+        "NEXODE_OPENAI_COMPAT_API_KEY_NAME",
+        "NEXODE_OPENAI_COMPAT_ENV_FILE",
+        "NEXODE_OPENAI_COMPAT_DEFAULT_MODEL",
+        "NEXODE_OPENAI_COMPAT_LOCAL_ENABLED",
+        "NEXODE_OPENROUTER_API_BASE",
+        "NEXODE_OPENROUTER_API_KEY_NAME",
+        "NEXODE_OPENROUTER_ENV_FILE",
+        "NEXODE_OPENROUTER_ALLOW_NO_AUTH",
+    ]);
+    let api_base = spawn_single_response_http_server(200, r#"{"data":[]}"#);
+    crate::env::set_var("NEXODE_OPENAI_COMPAT_API_BASE", &api_base);
+    crate::env::remove_var("NEXODE_OPENAI_COMPAT_DEFAULT_MODEL");
+    crate::env::remove_var("NEXODE_OPENAI_COMPAT_LOCAL_ENABLED");
+    crate::provider_catalog::apply_openai_compatible_profile_env(None);
+
+    let plan = auth_test_choice_plan(
+        &super::super::provider_init::ProviderChoice::OpenaiCompatible,
+        None,
+    )
+    .await
+    .expect("choice plan");
+
+    match plan {
+        AuthTestChoicePlan::Run { model } => panic!("unexpected run plan: {model:?}"),
+        AuthTestChoicePlan::Skip(detail) => {
+            assert!(detail.contains("reported no models"));
+            assert!(detail.contains("openai-compatible"));
+        }
+    }
+}
+
+#[test]
+fn collect_cli_model_names_falls_back_when_no_routes_are_available() {
+    let routes = vec![ModelRoute {
+        model: "claude-opus-4-6".to_string(),
+        provider: "Anthropic".to_string(),
+        api_method: "claude-oauth".to_string(),
+        available: false,
+        detail: "no credentials".to_string(),
+        cheapness: None,
+        usage: None,
+    }];
+
+    let models = collect_cli_model_names(&routes, vec!["gpt-5.4".to_string()]);
+
+    assert_eq!(models, vec!["claude-opus-4-6", "gpt-5.4"]);
+}
+
+#[test]
+fn list_cli_providers_includes_auto_and_openai() {
+    let providers = super::report_info::list_cli_providers();
+    assert!(providers.iter().any(|provider| provider.id == "auto"));
+    assert!(providers.iter().any(|provider| {
+        provider.id == "openai"
+            && provider.display_name == "OpenAI"
+            && provider.auth_kind.as_deref() == Some("OAuth")
+    }));
+    assert!(providers.iter().any(|provider| provider.id == "groq"));
+    assert!(providers.iter().any(|provider| provider.id == "xai"));
+}
+
+#[test]
+fn list_cli_providers_includes_conifer() {
+    let providers = super::report_info::list_cli_providers();
+    let conifer = providers
+        .iter()
+        .find(|provider| provider.id == "conifer")
+        .expect("Conifer should be discoverable through `provider list`");
+
+    assert_eq!(conifer.display_name, "Conifer");
+    assert_eq!(conifer.auth_kind.as_deref(), Some("API key"));
+}
+
+#[test]
+fn version_command_plain_output_includes_core_fields() {
+    let report = super::report_info::VersionReport {
+        version: "v1.2.3 (abc1234)".to_string(),
+        semver: "1.2.3".to_string(),
+        base_semver: "1.2.0".to_string(),
+        update_semver: "1.2.0".to_string(),
+        git_hash: "abc1234".to_string(),
+        git_tag: "v1.2.3".to_string(),
+        build_time: "2026-03-18 18:00:00 +0000".to_string(),
+        git_date: "2026-03-18 17:59:00 +0000".to_string(),
+        release_build: false,
+    };
+    let text = format!(
+        "version\t{}\nsemver\t{}\nbase_semver\t{}\nupdate_semver\t{}\ngit_hash\t{}\ngit_tag\t{}\nbuild_time\t{}\ngit_date\t{}\nrelease_build\t{}\n",
+        report.version,
+        report.semver,
+        report.base_semver,
+        report.update_semver,
+        report.git_hash,
+        report.git_tag,
+        report.build_time,
+        report.git_date,
+        report.release_build
+    );
+
+    assert!(text.contains("version\tv1.2.3 (abc1234)"));
+    assert!(text.contains("semver\t1.2.3"));
+    assert!(text.contains("git_hash\tabc1234"));
+    assert!(text.contains("release_build\tfalse"));
+}
+
+#[tokio::test]
+async fn restore_agent_session_if_requested_restores_resumed_session() {
+    let _guard = crate::storage::lock_test_env();
+
+    let provider: Arc<dyn Provider> = Arc::new(TestProvider);
+    let registry = Registry::new(provider.clone()).await;
+    let mut original = crate::agent::Agent::new(provider.clone(), registry);
+    let original_session_id = original.session_id().to_string();
+    original
+        .run_once_capture("seed session for resume test")
+        .await
+        .expect("seed session");
+
+    let registry = Registry::new(provider.clone()).await;
+    let mut resumed = crate::agent::Agent::new(provider, registry);
+    let fresh_session_id = resumed.session_id().to_string();
+    assert_ne!(fresh_session_id, original_session_id);
+
+    restore_agent_session_if_requested(&mut resumed, Some(&original_session_id))
+        .expect("restore session");
+
+    assert_eq!(resumed.session_id(), original_session_id);
+}
+
+#[tokio::test]
+async fn incomplete_todo_followups_stop_after_three_in_all_output_modes() {
+    let _guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&[
+        "NEXODE_HOME",
+        "NEXODE_RUN_AUTO_POKE",
+        "NEXODE_RUN_AUTO_POKE_MAX_TURNS",
+    ]);
+    let temp = tempfile::tempdir().expect("tempdir");
+    crate::env::set_var("NEXODE_HOME", temp.path());
+    // A generous global cap must not override the per-state cap.
+    crate::env::set_var("NEXODE_RUN_AUTO_POKE_MAX_TURNS", "10");
+    for enabled in [true, false] {
+        crate::env::set_var("NEXODE_RUN_AUTO_POKE", if enabled { "1" } else { "0" });
+        for mode in ["plain", "capture", "ndjson"] {
+            let provider: Arc<dyn Provider> = Arc::new(TestProvider);
+            let registry = Registry::new(provider.clone()).await;
+            let mut agent = crate::agent::Agent::new(provider.clone(), registry);
+            crate::todo::save_todos(
+                agent.session_id(),
+                &[test_todo("open", "pending", "high", None, None)],
+            )
+            .unwrap();
+            match mode {
+                "plain" => run_single_message_command_plain_with_auto_poke(&mut agent, "go")
+                    .await
+                    .unwrap(),
+                "capture" => {
+                    run_single_message_command_capture_with_auto_poke(&mut agent, "go")
+                        .await
+                        .unwrap();
+                }
+                _ => run_single_message_command_ndjson(&mut agent, provider, "go")
+                    .await
+                    .unwrap(),
+            }
+            let session = crate::session::Session::load(agent.session_id()).unwrap();
+            let followups = session
+                .messages
+                .iter()
+                .filter(|message| {
+                    message.role == crate::message::Role::User
+                        && message.content.iter().any(|block| {
+                            matches!(block,
+                                crate::message::ContentBlock::Text { text, .. }
+                                    if crate::todo::is_auto_poke_message(text)
+                            )
+                        })
+                })
+                .count();
+            assert_eq!(
+                followups,
+                if enabled { 3 } else { 0 },
+                "{mode}, enabled={enabled}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn run_dependency_resumes_same_session_in_all_output_modes() {
+    let _guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&[
+        "NEXODE_HOME",
+        "NEXODE_RUN_AUTO_POKE",
+        "NEXODE_RUN_AUTO_POKE_MAX_TURNS",
+    ]);
+    let temp = tempfile::tempdir().unwrap();
+    crate::env::set_var("NEXODE_HOME", temp.path());
+    crate::env::set_var("NEXODE_RUN_AUTO_POKE", "1");
+    crate::env::set_var("NEXODE_RUN_AUTO_POKE_MAX_TURNS", "2");
+    for (mode, json, ndjson) in [
+        ("plain", false, false),
+        ("capture", true, false),
+        ("ndjson", false, true),
+    ] {
+        let provider: Arc<dyn Provider> = Arc::new(TestProvider);
+        let registry = Registry::new(provider.clone()).await;
+        let mut agent = crate::agent::Agent::new(provider.clone(), registry);
+        let session_id = agent.session_id().to_string();
+        let (finish, wait) = tokio::sync::oneshot::channel();
+        let task = crate::background::global()
+            .spawn_with_notify("test", None, &session_id, true, true, |path| async move {
+                let _ = wait.await;
+                tokio::fs::write(path, "CLI completion output sentinel").await?;
+                Ok(crate::background::TaskResult::completed(Some(0)))
+            })
+            .await;
+        crate::todo::save_todos(&session_id, &[dependency_todo("waiting", &[&task.task_id])])
+            .unwrap();
+        {
+            let mut run = std::pin::pin!(run_single_message_with_agent(
+                &mut agent, provider, "go", json, ndjson
+            ));
+            tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                loop {
+                    tokio::select! {
+                        result = &mut run => panic!("{mode} finished before dependency completion: {result:?}"),
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+                    }
+                    if !crate::background::global()
+                        .status(&task.task_id)
+                        .await
+                        .unwrap()
+                        .wake
+                    {
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("CLI must take continuation ownership while dependency is running");
+            finish.send(()).unwrap();
+            tokio::time::timeout(std::time::Duration::from_secs(5), &mut run)
+                .await
+                .unwrap()
+                .unwrap();
+        }
+        let session = crate::session::Session::load(&session_id).unwrap();
+        let inputs: Vec<_> = session
+            .messages
+            .iter()
+            .filter(|message| message.role == crate::message::Role::User)
+            .flat_map(|message| message.content.iter())
+            .filter_map(|block| match block {
+                crate::message::ContentBlock::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        // Session/runtime context may also be persisted as user-role content.
+        // Count our continuations, not those unrelated injected reminders.
+        let completions: Vec<_> = inputs
+            .iter()
+            .filter(|text| text.contains("[auto] Background dependency"))
+            .collect();
+        assert_eq!(completions.len(), 1, "{mode} must resume exactly once");
+        assert!(
+            completions[0].contains("CLI completion output sentinel"),
+            "{mode}"
+        );
+        assert!(
+            !inputs
+                .iter()
+                .any(|text| crate::todo::is_auto_poke_message(text)),
+            "{mode} must not spend an incomplete retry or completion gate on the wait"
+        );
+    }
+}
+
+#[tokio::test]
+async fn one_shot_output_modes_close_sessions_and_clear_active_pid_markers() {
+    let _guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&["NEXODE_HOME", "NEXODE_RUN_AUTO_POKE"]);
+    let temp = tempfile::tempdir().expect("tempdir");
+    crate::env::set_var("NEXODE_HOME", temp.path());
+    crate::env::set_var("NEXODE_RUN_AUTO_POKE", "0");
+
+    for (mode, emit_json, emit_ndjson) in [
+        ("plain", false, false),
+        ("json", true, false),
+        ("ndjson", false, true),
+    ] {
+        let provider: Arc<dyn Provider> = Arc::new(TestProvider);
+        let registry = Registry::new(provider.clone()).await;
+        let mut agent = crate::agent::Agent::new(provider.clone(), registry);
+        let session_id = agent.session_id().to_string();
+        let marker = crate::storage::active_pids_dir()
+            .expect("active PID directory")
+            .join(&session_id);
+        assert!(marker.exists(), "{mode} session should start active");
+
+        run_single_message_with_agent(
+            &mut agent,
+            provider,
+            "Return the test response.",
+            emit_json,
+            emit_ndjson,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{mode} run failed: {error:#}"));
+
+        assert!(
+            !marker.exists(),
+            "{mode} run left an active PID marker behind"
+        );
+        let persisted = crate::session::Session::load(&session_id)
+            .unwrap_or_else(|error| panic!("load {mode} session: {error:#}"));
+        assert!(
+            matches!(persisted.status, crate::session::SessionStatus::Closed),
+            "{mode} run persisted status {:?}",
+            persisted.status
+        );
+        assert!(
+            !crate::session::find_recent_crashed_sessions()
+                .iter()
+                .any(|(id, _)| id == &session_id),
+            "{mode} run was rediscovered as a stale-PID crash"
+        );
+    }
+}
+
+#[tokio::test]
+async fn resumed_one_shot_closes_the_restored_session() {
+    let _guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&["NEXODE_HOME", "NEXODE_RUN_AUTO_POKE"]);
+    let temp = tempfile::tempdir().expect("tempdir");
+    crate::env::set_var("NEXODE_HOME", temp.path());
+    crate::env::set_var("NEXODE_RUN_AUTO_POKE", "0");
+
+    let provider: Arc<dyn Provider> = Arc::new(TestProvider);
+    let registry = Registry::new(provider.clone()).await;
+    let mut original = crate::agent::Agent::new(provider.clone(), registry);
+    original
+        .run_once_capture("Seed the resumed one-shot session.")
+        .await
+        .expect("seed resumed session");
+    let session_id = original.session_id().to_string();
+    original.mark_closed();
+
+    let registry = Registry::new(provider.clone()).await;
+    let mut resumed = crate::agent::Agent::new(provider.clone(), registry);
+    restore_agent_session_if_requested(&mut resumed, Some(&session_id))
+        .expect("restore one-shot session");
+    let marker = crate::storage::active_pids_dir()
+        .expect("active PID directory")
+        .join(&session_id);
+    assert!(
+        marker.exists(),
+        "restored session should be active while running"
+    );
+
+    run_single_message_with_agent(
+        &mut resumed,
+        provider,
+        "Finish the resumed one-shot session.",
+        true,
+        false,
+    )
+    .await
+    .expect("run resumed one-shot session");
+
+    assert!(!marker.exists(), "resumed run left its active PID marker");
+    let persisted = crate::session::Session::load(&session_id).expect("load resumed session");
+    assert!(matches!(
+        persisted.status,
+        crate::session::SessionStatus::Closed
+    ));
+    assert!(
+        !crate::session::find_recent_crashed_sessions()
+            .iter()
+            .any(|(id, _)| id == &session_id),
+        "resumed run was rediscovered as a stale-PID crash"
+    );
+}
+
+#[tokio::test]
+async fn one_shot_cleanup_preserves_the_original_command_error() {
+    let _guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&["NEXODE_HOME", "NEXODE_RUN_AUTO_POKE"]);
+    let temp = tempfile::tempdir().expect("tempdir");
+    crate::env::set_var("NEXODE_HOME", temp.path());
+    crate::env::set_var("NEXODE_RUN_AUTO_POKE", "0");
+
+    for (mode, emit_json, emit_ndjson) in [
+        ("plain", false, false),
+        ("json", true, false),
+        ("ndjson", false, true),
+    ] {
+        let provider: Arc<dyn Provider> = Arc::new(FailingTestProvider);
+        let registry = Registry::new(provider.clone()).await;
+        let mut agent = crate::agent::Agent::new(provider.clone(), registry);
+        let session_id = agent.session_id().to_string();
+        let marker = crate::storage::active_pids_dir()
+            .expect("active PID directory")
+            .join(&session_id);
+
+        let error = match run_single_message_with_agent(
+            &mut agent,
+            provider,
+            "Fail this run.",
+            emit_json,
+            emit_ndjson,
+        )
+        .await
+        {
+            Ok(()) => panic!("{mode} provider failure should remain the command result"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.to_string().contains("one-shot sentinel failure"),
+            "{mode} changed the original error: {error:#}"
+        );
+        assert!(
+            !marker.exists(),
+            "failed {mode} run left an active PID marker"
+        );
+        let persisted = crate::session::Session::load(&session_id)
+            .unwrap_or_else(|error| panic!("load failed {mode} session: {error:#}"));
+        assert!(matches!(
+            persisted.status,
+            crate::session::SessionStatus::Closed
+        ));
+    }
+}
+
+#[path = "commands/tests/cloud_sessions_tests.rs"]
+mod cloud_sessions;
+#[path = "commands/tests/ndjson_metadata_tests.rs"]
+mod ndjson_metadata;
+
+struct SavedEnv {
+    vars: Vec<(String, Option<String>)>,
+}
+
+impl SavedEnv {
+    fn capture(keys: &[&str]) -> Self {
+        Self {
+            vars: keys
+                .iter()
+                .map(|key| (key.to_string(), std::env::var(key).ok()))
+                .collect(),
+        }
+    }
+}
+
+impl Drop for SavedEnv {
+    fn drop(&mut self) {
+        for (key, value) in &self.vars {
+            if let Some(value) = value {
+                crate::env::set_var(key, value);
+            } else {
+                crate::env::remove_var(key);
+            }
+        }
+    }
+}
+
+struct TestProvider;
+
+#[async_trait]
+impl Provider for TestProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        let (tx, rx) = tokio_mpsc::channel::<Result<StreamEvent>>(4);
+        tokio::spawn(async move {
+            let _ = tx.send(Ok(StreamEvent::TextDelta("ok".to_string()))).await;
+            let _ = tx
+                .send(Ok(StreamEvent::MessageEnd {
+                    stop_reason: Some("end_turn".to_string()),
+                }))
+                .await;
+        });
+        Ok(Box::pin(ReceiverStream::new(rx)))
+    }
+
+    fn name(&self) -> &str {
+        "test"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
+struct FailingTestProvider;
+
+#[async_trait]
+impl Provider for FailingTestProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        Err(anyhow::anyhow!("one-shot sentinel failure"))
+    }
+
+    fn name(&self) -> &str {
+        "failing-test"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
+struct OpenRouterSlotProvider;
+
+#[async_trait]
+impl Provider for OpenRouterSlotProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        Err(anyhow::anyhow!(
+            "the provider label test never sends a request"
+        ))
+    }
+
+    fn name(&self) -> &str {
+        "openrouter"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
+#[path = "commands/tests/memory_tests.rs"]
+mod memory;

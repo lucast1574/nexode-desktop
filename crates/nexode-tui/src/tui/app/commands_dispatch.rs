@@ -1,0 +1,599 @@
+//! The single dispatch table for slash commands that run entirely inside this
+//! process.
+//!
+//! There used to be two hand-maintained copies of this chain: one in the local
+//! TUI submit path and one for a remote client whose connection had dropped.
+//! They drifted, so commands like `/cancel`, `/ssh`, `/productivity`, and
+//! `/model-status` silently did nothing in the remote-disconnected case while
+//! working locally. Both call sites now share this list, so adding a handler
+//! here makes it reachable from every in-process entry point at once.
+
+use super::App;
+
+/// These commands belong to the terminal displaying the remote session. Saved
+/// display preferences intentionally stay on the client, never on the VM.
+pub(super) fn ssh_presentation_command(input: &str) -> bool {
+    matches!(
+        input.split_whitespace().next().unwrap_or(""),
+        "/cancel"
+            | "/stop"
+            | "/help"
+            | "/?"
+            | "/commands"
+            | "/todos"
+            | "/todo"
+            | "/diff"
+            | "/keys"
+            | "/keybindings"
+            | "/alignment"
+            | "/latex"
+            | "/reasoning"
+            | "/thinking"
+            | "/thinking-display"
+            | "/compact-notifications"
+            | "/show-agentgrep-output"
+            | "/tool-call-details"
+            | "/colors"
+            | "/color"
+            | "/cls"
+            | "/clear-view"
+            | "/version"
+            | "/changelog"
+            | "/hotkeys"
+            | "/subscribe"
+            | "/hosted"
+            | "/update-sim"
+            | "/onboarding-preview"
+            | "/observe"
+            | "/splitview"
+            | "/split-view"
+            | "/voice"
+            | "/dictate"
+            | "/dictation"
+            | "/terminal-setup"
+            | "/debug-visual"
+            | "/screenshot-mode"
+            | "/screenshot"
+            | "/record"
+            | "/feedback"
+            | "/support"
+    )
+}
+
+pub(super) fn handle_ssh_presentation_command(app: &mut App, input: &str) -> bool {
+    if !crate::tui::is_ssh_remote() || !ssh_presentation_command(input) {
+        return false;
+    }
+    if matches!(input, "/subscribe" | "/hosted") {
+        app.show_subscribe_pitch();
+        return true;
+    }
+    if matches!(input, "/cls" | "/clear-view") {
+        app.clear_view_keep_context();
+        return true;
+    }
+    if matches!(input, "/version" | "/changelog") {
+        return super::state_ui::handle_info_command(app, input);
+    }
+    if matches!(
+        input.split_whitespace().next(),
+        Some("/update-sim" | "/onboarding-preview")
+    ) {
+        return super::tui_lifecycle_runtime::handle_dev_command(app, input);
+    }
+    super::commands::handle_observe_command(app, input)
+        || super::split_view::handle_split_view_command(app, input)
+        || super::commands::handle_dictation_command(app, input)
+        || app.handle_terminal_setup_command(input)
+        || super::debug::handle_debug_command(app, input)
+        || super::commands::handle_feedback_command(app, input)
+        || super::support::handle_support_command(app, input)
+        || super::commands::handle_cancel_command(app, input)
+        || app.handle_hotkeys_command(input)
+        || super::todos_view::handle_todos_view_command(app, input)
+        || super::commands::handle_help_command(app, input)
+        || super::commands::handle_diff_command(app, input)
+        || super::commands::handle_keys_command(app, input)
+        || super::commands::handle_display_settings_command(app, input)
+        || super::commands::handle_latex_command(app, input)
+        || super::commands_colors::handle_colors_command(app, input)
+}
+
+/// Local-only operations must not interpret the remote session's paths or IDs
+/// against the laptop. Wire-backed commands are handled before local dispatch.
+pub(super) fn ssh_unsupported_command(input: &str) -> bool {
+    let mut words = input.split_whitespace();
+    let command = words.next().unwrap_or("");
+    if command.starts_with('!') {
+        return true;
+    }
+    if command == "/fast" && words.next() == Some("default") {
+        return true;
+    }
+    matches!(
+        command,
+        "/logout"
+            | "/auth"
+            | "/config"
+            | "/permissions"
+            | "/permission"
+            | "/agents"
+            | "/swarm-prompt"
+            | "/theme"
+            | "/telemetry"
+            | "/ssh"
+            | "/remote"
+            | "/resume"
+            | "/sessions"
+            | "/session"
+            | "/active"
+            | "/catchup"
+            | "/back"
+            | "/save"
+            | "/unsave"
+            | "/transcript"
+            | "/open"
+            | "/file"
+            | "/selfdev"
+            | "/new-terminal"
+            | "/reload"
+            | "/client-reload"
+            | "/restart"
+            | "/rebuild"
+            | "/update"
+            | "/update-rehearsal"
+            | "/onboarding-sim"
+            | "/usage"
+            | "/reset"
+            | "/subscription"
+            | "/fix"
+            | "/poke"
+            | "/improve"
+            | "/refactor"
+            | "/productivity"
+            | "/wrapped"
+            | "/stats"
+            | "/log"
+            | "/cache"
+            | "/initiatives"
+            | "/goals"
+            | "/debug-fixture"
+            | "/subagent-model"
+            | "/z"
+            | "/zz"
+            | "/zzz"
+            | "/zstatus"
+            | "/autoreview"
+            | "/autojudge"
+            | "/review"
+            | "/judge"
+            | "/subagent"
+            | "/fork"
+            | "/split"
+            | "/btw"
+            | "/transfer"
+            | "/desktop"
+            | "/workspace"
+    )
+}
+
+/// Return true after explaining why a laptop-local action is unavailable.
+pub(super) fn ssh_local_action_blocked(app: &mut App, action: &str) -> bool {
+    if !crate::tui::is_ssh_remote() {
+        return false;
+    }
+    let host = crate::tui::ssh_remote_host().unwrap_or_else(|| "the remote host".to_string());
+    let notice = format!(
+        "{action} is unavailable in SSH mode. Nothing was changed on this computer. \
+         Connect to {host} with SSH and run nexode there for remote setup or file/session operations. \
+         Prompts and server-side tools remain available here."
+    );
+    app.set_status_notice(notice.clone());
+    app.push_display_message(super::DisplayMessage::system(notice));
+    true
+}
+
+/// Use before connected-remote dispatch as well as the disconnected fallback.
+pub(super) fn handle_ssh_unsupported_command(app: &mut App, input: &str) -> bool {
+    if app.handle_ssh_login_command(input) {
+        return true;
+    }
+    ssh_unsupported_command(input)
+        && ssh_local_action_blocked(
+            app,
+            input.split_whitespace().next().unwrap_or("This action"),
+        )
+}
+
+/// Run `trimmed` against every locally handled slash command.
+///
+/// Returns whether the input contains a known slash command at a safe token
+/// boundary. This is intentionally registry-aware so paths and URLs remain
+/// ordinary prompt text.
+pub(super) fn contains_registered_slash_command(input: &str) -> bool {
+    let names: Vec<_> = super::registered_command_names().collect();
+    !super::slash_command_parser::find_known_commands(input, &names).is_empty()
+}
+
+/// Returns `true` when a handler claimed the input. Callers own presentation
+/// concerns (clearing the input line, telemetry) because those differ between
+/// the local and remote entry points.
+pub(super) fn dispatch_local_command(app: &mut App, trimmed: &str) -> bool {
+    let names: Vec<_> = super::registered_command_names().collect();
+    let matches = super::slash_command_parser::find_known_commands(trimmed, &names);
+    if matches.first().is_some_and(|command| command.start > 0) || matches.len() > 1 {
+        return dispatch_command_sequence(app, trimmed, &matches);
+    }
+
+    dispatch_single_local_command(app, trimmed)
+}
+
+fn dispatch_command_sequence(
+    app: &mut App,
+    input: &str,
+    matches: &[super::slash_command_parser::SlashCommandMatch],
+) -> bool {
+    let prefix = input[..matches[0].start].trim();
+    let mut handled = false;
+
+    for (index, command) in matches.iter().enumerate() {
+        let end = matches
+            .get(index + 1)
+            .map_or(input.len(), |next| next.start);
+        let args = input[command.name_end..end].trim();
+        let command_text = if index == 0 && !prefix.is_empty() {
+            if args.is_empty() {
+                format!("{} {}", &input[command.start..command.name_end], prefix)
+            } else {
+                format!(
+                    "{} {} {}",
+                    &input[command.start..command.name_end],
+                    prefix,
+                    args
+                )
+            }
+        } else {
+            input[command.start..end].trim().to_string()
+        };
+
+        handled |= dispatch_single_local_command(app, &command_text);
+    }
+
+    handled
+}
+
+fn dispatch_single_local_command(app: &mut App, trimmed: &str) -> bool {
+    if handle_ssh_unsupported_command(app, trimmed) {
+        return true;
+    }
+    // Anything not explicitly audited as presentation-only must stay on the
+    // remote dispatcher. In particular, a disconnected client must not fall
+    // back to local session/model/storage handlers for a remote command.
+    if crate::tui::is_ssh_remote() {
+        if handle_ssh_presentation_command(app, trimmed) {
+            return true;
+        }
+        if trimmed.starts_with('/') {
+            return ssh_local_action_blocked(app, "This command's local fallback");
+        }
+        return false;
+    }
+    super::commands::handle_cancel_command(app, trimmed)
+        || super::commands::handle_help_command(app, trimmed)
+        || super::commands::handle_keys_command(app, trimmed)
+        || super::commands::handle_ssh_command(app, trimmed)
+        // `/test`, `/mission`, `/goal`, and `/goals` are dispatched inside
+        // `handle_session_command`, so they need no separate entries here.
+        || super::commands::handle_session_command(app, trimmed)
+        || super::commands_desktop::handle_desktop_command(app, trimmed)
+        || super::commands::handle_dictation_command(app, trimmed)
+        || super::commands::handle_config_command(app, trimmed)
+        || super::commands::handle_latex_command(app, trimmed)
+        || super::commands_colors::handle_colors_command(app, trimmed)
+        || super::commands::handle_log_command(app, trimmed)
+        || super::commands::handle_diff_command(app, trimmed)
+        || super::commands::handle_model_status_command(app, trimmed)
+        || super::debug::handle_debug_command(app, trimmed)
+        || super::model_context::handle_model_command(app, trimmed)
+        || app.handle_usage_reset_command(trimmed)
+        || super::commands::handle_usage_command(app, trimmed)
+        || super::productivity::handle_productivity_command(app, trimmed)
+        || super::commands::handle_feedback_command(app, trimmed)
+        || super::commands::handle_telemetry_command(app, trimmed)
+        || super::support::handle_support_command(app, trimmed)
+        || super::state_ui::handle_info_command(app, trimmed)
+        || super::auth::handle_auth_command(app, trimmed)
+        || super::tui_lifecycle_runtime::handle_dev_command(app, trimmed)
+        || app.handle_update_rehearsal_command(trimmed)
+}
+
+/// Environment-mode tests run in their own process, so parallel local-mode
+/// tests never observe an SSH flag or another test's temporary home.
+#[cfg(test)]
+pub(super) fn ssh_test_runs_in_child(test_name: &str) -> bool {
+    if std::env::var("NEXODE_SSH_UI_TEST").as_deref() == Ok(test_name) {
+        return false;
+    }
+    let home = tempfile::tempdir().expect("isolated SSH test home");
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .arg(test_name)
+        .arg("--test-threads=1")
+        .arg("--nocapture")
+        .env("NEXODE_SSH_UI_TEST", test_name)
+        .env("NEXODE_SSH_REMOTE", "test-remote")
+        .env("NEXODE_HOME", home.path())
+        .output()
+        .expect("run isolated SSH test");
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ssh_ui_blocks_local_actions_and_preserves_text_and_cancel() {
+        if super::ssh_test_runs_in_child(
+            "ssh_ui_blocks_local_actions_and_preserves_text_and_cancel",
+        ) {
+            return;
+        }
+        use crate::tui::app::{input, tests::create_test_app};
+        let mut app = create_test_app();
+        app.is_remote = true;
+        for command in ["/config init", "/logout", "/save test", "/reload"] {
+            assert!(super::dispatch_local_command(&mut app, command));
+            assert!(
+                app.display_messages
+                    .last()
+                    .unwrap()
+                    .content
+                    .contains("SSH mode")
+            );
+        }
+        for command in ["/login", "/account", "/subagent-model"] {
+            app.input = command.to_string();
+            app.sync_model_picker_preview_from_input();
+            assert!(app.inline_interactive_state.is_none(), "{command}");
+        }
+        app.open_session_picker();
+        app.open_active_sessions_picker();
+        app.open_catchup_picker();
+        app.open_login_picker_inline();
+        app.open_agents_picker();
+        app.handle_new_terminal_hotkey();
+        app.toggle_next_prompt_new_session_routing();
+        assert!(app.session_picker_overlay.is_none());
+        assert!(app.pending_session_picker_load.is_none());
+        assert!(app.inline_interactive_state.is_none());
+        assert!(!app.route_next_prompt_to_new_session);
+
+        let image = tempfile::Builder::new().suffix(".png").tempfile().unwrap();
+        std::fs::write(image.path(), b"local image bytes").unwrap();
+        let path = image.path().to_string_lossy().to_string();
+        app.input.clear();
+        app.cursor_pos = 0;
+        input::handle_paste(&mut app, path.clone());
+        assert_eq!(app.input, path);
+        assert!(app.pending_images.is_empty());
+        assert!(input::parse_dropped_paths(&path).is_none());
+        assert!(!input::promote_dropped_images(&mut app));
+
+        app.input.clear();
+        app.cursor_pos = 0;
+        input::insert_input_text(&mut app, "ordinary remote prompt");
+        assert_eq!(app.input, "ordinary remote prompt");
+        app.is_processing = true;
+        app.input = "/cancel".to_string();
+        app.submit_input();
+        assert!(app.cancel_requested);
+        assert!(app.input.is_empty());
+    }
+
+    #[test]
+    fn ssh_blocks_local_side_effects_but_preserves_wire_commands() {
+        for command in [
+            "/logout all",
+            "/config edit",
+            "/permissions",
+            "/open /etc/passwd",
+            "/save name",
+            "/resume",
+            "/selfdev status",
+            "/reload",
+            "/client-reload",
+            "/rebuild",
+            "/fast default on",
+            "/agents",
+            "/subagent-model",
+            "/transcript path",
+            "!cat ~/.ssh/config",
+            "/ssh connect host",
+            "/fork prompt",
+            "/split",
+            "/btw question",
+            "/transfer",
+            "/desktop",
+            "/workspace",
+            "/workspace split",
+            "/poke",
+            "/improve plan remote changes",
+            "/refactor resume",
+            "/review",
+            "/subagent investigate",
+        ] {
+            assert!(super::ssh_unsupported_command(command), "{command}");
+        }
+        for command in [
+            "/account",
+            "/accounts openai",
+            "/git",
+            "/continue",
+            "/resumeall",
+            "/resume-all",
+            "/todos",
+            "/todo",
+            "/login",
+            "hello",
+            "explain !commands",
+            "/cancel",
+            "/model remote-model",
+            "/effort high",
+            "/server-reload",
+            "/compact",
+            "/plan investigate",
+            "/commit",
+            "/merge",
+            "/rename title",
+            "/fast on",
+            "/help",
+            "/diff",
+            "/login-custom-skill",
+            "/configurable-skill",
+        ] {
+            assert!(!super::ssh_unsupported_command(command), "{command}");
+        }
+    }
+
+    /// The bug this module exists to prevent: two hand-copied dispatch chains
+    /// that drift apart. Both entry points must call this shared table and
+    /// must not rebuild a chain of their own.
+    #[test]
+    fn both_entry_points_use_the_shared_dispatch_table() {
+        for (path, source) in [
+            ("input.rs", include_str!("input.rs")),
+            ("remote.rs", include_str!("remote.rs")),
+        ] {
+            assert!(
+                source.contains("commands_dispatch::dispatch_local_command"),
+                "{path} should dispatch slash commands through the shared table"
+            );
+            // A local `||`-chain of `handle_*_command` calls is how the two
+            // copies drifted before; catching it here keeps the table single.
+            let chained = source
+                .lines()
+                .filter(|line| line.trim_start().starts_with("|| ") && line.contains("_command("))
+                .count();
+            assert_eq!(
+                chained, 0,
+                "{path} rebuilds its own slash-command chain; extend \
+                 dispatch_local_command instead"
+            );
+        }
+    }
+
+    #[test]
+    fn ssh_presentation_commands_are_not_blocked_or_prefix_matched() {
+        for command in [
+            "/keys",
+            "/keybindings",
+            "/alignment left",
+            "/latex unicode",
+            "/reasoning off",
+            "/thinking full",
+            "/thinking-display current",
+            "/compact-notifications off",
+            "/show-agentgrep-output on",
+            "/tool-call-details on",
+            "/colors",
+            "/color harmony",
+            "/todos",
+            "/diff inline",
+            "/help account",
+            "/cls",
+            "/clear-view",
+            "/version",
+            "/changelog",
+            "/hotkeys",
+            "/subscribe",
+            "/hosted",
+            "/update-sim reset",
+            "/onboarding-preview status",
+            "/observe status",
+            "/splitview status",
+            "/split-view status",
+            "/voice",
+            "/dictate",
+            "/dictation",
+            "/terminal-setup",
+            "/debug-visual off",
+            "/screenshot-mode off",
+            "/screenshot info",
+            "/record cancel",
+            "/feedback test",
+            "/support",
+        ] {
+            assert!(super::ssh_presentation_command(command), "{command}");
+            assert!(!super::ssh_unsupported_command(command), "{command}");
+            assert!(!super::ssh_presentation_command(&format!(
+                "{}-custom",
+                command.split_whitespace().next().unwrap()
+            )));
+        }
+        for command in ["/config edit", "/account", "/model", "/compact", "/git"] {
+            assert!(!super::ssh_presentation_command(command), "{command}");
+        }
+    }
+
+    #[test]
+    fn ssh_display_preferences_work_without_remote_or_local_session_operations() {
+        if super::ssh_test_runs_in_child(
+            "ssh_display_preferences_work_without_remote_or_local_session_operations",
+        ) {
+            return;
+        }
+        let mut app = crate::tui::app::tests::create_test_app();
+        app.is_remote = true;
+        for command in [
+            "/latex status",
+            "/alignment",
+            "/thinking-display",
+            "/compact-notifications",
+            "/show-agentgrep-output",
+            "/tool-call-details",
+            "/colors export",
+            "/diff inline",
+            "/update-sim reset",
+            "/onboarding-preview off",
+            "/observe off",
+            "/splitview off",
+            "/split-view status",
+            "/debug-visual off",
+            "/screenshot-mode off",
+            "/record cancel",
+        ] {
+            assert!(
+                super::dispatch_local_command(&mut app, command),
+                "{command}"
+            );
+            assert!(
+                !app.display_messages
+                    .last()
+                    .is_some_and(|message| message.content.contains("unavailable in SSH mode")),
+                "{command}"
+            );
+        }
+        assert!(!app.pending_turn);
+        assert!(app.session_picker_overlay.is_none());
+    }
+
+    #[test]
+    fn ssh_clear_view_preserves_session_context() {
+        if super::ssh_test_runs_in_child("ssh_clear_view_preserves_session_context") {
+            return;
+        }
+        let mut app = crate::tui::app::tests::create_test_app();
+        app.is_remote = true;
+        app.push_display_message(super::super::DisplayMessage::user("visible remote message"));
+        let session_id = app.session.id.clone();
+        assert!(super::dispatch_local_command(&mut app, "/cls"));
+        assert!(app.display_messages.is_empty());
+        assert_eq!(app.session.id, session_id);
+        assert!(!app.pending_turn);
+        assert!(app.queued_messages.is_empty());
+    }
+}

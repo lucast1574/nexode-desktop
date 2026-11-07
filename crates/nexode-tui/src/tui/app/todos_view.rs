@@ -1,0 +1,1145 @@
+use super::App;
+use crate::side_panel::{
+    SidePanelPage, SidePanelPageFormat, SidePanelPageSource, SidePanelSnapshot,
+};
+use crate::todo::TodoItem;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::time::Instant;
+
+pub(super) const TODOS_VIEW_PAGE_ID: &str = "session_todos";
+const TODOS_VIEW_TITLE: &str = "Todos";
+/// Display-message role used by the inline chat todo card.
+const TODO_CARD_ROLE: &str = "todos";
+
+impl App {
+    fn current_todo_state(
+        &self,
+    ) -> (
+        Vec<TodoItem>,
+        crate::todo::TodoPlan,
+        Vec<crate::todo::TodoGoal>,
+    ) {
+        let session_id = self.active_client_session_id();
+        if crate::tui::is_ssh_remote() || self.remote_todos_payload.is_some() {
+            let payload = self
+                .remote_todos_payload
+                .as_ref()
+                .filter(|(id, _)| Some(id.as_str()) == session_id)
+                .and_then(|(_, payload)| {
+                    serde_json::from_str::<serde_json::Value>(payload).map_or_else(
+                        |error| {
+                            crate::logging::debug(&format!(
+                                "Invalid remote todo snapshot: {error}"
+                            ));
+                            None
+                        },
+                        Some,
+                    )
+                })
+                .unwrap_or_default();
+            return (
+                serde_json::from_value(payload["todos"].clone()).unwrap_or_else(|error| {
+                    crate::logging::debug(&format!("Invalid remote todos: {error}"));
+                    Vec::new()
+                }),
+                serde_json::from_value(payload["plan"].clone()).unwrap_or_else(|error| {
+                    crate::logging::debug(&format!("Invalid remote todo plan: {error}"));
+                    crate::todo::TodoPlan::default()
+                }),
+                serde_json::from_value(payload["goals"].clone()).unwrap_or_else(|error| {
+                    crate::logging::debug(&format!("Invalid remote todo goals: {error}"));
+                    Vec::new()
+                }),
+            );
+        }
+        (
+            load_current_session_todos(session_id),
+            load_current_session_plan(session_id),
+            load_current_session_goals(session_id),
+        )
+    }
+
+    pub(super) fn remote_todos_refresh_due(&mut self) -> bool {
+        if !crate::tui::is_ssh_remote()
+            || !(self.todos_view_enabled
+                || self.latest_todo_card_index().is_some()
+                || crate::config::config().display.pin_todos)
+            || self
+                .remote_todos_requested_at
+                .is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(2))
+        {
+            return false;
+        }
+        self.remote_todos_requested_at = Some(Instant::now());
+        true
+    }
+
+    pub(super) fn receive_remote_todos(&mut self, session_id: String, payload: String) {
+        if self.active_client_session_id() != Some(session_id.as_str()) {
+            return;
+        }
+        self.remote_todos_payload = Some((session_id, payload));
+        self.refresh_todo_card_if_needed();
+        self.refresh_todos_view_now();
+        self.refresh_pinned_todos_now();
+    }
+
+    pub(super) fn todos_view_enabled(&self) -> bool {
+        self.todos_view_enabled
+    }
+
+    fn latest_todo_card_index(&self) -> Option<usize> {
+        self.display_messages
+            .iter()
+            .rposition(|message| message.role == TODO_CARD_ROLE)
+    }
+
+    /// Show the session todo list as an inline card in the chat transcript, or
+    /// dismiss it when the card is already the trailing message.
+    pub(super) fn toggle_todo_card(&mut self) {
+        if let Some(idx) = self.latest_todo_card_index()
+            && idx + 1 == self.display_messages.len()
+        {
+            self.remove_display_message(idx);
+            self.todo_card_rendered_hash = 0;
+            self.set_status_notice("Todos card dismissed");
+            return;
+        }
+        self.show_todo_card();
+    }
+
+    /// Push (or move to the bottom) the inline todo card with fresh data. The
+    /// transcript keeps at most one card so repeated toggles don't stack.
+    pub(super) fn show_todo_card(&mut self) {
+        let session_id = self.active_client_session_id().map(str::to_string);
+        let (todos, plan, goals) = self.current_todo_state();
+        let tasks = self.todo_card_background_tasks(&todos);
+        let content = with_background_tasks(todo_card_payload_json(&todos, &plan, &goals), &tasks);
+        self.todo_card_rendered_hash =
+            hash_todos_payload(session_id.as_deref(), &todos, &plan, &goals)
+                ^ hash_background_tasks(&tasks);
+
+        if let Some(idx) = self.latest_todo_card_index() {
+            if idx + 1 == self.display_messages.len() {
+                self.replace_display_message_content(idx, content);
+                return;
+            }
+            self.remove_display_message(idx);
+        }
+        self.push_display_message(crate::tui::DisplayMessage::todos(content));
+        self.set_status_notice("Todos card");
+    }
+
+    /// Live-refresh the inline todo card when the session todo list changed.
+    /// Returns true when the transcript was updated.
+    pub(super) fn refresh_todo_card_if_needed(&mut self) -> bool {
+        let Some(idx) = self.latest_todo_card_index() else {
+            return false;
+        };
+        let session_id = self.active_client_session_id().map(str::to_string);
+        let (todos, plan, goals) = self.current_todo_state();
+        let tasks = self.todo_card_background_tasks(&todos);
+        let next_hash = hash_todos_payload(session_id.as_deref(), &todos, &plan, &goals)
+            ^ hash_background_tasks(&tasks);
+        if next_hash == self.todo_card_rendered_hash {
+            return false;
+        }
+        self.todo_card_rendered_hash = next_hash;
+        let content = with_background_tasks(todo_card_payload_json(&todos, &plan, &goals), &tasks);
+        self.replace_display_message_content(idx, content)
+    }
+
+    /// Live-refresh the payload behind the pinned todo band
+    /// (`display.pin_todos`). Returns true when the payload changed and the
+    /// viewport should redraw. Disk reads are throttled to once per second.
+    pub(super) fn refresh_pinned_todos_if_needed(&mut self) -> bool {
+        if !crate::config::config().display.pin_todos {
+            if self.pinned_todos_payload.is_some() {
+                self.pinned_todos_payload = None;
+                self.pinned_todos_rendered_hash = 0;
+                return true;
+            }
+            return false;
+        }
+        const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
+        if let Some(checked_at) = self.pinned_todos_checked_at
+            && checked_at.elapsed() < REFRESH_INTERVAL
+        {
+            return false;
+        }
+        self.pinned_todos_checked_at = Some(Instant::now());
+        let session_id = self.active_client_session_id().map(str::to_string);
+        let (todos, plan, goals) = self.current_todo_state();
+        if todos.is_empty() {
+            if self.pinned_todos_payload.is_some() {
+                self.pinned_todos_payload = None;
+                self.pinned_todos_rendered_hash = 0;
+                return true;
+            }
+            return false;
+        }
+        let agents = self.todo_card_agents(&todos);
+        let tasks = self.todo_card_background_tasks(&todos);
+        let next_hash = hash_todos_payload(session_id.as_deref(), &todos, &plan, &goals)
+            ^ hash_todo_card_agents(&agents)
+            ^ hash_background_tasks(&tasks);
+        if next_hash == self.pinned_todos_rendered_hash && self.pinned_todos_payload.is_some() {
+            return false;
+        }
+        self.pinned_todos_rendered_hash = next_hash;
+        self.pinned_todos_payload = Some(with_background_tasks(
+            todo_card_payload_json_with_agents(&todos, &plan, &goals, &agents),
+            &tasks,
+        ));
+        true
+    }
+
+    pub(super) fn todo_card_background_tasks(
+        &self,
+        todos: &[TodoItem],
+    ) -> Vec<crate::tui::ui::TodoCardBackgroundTask> {
+        let mut tasks = Vec::new();
+        for todo in todos {
+            if !crate::todo::is_incomplete_todo(todo) {
+                continue;
+            }
+            for id in &todo.waiting_on {
+                if tasks
+                    .iter()
+                    .any(|task: &crate::tui::ui::TodoCardBackgroundTask| &task.task_id == id)
+                {
+                    continue;
+                }
+                if self.running_todo_await_dependency(id) {
+                    tasks.push(crate::tui::ui::TodoCardBackgroundTask {
+                        task_id: id.clone(),
+                        label: "Swarm await".into(),
+                        percent: None,
+                    });
+                    continue;
+                }
+                let Some(status) = self.running_todo_background_dependency(id) else {
+                    continue;
+                };
+                let row = self
+                    .background_task_rows_ref()
+                    .iter()
+                    .find(|row| &row.task_id == id);
+                tasks.push(crate::tui::ui::TodoCardBackgroundTask {
+                    task_id: id.clone(),
+                    label: row
+                        .map(|row| row.label.clone())
+                        .or(status.display_name)
+                        .unwrap_or(status.tool_name),
+                    percent: row
+                        .and_then(|row| row.percent)
+                        .or_else(|| status.progress.and_then(|progress| progress.percent)),
+                });
+            }
+        }
+        tasks
+    }
+
+    /// Swarm workers referenced by `assigned_to` on any todo, snapshotted from
+    /// the live member list the client already receives.
+    fn todo_card_agents(&self, todos: &[TodoItem]) -> Vec<crate::tui::ui::TodoCardAgent> {
+        if todos.iter().all(|todo| todo.assigned_to.is_none()) {
+            return Vec::new();
+        }
+        self.remote_swarm_members
+            .iter()
+            .map(|member| {
+                let mut agent = crate::tui::ui::TodoCardAgent::from_member(member);
+                agent.shortcut = self.swarm_agent_shortcut_digit(&member.session_id);
+                if nexode_tui_render::swarm_gallery::is_active_status(&member.status)
+                    && let Some(received_at) = self.remote_swarm_members_received_at
+                {
+                    advance_todo_agent_elapsed(&mut agent, received_at.elapsed());
+                }
+                agent
+            })
+            .filter(|agent| {
+                todos.iter().any(|todo| {
+                    todo.assigned_to.as_deref().is_some_and(|assigned| {
+                        assigned == agent.session_id || agent.name.as_deref() == Some(assigned)
+                    })
+                })
+            })
+            .collect()
+    }
+
+    /// The pinned-band renderer that reads this is landing separately, so the
+    /// accessor is allowed to be unused (outside tests) until it does.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn pinned_todos_payload_ref(&self) -> Option<&str> {
+        self.pinned_todos_payload.as_deref()
+    }
+
+    /// Force the pinned todo band to re-read state on the next tick, bypassing
+    /// the 1s throttle. Used right after the user toggles `/todos pin`.
+    pub(super) fn refresh_pinned_todos_now(&mut self) {
+        self.pinned_todos_checked_at = None;
+        self.refresh_pinned_todos_if_needed();
+    }
+
+    pub(super) fn set_todos_view_enabled(&mut self, enabled: bool, focus: bool) {
+        if enabled && focus {
+            self.side_panel_user_hidden = false;
+            self.side_panel_explicit_hidden = false;
+        }
+        self.todos_view_enabled = enabled;
+        if enabled {
+            self.refresh_todos_view_cache(true);
+        } else {
+            self.clear_todos_view_cache();
+        }
+
+        let mut snapshot = self.snapshot_without_todos_view();
+        if enabled {
+            snapshot = self.decorate_side_panel_with_todos_view(snapshot, focus);
+        } else if snapshot.focused_page_id.is_none() {
+            snapshot.focused_page_id = self
+                .last_side_panel_focus_id
+                .clone()
+                .filter(|id| snapshot.pages.iter().any(|page| page.id == *id))
+                .or_else(|| snapshot.pages.first().map(|page| page.id.clone()));
+        }
+        self.apply_side_panel_snapshot(snapshot);
+    }
+
+    pub(super) fn decorate_side_panel_with_todos_view(
+        &self,
+        mut snapshot: SidePanelSnapshot,
+        focus_todos: bool,
+    ) -> SidePanelSnapshot {
+        if !self.todos_view_enabled {
+            return snapshot;
+        }
+
+        snapshot.pages.retain(|page| page.id != TODOS_VIEW_PAGE_ID);
+        snapshot.pages.push(self.todos_view_page());
+        snapshot.pages.sort_by(|a, b| {
+            b.updated_at_ms
+                .cmp(&a.updated_at_ms)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        if focus_todos || snapshot.focused_page_id.is_none() {
+            snapshot.focused_page_id = Some(TODOS_VIEW_PAGE_ID.to_string());
+        }
+        snapshot
+    }
+
+    pub(super) fn snapshot_without_todos_view(&self) -> SidePanelSnapshot {
+        let mut snapshot = self.side_panel.clone();
+        snapshot.pages.retain(|page| page.id != TODOS_VIEW_PAGE_ID);
+        if snapshot.focused_page_id.as_deref() == Some(TODOS_VIEW_PAGE_ID) {
+            snapshot.focused_page_id = None;
+        }
+        snapshot
+    }
+
+    pub(super) fn refresh_todos_view_if_needed(&mut self) -> bool {
+        if !self.todos_view_enabled {
+            return false;
+        }
+        let changed = self.refresh_todos_view_cache(false);
+        if !changed {
+            return false;
+        }
+        self.refresh_todos_view_page();
+        true
+    }
+
+    pub(super) fn refresh_todos_view_now(&mut self) -> bool {
+        if !self.todos_view_enabled {
+            return false;
+        }
+        let changed = self.refresh_todos_view_cache(true);
+        self.refresh_todos_view_page();
+        changed
+    }
+
+    fn clear_todos_view_cache(&mut self) {
+        self.todos_view_markdown.clear();
+        self.todos_view_markdown.shrink_to_fit();
+        self.todos_view_updated_at_ms = now_ms();
+        self.todos_view_rendered_hash = 0;
+    }
+
+    fn refresh_todos_view_page(&mut self) {
+        if !self.todos_view_enabled {
+            return;
+        }
+
+        let focus_todos = self.side_panel.focused_page_id.as_deref() == Some(TODOS_VIEW_PAGE_ID);
+        let snapshot = self
+            .decorate_side_panel_with_todos_view(self.snapshot_without_todos_view(), focus_todos);
+        self.apply_side_panel_snapshot(snapshot);
+    }
+
+    fn refresh_todos_view_cache(&mut self, force: bool) -> bool {
+        let session_id = self.active_client_session_id();
+        let (todos, plan, goals) = self.current_todo_state();
+        let next_hash = hash_todos_payload(session_id, &todos, &plan, &goals);
+        if !force && self.todos_view_rendered_hash == next_hash {
+            return false;
+        }
+
+        self.todos_view_markdown = build_todos_view_markdown(session_id, &todos, &plan, &goals);
+        self.todos_view_updated_at_ms = now_ms();
+        self.todos_view_rendered_hash = next_hash;
+        true
+    }
+
+    fn todos_view_page(&self) -> SidePanelPage {
+        SidePanelPage {
+            id: TODOS_VIEW_PAGE_ID.to_string(),
+            title: TODOS_VIEW_TITLE.to_string(),
+            file_path: "todos://current-session".to_string(),
+            format: SidePanelPageFormat::Markdown,
+            pdf_data: None,
+            source: SidePanelPageSource::Ephemeral,
+            content: if self.todos_view_markdown.trim().is_empty() {
+                todos_view_placeholder_markdown()
+            } else {
+                self.todos_view_markdown.clone()
+            },
+            updated_at_ms: self.todos_view_updated_at_ms.max(1),
+        }
+    }
+}
+
+pub(super) fn todos_view_status_message(app: &App) -> String {
+    format!(
+        "Todo card: shown inline in the chat with /todos or {}.\n\nTodo side-panel screen: {}\n\nPinned todo band: {}\n\nWhen the panel screen is enabled (/todos panel), the side panel shows a transient Todos page dedicated to the current session's todo list and refreshes as the list changes. It is not persisted to session side-panel storage.\n\nWhen the pinned band is enabled (/todos pin), the full todo list stays pinned to the top of the chat transcript while it scrolls, like the previous-prompt preview.",
+        crate::tui::keybind::todo_card_key_label(),
+        if app.todos_view_enabled() {
+            "enabled"
+        } else {
+            "disabled"
+        },
+        if crate::config::config().display.pin_todos {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    )
+}
+
+pub(super) fn handle_todos_view_command(app: &mut App, trimmed: &str) -> bool {
+    let arg = if matches!(trimmed, "/todo" | "/todos") {
+        ""
+    } else if let Some(rest) = trimmed.strip_prefix("/todos ") {
+        rest.trim()
+    } else {
+        return false;
+    };
+
+    match arg {
+        // Default: show the todo list as an inline chat card (toggles off when
+        // the card is already the latest message).
+        "" | "card" => {
+            app.toggle_todo_card();
+        }
+        // Legacy side-panel screen, now behind an explicit subcommand.
+        "panel" => {
+            let enabled = !app.todos_view_enabled();
+            app.set_todos_view_enabled(enabled, true);
+            if enabled {
+                app.set_status_notice("Todos panel: ON");
+                app.push_display_message(crate::tui::DisplayMessage::system(
+                    "Todo screen enabled. The side panel now shows only this session's todo list."
+                        .to_string(),
+                ));
+            } else {
+                app.set_status_notice("Todos panel: OFF");
+                app.push_display_message(crate::tui::DisplayMessage::system(
+                    "Todo screen disabled.".to_string(),
+                ));
+            }
+        }
+        "on" | "panel on" => {
+            app.set_todos_view_enabled(true, true);
+            app.set_status_notice("Todos panel: ON");
+            app.push_display_message(crate::tui::DisplayMessage::system(
+                "Todo screen enabled. The side panel now shows only this session's todo list."
+                    .to_string(),
+            ));
+        }
+        "off" | "panel off" => {
+            app.set_todos_view_enabled(false, false);
+            app.set_status_notice("Todos panel: OFF");
+            app.push_display_message(crate::tui::DisplayMessage::system(
+                "Todo screen disabled.".to_string(),
+            ));
+        }
+        // Pin the full todo list to the top of the chat transcript.
+        "pin" | "pin on" | "pin off" => {
+            let enabled = match arg {
+                "pin on" => true,
+                "pin off" => false,
+                _ => !crate::config::config().display.pin_todos,
+            };
+            app.set_status_notice(if enabled {
+                "Pinned todos: ON"
+            } else {
+                "Pinned todos: OFF"
+            });
+            match crate::config::Config::set_pin_todos(enabled) {
+                Ok(()) => app.push_display_message(crate::tui::DisplayMessage::system(
+                    if enabled {
+                        "Pinned todo band enabled. The todo list stays pinned to the top of the transcript while it scrolls."
+                    } else {
+                        "Pinned todo band disabled."
+                    }
+                    .to_string(),
+                )),
+                Err(error) => app.push_display_message(crate::tui::DisplayMessage::error(
+                    format!("Failed to save display.pin_todos: {}", error),
+                )),
+            }
+            app.refresh_pinned_todos_now();
+        }
+        "status" => {
+            app.push_display_message(crate::tui::DisplayMessage::system(
+                todos_view_status_message(app),
+            ));
+        }
+        _ => {
+            app.push_display_message(crate::tui::DisplayMessage::error(
+                "Usage: /todos [card|panel|pin|on|off|status]".to_string(),
+            ));
+        }
+    }
+
+    true
+}
+
+/// Pinned-todo-band payload for any session, read from disk. Used by the
+/// `/resume` preview so it shows the same band as the live chat. `None` when the
+/// session has no todos.
+pub(crate) fn pinned_todos_payload_for_session(session_id: &str) -> Option<String> {
+    let todos = load_current_session_todos(Some(session_id));
+    if todos.is_empty() {
+        return None;
+    }
+    let goals = load_current_session_goals(Some(session_id));
+    let plan = load_current_session_plan(Some(session_id));
+    Some(todo_card_payload_json(&todos, &plan, &goals))
+}
+
+fn load_current_session_todos(session_id: Option<&str>) -> Vec<TodoItem> {
+    let Some(session_id) = session_id else {
+        return Vec::new();
+    };
+    crate::todo::load_todos(session_id).unwrap_or_else(|error| {
+        crate::logging::debug(&format!("Could not load current todos: {error}"));
+        Vec::new()
+    })
+}
+
+fn load_current_session_goals(session_id: Option<&str>) -> Vec<crate::todo::TodoGoal> {
+    let Some(session_id) = session_id else {
+        return Vec::new();
+    };
+    crate::todo::load_goals(session_id).unwrap_or_default()
+}
+
+fn load_current_session_plan(session_id: Option<&str>) -> crate::todo::TodoPlan {
+    let Some(session_id) = session_id else {
+        return crate::todo::TodoPlan::default();
+    };
+    crate::todo::load_plan(session_id).unwrap_or_default()
+}
+
+fn todo_card_payload_json(
+    todos: &[TodoItem],
+    plan: &crate::todo::TodoPlan,
+    goals: &[crate::todo::TodoGoal],
+) -> String {
+    todo_card_payload_json_with_agents(todos, plan, goals, &[])
+}
+
+fn with_background_tasks(
+    content: String,
+    tasks: &[crate::tui::ui::TodoCardBackgroundTask],
+) -> String {
+    let Ok(mut payload) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return content;
+    };
+    match serde_json::to_value(tasks) {
+        Ok(tasks) => payload["background_tasks"] = tasks,
+        Err(error) => {
+            crate::logging::warn(&format!("Cannot encode todo background tasks: {error}"));
+            return content;
+        }
+    }
+    payload.to_string()
+}
+
+fn hash_background_tasks(tasks: &[crate::tui::ui::TodoCardBackgroundTask]) -> u64 {
+    if tasks.is_empty() {
+        return 0;
+    }
+    let mut hasher = DefaultHasher::new();
+    match serde_json::to_string(tasks) {
+        Ok(serialized) => serialized.hash(&mut hasher),
+        Err(error) => {
+            crate::logging::warn(&format!(
+                "Cannot fingerprint todo background tasks: {error}"
+            ));
+            // Avoid mistaking a failed encoding for an empty task list.
+            tasks.len().hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
+fn todo_card_payload_json_with_agents(
+    todos: &[TodoItem],
+    plan: &crate::todo::TodoPlan,
+    goals: &[crate::todo::TodoGoal],
+    agents: &[crate::tui::ui::TodoCardAgent],
+) -> String {
+    let mut payload = serde_json::json!({
+        "todos": todos,
+        "plan": plan,
+        "goals": goals,
+    });
+    if !agents.is_empty() {
+        match serde_json::to_value(agents) {
+            Ok(agents) => payload["agents"] = agents,
+            Err(error) => {
+                crate::logging::warn(&format!("Cannot encode todo agents: {error}"));
+            }
+        }
+    }
+    serde_json::to_string(&payload).unwrap_or_else(|_| r#"{"todos":[],"goals":[]}"#.to_string())
+}
+
+fn advance_todo_agent_elapsed(
+    agent: &mut crate::tui::ui::TodoCardAgent,
+    elapsed: std::time::Duration,
+) {
+    if let Some(live) = &mut agent.live_status {
+        live.elapsed_ms = live
+            .elapsed_ms
+            .saturating_add(elapsed.as_millis().min(u64::MAX as u128) as u64);
+    }
+    for age in [
+        &mut agent.age_secs,
+        &mut agent.activity_age_secs,
+        &mut agent.wait_age_secs,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        *age = age.saturating_add(elapsed.as_secs());
+    }
+}
+
+fn hash_todo_card_agents(agents: &[crate::tui::ui::TodoCardAgent]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for agent in agents {
+        agent.session_id.hash(&mut hasher);
+        agent.shortcut.hash(&mut hasher);
+        agent.status.hash(&mut hasher);
+        agent.activity.hash(&mut hasher);
+        agent.todo_statuses.hash(&mut hasher);
+        agent.wait_reason.hash(&mut hasher);
+        // The wire snapshot is small and includes every visible status field.
+        serde_json::to_string(&agent.live_status)
+            .unwrap_or_default()
+            .hash(&mut hasher);
+        // Hash every displayed age, including quiet activity and scoped waits.
+        for age in [agent.age_secs, agent.activity_age_secs, agent.wait_age_secs] {
+            age.map(|age| if age < 60 { age } else { age / 60 * 60 })
+                .hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
+fn build_todos_view_markdown(
+    _session_id: Option<&str>,
+    todos: &[TodoItem],
+    _plan: &crate::todo::TodoPlan,
+    _goals: &[crate::todo::TodoGoal],
+) -> String {
+    if todos.is_empty() {
+        return "# Todos\n\nNo todos saved yet for this session.\n".to_string();
+    }
+
+    let total = todos.len();
+    let completed = todos
+        .iter()
+        .filter(|todo| todo.status == "completed")
+        .count();
+    let in_progress = todos
+        .iter()
+        .filter(|todo| todo.status == "in_progress")
+        .count();
+    let pending = todos.iter().filter(|todo| todo.status == "pending").count();
+    let cancelled = todos
+        .iter()
+        .filter(|todo| todo.status == "cancelled")
+        .count();
+    let blocked = todos
+        .iter()
+        .filter(|todo| todo.status != "completed" && !todo.blocked_by.is_empty())
+        .count();
+    let percent = ((completed as f64 / total as f64) * 100.0).round() as u64;
+    let mut markdown = format!(
+        "# Todos\n\n**{}/{} completed** ({}%) · {} doing · {} pending · {} blocked{}\n",
+        completed,
+        total,
+        percent,
+        in_progress,
+        pending,
+        blocked,
+        if cancelled > 0 {
+            format!(" · {cancelled} cancelled")
+        } else {
+            String::new()
+        },
+    );
+
+    let sections = [
+        ("in_progress", "In progress"),
+        ("pending", "Pending"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+    ];
+    const MAX_VISIBLE_TODOS: usize = 8;
+    let mut visible = 0;
+    for (status, heading) in sections {
+        let items = sorted_todos_for_status(todos, status);
+        if items.is_empty() {
+            continue;
+        }
+        markdown.push_str(&format!("\n## {}\n\n", heading));
+        for todo in items {
+            if visible == MAX_VISIBLE_TODOS {
+                break;
+            }
+            markdown.push_str(&format_todo_compact_markdown(todo));
+            visible += 1;
+        }
+        if visible == MAX_VISIBLE_TODOS {
+            break;
+        }
+    }
+
+    let hidden = total.saturating_sub(visible);
+    if hidden > 0 {
+        markdown.push_str(&format!("\n_… and {hidden} more._\n"));
+    }
+    markdown.push_str("\nUse `/todos` for full details.\n");
+
+    markdown
+}
+
+fn format_todo_compact_markdown(todo: &TodoItem) -> String {
+    let group = todo
+        .group
+        .as_deref()
+        .map(str::trim)
+        .filter(|group| !group.is_empty())
+        .map(|group| format!(" _({group})_"))
+        .unwrap_or_default();
+    let blocker_detail = if crate::todo::todo_completely_blocked(todo) {
+        match todo.completely_blocked.as_ref() {
+            Some(blocker) => format!("\n  ✋ **Completely blocked**: {}\n", blocker.reason),
+            None => {
+                crate::logging::warn("Todo marked completely blocked without blocker details");
+                String::new()
+            }
+        }
+    } else {
+        String::new()
+    };
+    format!(
+        "- {} {}{group}{blocker_detail}\n",
+        if crate::todo::todo_completely_blocked(todo) {
+            "✋"
+        } else {
+            status_badge(&todo.status, !todo.blocked_by.is_empty())
+        },
+        todo.content
+    )
+}
+
+fn sorted_todos_for_status<'a>(todos: &'a [TodoItem], status: &str) -> Vec<&'a TodoItem> {
+    let mut items: Vec<&TodoItem> = todos.iter().filter(|todo| todo.status == status).collect();
+    items.sort_by(|a, b| {
+        priority_rank(&a.priority)
+            .cmp(&priority_rank(&b.priority))
+            .then_with(|| a.content.cmp(&b.content))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    items
+}
+
+fn status_badge(status: &str, blocked: bool) -> &'static str {
+    if blocked && !matches!(status, "completed" | "cancelled") {
+        return "[blocked]";
+    }
+    match status {
+        "completed" => "[done]",
+        "in_progress" => "[doing]",
+        "cancelled" => "[x]",
+        _ => "[todo]",
+    }
+}
+
+fn priority_rank(priority: &str) -> u8 {
+    match priority {
+        "high" => 0,
+        "medium" => 1,
+        _ => 2,
+    }
+}
+
+fn hash_todos_payload(
+    session_id: Option<&str>,
+    todos: &[TodoItem],
+    plan: &crate::todo::TodoPlan,
+    goals: &[crate::todo::TodoGoal],
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    session_id.hash(&mut hasher);
+    for todo in todos {
+        todo.id.hash(&mut hasher);
+        todo.content.hash(&mut hasher);
+        todo.status.hash(&mut hasher);
+        todo.priority.hash(&mut hasher);
+        todo.group.hash(&mut hasher);
+        todo.lane_after.hash(&mut hasher);
+        todo.confidence.hash(&mut hasher);
+        todo.completion_confidence.hash(&mut hasher);
+        todo.blocked_by.hash(&mut hasher);
+        if let Some(blocker) = &todo.completely_blocked {
+            blocker.reason.hash(&mut hasher);
+        }
+        todo.assigned_to.hash(&mut hasher);
+        todo.stage.hash(&mut hasher);
+    }
+    plan.user_intention.hash(&mut hasher);
+    plan.understands_user_intent.hash(&mut hasher);
+    for goal in goals {
+        goal.group.hash(&mut hasher);
+        goal.closed_feedback_loop.hash(&mut hasher);
+        goal.feedback_loop.hash(&mut hasher);
+        goal.feedback_loop_relevance.hash(&mut hasher);
+        goal.feedback_loop_coverage.hash(&mut hasher);
+        goal.feedback_loop_traceability.hash(&mut hasher);
+        goal.delivery_state.hash(&mut hasher);
+        goal.difficulty.hash(&mut hasher);
+        goal.autonomy.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn todos_view_placeholder_markdown() -> String {
+    "# Todos\n\nWaiting for a session todo list.\n".to_string()
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|dur| dur.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn live_status_elapsed_and_tokens_invalidate_pinned_payload() {
+        let mut agent = crate::tui::ui::TodoCardAgent {
+            live_status: Some(crate::protocol::SwarmLiveStatus {
+                phase: "running_tool".into(),
+                elapsed_ms: 12_000,
+                input_tokens: Some(123),
+                ..Default::default()
+            }),
+            activity_age_secs: Some(1),
+            ..Default::default()
+        };
+        let before = hash_todo_card_agents(&[agent.clone()]);
+        advance_todo_agent_elapsed(&mut agent, std::time::Duration::from_secs(5));
+        assert_eq!(agent.live_status.as_ref().unwrap().elapsed_ms, 17_000);
+        assert_eq!(agent.activity_age_secs, Some(6));
+        let later = hash_todo_card_agents(&[agent.clone()]);
+        assert_ne!(before, later);
+        agent.live_status.as_mut().unwrap().output_tokens = Some(456);
+        assert_ne!(later, hash_todo_card_agents(&[agent]));
+    }
+
+    #[test]
+    fn shortcut_changes_invalidate_pinned_payload() {
+        let mut agent = crate::tui::ui::TodoCardAgent {
+            shortcut: Some(1),
+            ..Default::default()
+        };
+        let before = hash_todo_card_agents(&[agent.clone()]);
+        agent.shortcut = Some(0);
+        assert_ne!(before, hash_todo_card_agents(&[agent]));
+    }
+
+    #[test]
+    fn worker_item_status_changes_invalidate_pinned_payload() {
+        let mut agent = crate::tui::ui::TodoCardAgent {
+            todo_statuses: vec!["pending".into(), "in_progress".into()],
+            ..Default::default()
+        };
+        let before = hash_todo_card_agents(&[agent.clone()]);
+        agent.todo_statuses.swap(0, 1);
+        assert_ne!(before, hash_todo_card_agents(&[agent]));
+    }
+
+    #[test]
+    fn wait_and_activity_changes_invalidate_pinned_payload() {
+        let mut agent = crate::tui::ui::TodoCardAgent::default();
+        let before = hash_todo_card_agents(&[agent.clone()]);
+        agent.wait_reason = Some("Waiting for build".into());
+        let waiting = hash_todo_card_agents(&[agent.clone()]);
+        assert_ne!(before, waiting);
+        agent.wait_age_secs = Some(120);
+        let aged = hash_todo_card_agents(&[agent.clone()]);
+        assert_ne!(waiting, aged);
+        agent.wait_age_secs = Some(125);
+        assert_eq!(aged, hash_todo_card_agents(&[agent.clone()]));
+        agent.activity_age_secs = Some(180);
+        assert_ne!(aged, hash_todo_card_agents(&[agent.clone()]));
+        agent.wait_reason = None;
+        assert_ne!(waiting, hash_todo_card_agents(&[agent]));
+    }
+
+    /// Plan-level intent used by the view tests.
+    fn plan() -> crate::todo::TodoPlan {
+        crate::todo::TodoPlan {
+            user_intention: Some("make navigation feel immediate".to_string()),
+            understands_user_intent: Some(crate::todo::IntentUnderstanding::from_legacy_score(96)),
+            ..Default::default()
+        }
+    }
+
+    fn todo(
+        id: &str,
+        content: &str,
+        status: &str,
+        priority: &str,
+        confidence: Option<u8>,
+        completion_confidence: Option<u8>,
+    ) -> TodoItem {
+        TodoItem {
+            id: id.to_string(),
+            content: content.to_string(),
+            status: status.to_string(),
+            priority: priority.to_string(),
+            group: None,
+            lane_after: None,
+            confidence: confidence.map(crate::todo::ConfidenceState::from_legacy_score),
+            completion_confidence: completion_confidence
+                .map(crate::todo::ConfidenceState::from_legacy_score),
+            confidence_history: Vec::new(),
+            external_blocker: None,
+            completely_blocked: None,
+            waiting_on: Vec::new(),
+            blocked_by: Vec::new(),
+            assigned_to: None,
+            stage: None,
+            details: None,
+        }
+    }
+
+    #[test]
+    fn complete_blocker_panel_preserves_reason_and_invalidates_cache() {
+        let mut item = todo("1", "Connect", "pending", "high", None, None);
+        let before = hash_todos_payload(None, &[item.clone()], &plan(), &[]);
+        item.completely_blocked = Some(crate::todo::TodoCompleteBlocker {
+            reason: "Only the account owner can grant access.\nKeep this entire explanation."
+                .into(),
+        });
+        let after = hash_todos_payload(None, &[item.clone()], &plan(), &[]);
+        assert_ne!(before, after);
+        let markdown = format_todo_compact_markdown(&item);
+        assert!(markdown.contains("✋"));
+        assert!(markdown.contains("Completely blocked"));
+        assert!(!markdown.contains("Approve access"));
+        assert!(markdown.contains("Keep this entire explanation."));
+        item.completely_blocked.as_mut().unwrap().reason.push('!');
+        assert_ne!(
+            after,
+            hash_todos_payload(None, &[item.clone()], &plan(), &[])
+        );
+        for status in ["completed", "cancelled"] {
+            item.status = status.into();
+            assert!(!format_todo_compact_markdown(&item).contains("✋"));
+        }
+    }
+
+    #[test]
+    fn todos_view_markdown_keeps_status_but_omits_internal_metadata() {
+        let todos = vec![
+            todo(
+                "todo-1",
+                "Validate confidence side panel",
+                "in_progress",
+                "high",
+                Some(80),
+                None,
+            ),
+            todo(
+                "todo-2",
+                "Finish completed item",
+                "completed",
+                "medium",
+                Some(70),
+                Some(95),
+            ),
+        ];
+
+        let markdown = build_todos_view_markdown(Some("session_test"), &todos, &plan(), &[]);
+
+        assert!(markdown.contains("**1/2 completed** (50%) · 1 doing · 0 pending"));
+        assert!(markdown.contains("- [doing] Validate confidence side panel"));
+        assert!(markdown.contains("- [done] Finish completed item"));
+        assert!(!markdown.contains("  - confidence:"));
+        assert!(!markdown.contains("completion confidence:"));
+        assert!(!markdown.contains("Session ID"));
+        assert!(markdown.contains("Use `/todos` for full details."));
+    }
+
+    #[test]
+    fn todos_view_hash_changes_when_confidence_changes() {
+        let mut todos = vec![todo(
+            "todo-1",
+            "Track confidence hash",
+            "pending",
+            "high",
+            Some(80),
+            None,
+        )];
+        let before = hash_todos_payload(Some("session_test"), &todos, &plan(), &[]);
+        todos[0].confidence = Some(crate::todo::ConfidenceState::Validated);
+        let after = hash_todos_payload(Some("session_test"), &todos, &plan(), &[]);
+
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn todos_view_markdown_is_bounded_and_keeps_group_context() {
+        let mut grouped_a = todo(
+            "g1",
+            "Cut frame allocs",
+            "in_progress",
+            "high",
+            Some(80),
+            None,
+        );
+        grouped_a.group = Some("optimize rendering".to_string());
+        let mut grouped_b = todo(
+            "g2",
+            "Batch draw calls",
+            "completed",
+            "medium",
+            Some(70),
+            Some(90),
+        );
+        grouped_b.group = Some("optimize rendering".to_string());
+        let mut other = todo("o1", "Fix scrollback", "pending", "low", Some(60), None);
+        other.group = Some("scrollback".to_string());
+        let ungrouped = todo("u1", "Misc cleanup", "pending", "low", Some(60), None);
+
+        let mut todos = vec![grouped_a, grouped_b, other, ungrouped];
+        for index in 0..8 {
+            todos.push(todo(
+                &format!("extra-{index}"),
+                &format!("Extra item {index}"),
+                "pending",
+                "low",
+                Some(60),
+                None,
+            ));
+        }
+        let markdown = build_todos_view_markdown(
+            Some("session_test"),
+            &todos,
+            &plan(),
+            &[crate::todo::TodoGoal {
+                group: Some("optimize rendering".to_string()),
+                closed_feedback_loop: Some(crate::todo::FeedbackLoopState::from_legacy_score(90)),
+                feedback_loop: Some(
+                    "run the frame benchmark and compare p95 frame time".to_string(),
+                ),
+                feedback_loop_relevance: Some(crate::todo::FeedbackLoopRelevance::Representative),
+                feedback_loop_coverage: Some(crate::todo::FeedbackLoopCoverage::MainPaths),
+                delivery_state: Some(crate::todo::DeliveryState::from_legacy_score(85)),
+                ..Default::default()
+            }],
+        );
+
+        assert!(markdown.contains("_(optimize rendering)_"), "{markdown}");
+        assert!(!markdown.contains("Feedback loop:"), "{markdown}");
+        assert!(markdown.contains("_… and 4 more._"), "{markdown}");
+        assert_eq!(markdown.matches("- [").count(), 8, "{markdown}");
+    }
+
+    #[test]
+    fn todos_view_hash_changes_when_group_changes() {
+        let mut todos = vec![todo("g", "Group hash", "pending", "high", Some(80), None)];
+        let before = hash_todos_payload(Some("session_test"), &todos, &plan(), &[]);
+        todos[0].group = Some("rendering".to_string());
+        let after = hash_todos_payload(Some("session_test"), &todos, &plan(), &[]);
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn todos_view_hash_changes_when_goals_change() {
+        let todos = vec![todo("g", "Goal hash", "pending", "high", Some(80), None)];
+        let before = hash_todos_payload(Some("session_test"), &todos, &plan(), &[]);
+        let goals = vec![crate::todo::TodoGoal {
+            closed_feedback_loop: Some(crate::todo::FeedbackLoopState::from_legacy_score(30)),
+            ..Default::default()
+        }];
+        let after = hash_todos_payload(Some("session_test"), &todos, &plan(), &goals);
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn todos_view_hash_changes_when_feedback_loop_changes() {
+        let todos = vec![todo("g", "Goal hash", "pending", "high", Some(80), None)];
+        let mut goals = vec![crate::todo::TodoGoal {
+            feedback_loop: Some("run test A".to_string()),
+            ..Default::default()
+        }];
+        let before = hash_todos_payload(Some("session_test"), &todos, &plan(), &goals);
+        goals[0].feedback_loop = Some("run test B".to_string());
+        let after = hash_todos_payload(Some("session_test"), &todos, &plan(), &goals);
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn todos_view_hash_changes_when_user_intention_changes() {
+        let todos = vec![todo("g", "Goal hash", "pending", "high", Some(80), None)];
+        let mut current = plan();
+        let before = hash_todos_payload(Some("session_test"), &todos, &current, &[]);
+        current.user_intention = Some("increase clarity".to_string());
+        let after = hash_todos_payload(Some("session_test"), &todos, &current, &[]);
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn todos_view_hash_changes_when_intent_understanding_changes() {
+        let todos = vec![todo("g", "Goal hash", "pending", "high", Some(80), None)];
+        let mut current = plan();
+        let before = hash_todos_payload(Some("session_test"), &todos, &current, &[]);
+        current.understands_user_intent = Some(crate::todo::IntentUnderstanding::Complete);
+        let after = hash_todos_payload(Some("session_test"), &todos, &current, &[]);
+        assert_ne!(before, after);
+    }
+}
