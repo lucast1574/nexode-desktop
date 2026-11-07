@@ -1,4 +1,5 @@
 mod badges;
+mod bench_audit;
 mod branding;
 mod browser_fixture;
 mod browser_package;
@@ -101,6 +102,10 @@ fn main() -> Result<()> {
             | "sign-release"),
         ) => handoff::run(command, args)?,
         Some(command @ ("oauth-helper" | "oauth-probe")) => oauth::run(command, args)?,
+        Some("audit-terminal-bench") => {
+            let code = bench_audit::run(args)?;
+            std::process::exit(code);
+        }
         Some("test-ci-suites") => {
             let code = ci_suites::run(&root()?, args)?;
             std::process::exit(code);

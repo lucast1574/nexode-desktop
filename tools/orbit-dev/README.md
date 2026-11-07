@@ -129,3 +129,8 @@ Hosted Linux compilation now invokes `validate-preview-version` and
 `verify-hosted-linux-abi` for native version/ELF/GLIBC/OpenSSL/TLS checks. Its offline
 Rust orchestration tests preserve the x86 and ARM failure matrix; they do not
 prove a real tenant-hosted build or native ARM runtime behavior.
+
+`cargo xtask audit-terminal-bench CAMPAIGN [--min-trials 5]` audits Harbor
+configuration, nested resource overrides, trial artifacts and suspicious log
+mentions offline. Invalid configs cannot appear in the submit-ready group.
+Partial runs remain reported separately. This does not submit benchmark results.
