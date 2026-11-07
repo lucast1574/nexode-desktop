@@ -8,8 +8,7 @@ on:
       - '.github/workflows/windows-companion.yml'
       - '.github/scripts/verify_windows_install.ps1'
       - 'scripts/*release*'
-      - 'scripts/test_*release*.py'
-      - 'tests/*release*.py'
+      - 'tools/orbit-dev/**'
       - 'scripts/install.sh'
       - 'scripts/install_justrust_ci.sh'
       - 'scripts/build_linux_compat.sh'
@@ -21,8 +20,7 @@ on:
       - '.github/workflows/windows-companion.yml'
       - '.github/scripts/verify_windows_install.ps1'
       - 'scripts/*release*'
-      - 'scripts/test_*release*.py'
-      - 'tests/*release*.py'
+      - 'tools/orbit-dev/**'
       - 'scripts/install.sh'
       - 'scripts/install_justrust_ci.sh'
       - 'scripts/build_linux_compat.sh'
@@ -34,15 +32,14 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           # Recovery regressions exercise historical tags in isolated clones.
           fetch-depth: 0
-      - name: Test recovery, exact-commit authorization, public assets and watcher
-        run: python3 -m unittest discover -s tests -p '*release*.py'
-      - name: Test release preparation and announcements
-        run: python3 -m unittest discover -s scripts -p 'test_*release*.py'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test release maintenance and workflow contracts
+        run: cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml
       - name: Test installer release metadata validation
         run: bash scripts/test_install_release_metadata.sh

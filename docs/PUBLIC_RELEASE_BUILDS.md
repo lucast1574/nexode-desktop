@@ -95,7 +95,7 @@ cancelling a build that may already have attached draft assets.
 
 The only source repair is `windows-listener`, allowlisted for v0.96.0 and
 v0.97.0. It adds a Windows-only mutable shadow binding in the companion server.
-`scripts/apply_release_recovery.py` verifies the tag's package version, clean
+`cargo xtask apply-release-recovery` verifies the tag's package version, clean
 tracked checkout, canonical original file SHA256, exact replacement and repaired
 SHA256, and the committed repair source at
 `d4f4c8c8d25c9f8e062773683adcc0c19cf26144`. Windows CRLF checkout is normalized
@@ -127,7 +127,8 @@ checks on both Windows targets for relevant PRs. `.github/workflows/release-reco
 fetches full tag history and runs the recovery regressions. Run locally with:
 
 ```bash
-python3 tests/test_release_recovery.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml release::
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test release_recovery
 actionlint -ignore 'SC2129' .github/workflows/release.yml .github/workflows/windows-companion.yml .github/workflows/release-recovery.yml
 ```
 
@@ -160,7 +161,7 @@ client has passed native Windows acceptance.
 
 ## Validation
 
-Run `python3 tests/test_install_justrust_ci.py`, `bash -n` on both installer and
+Run `cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test justrust_installer`, `bash -n` on both installer and
 compatibility scripts, and `actionlint .github/workflows/release.yml` (the existing
 SC2129 style warning in a separate publication step is unrelated). A Linux smoke
 check installed the actual alpha.17 published client and built/launched an isolated

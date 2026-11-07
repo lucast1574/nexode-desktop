@@ -78,7 +78,7 @@ fn preview_exact_source_nonrecursive_and_scoped_permissions() {
     assert!(stable.contains("- '!v*-preview.*'"));
     assert!(stable.contains("!contains(inputs.tag || github.ref_name, '-preview.')"));
     assert!(stable.contains("git archive \"$WORKFLOW_SHA\" tools/orbit-dev"));
-    assert!(stable.contains("-- check-release-ci \"$TAG_SHA\""));
+    assert!(stable.contains("check-release-ci \"$TAG_SHA\""));
     assert!(!stable.contains("--preview"));
 }
 #[test]

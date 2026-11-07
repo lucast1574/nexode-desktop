@@ -3,6 +3,8 @@ mod arm;
 pub mod ci;
 mod notes;
 mod preview;
+mod recovery;
+mod verify;
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 use std::{process::Command, time::Duration};
@@ -61,6 +63,26 @@ pub fn objects(api: &mut impl Github, endpoint: &str, key: &str) -> Result<Vec<V
 pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<()> {
     match command {
         "verify-preview-arm-runtime" => arm::run(args),
+        "apply-release-recovery" => recovery::run(args),
+        "verify-public-release" => verify::run(args),
+        "release-checksums" => {
+            let paths: Vec<_> = args.collect();
+            ensure!(
+                paths.len() == 2,
+                "expected artifact directory and checksum output"
+            );
+            verify::checksums(
+                std::path::Path::new(&paths[0]),
+                std::path::Path::new(&paths[1]),
+            )
+        }
+        "release-availability" => {
+            let paths: Vec<_> = args.collect();
+            ensure!(paths.len() == 1, "expected notes file");
+            verify::availability(std::path::Path::new(&paths[0]), |key| {
+                std::env::var(key).ok()
+            })
+        }
         "check-release-ci" => ci::run(args),
         "preview-release" => preview::run(args),
         "reconcile-preview-release" => preview::reconcile_cli(args),

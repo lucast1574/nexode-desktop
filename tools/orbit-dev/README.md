@@ -90,3 +90,10 @@ require explicit `--preview` and complete step evidence. `preview-release`,
 existing gated preview workflow; publication remains intentionally unconfigured.
 The ARM runtime command requires a native Linux ARM64 runner and executes only
 the uploaded archive. Tests use local repositories and fake GitHub responses.
+
+`apply-release-recovery` retains the exact-byte historical repair allowlist and
+Git identity checks; it records the hashes of release helpers from the trusted
+workflow commit. `verify-public-release TAG --sha SHA` checks complete metadata,
+downloaded hashes and unpatched provenance; `--allow-draft` is explicit. Release
+jobs build the maintenance tool from the workflow commit outside the tag checkout,
+so historical tags never need to contain the current tooling.

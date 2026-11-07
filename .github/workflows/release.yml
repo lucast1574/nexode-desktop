@@ -66,6 +66,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Validate release source
         id: source
         shell: bash
@@ -86,11 +101,10 @@ jobs:
             echo "Release tag no longer matches the triggering commit" >&2; exit 1
           fi
           echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
           git checkout --detach "$tag_sha"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            python3 "$RUNNER_TEMP/recovery.py" --check-public-state "$RELEASE_TAG"
+            "$ORBIT_DEV_BIN" apply-release-recovery --check-public-state "$RELEASE_TAG"
           fi
 
       - uses: dtolnay/rust-toolchain@stable
@@ -104,9 +118,7 @@ jobs:
           TAG_SHA: ${{ steps.source.outputs.tag_sha }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/release-tools"
-          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
-          CARGO_BUILD_RUSTC_WRAPPER='' cargo run --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" -- check-release-ci "$TAG_SHA" --repo "$GITHUB_REPOSITORY" --timeout 10800
+          "$ORBIT_DEV_BIN" check-release-ci "$TAG_SHA" --repo "$GITHUB_REPOSITORY" --timeout 10800
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -172,6 +184,21 @@ jobs:
         with:
           ref: ${{ needs.create-release.outputs.tag_sha }}
           fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Apply reviewed release source recovery
         shell: bash
         env:
@@ -179,8 +206,7 @@ jobs:
           RELEASE_PROVENANCE_PATH: ${{ runner.temp }}/release-provenance.json
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
@@ -244,6 +270,21 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Apply reviewed release source recovery
         shell: bash
         env:
@@ -251,8 +292,7 @@ jobs:
           RELEASE_PROVENANCE_PATH: ${{ runner.temp }}/release-provenance.json
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
 
       - name: Configure SSH for cargo git dependencies
         uses: webfactory/ssh-agent@v0.9.0
@@ -413,6 +453,21 @@ jobs:
           ref: ${{ needs.create-release.outputs.tag_sha }}
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Apply reviewed release source recovery
         shell: bash
         env:
@@ -420,8 +475,7 @@ jobs:
           RELEASE_PROVENANCE_PATH: ${{ runner.temp }}/release-provenance.json
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
 
       - name: Configure MSVC build environment (x64)
         if: matrix.target == 'x86_64-pc-windows-msvc'
@@ -558,6 +612,21 @@ jobs:
           ref: ${{ needs.create-release.outputs.tag_sha }}
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Apply reviewed release source recovery
         shell: bash
         env:
@@ -565,8 +634,7 @@ jobs:
           RELEASE_PROVENANCE_PATH: ${{ runner.temp }}/release-provenance.json
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
 
       - name: Download unsigned Windows binaries
         uses: actions/download-artifact@v4
@@ -684,6 +752,21 @@ jobs:
           ref: ${{ needs.create-release.outputs.tag_sha }}
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Apply reviewed release source recovery
         shell: bash
         env:
@@ -691,8 +774,7 @@ jobs:
           RELEASE_PROVENANCE_PATH: ${{ runner.temp }}/release-provenance.json
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
 
       - name: Build release binary in FreeBSD VM
         uses: vmactions/freebsd-vm@v1
@@ -775,6 +857,21 @@ jobs:
           ref: ${{ needs.create-release.outputs.tag_sha }}
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build trusted release maintenance tool
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo build --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" --target-dir "$RUNNER_TEMP/release-tools/target" --bin orbit-dev
+          tool="$RUNNER_TEMP/release-tools/target/debug/orbit-dev"
+          if [ "$RUNNER_OS" = Windows ]; then tool="$tool.exe"; fi
+          echo "ORBIT_DEV_BIN=$tool" >> "$GITHUB_ENV"
+
       - name: Apply reviewed release source recovery
         shell: bash
         env:
@@ -782,8 +879,7 @@ jobs:
           RELEASE_PROVENANCE_PATH: ${{ runner.temp }}/release-provenance.json
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/apply_release_recovery.py" > "$RUNNER_TEMP/recovery.py"
-          python3 "$RUNNER_TEMP/recovery.py" "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
+          "$ORBIT_DEV_BIN" apply-release-recovery "$RELEASE_TAG" "$RELEASE_REPAIR" "$WORKFLOW_SHA"
 
       - uses: actions/download-artifact@v4
         continue-on-error: true
@@ -888,22 +984,7 @@ jobs:
       - name: Generate checksums
         shell: bash
         run: |
-          python3 - << 'PY'
-          import hashlib
-          from pathlib import Path
-
-          files = sorted(
-              p for p in Path("artifacts").rglob("*")
-              if p.is_file() and (p.name.endswith(".tar.gz") or p.name.endswith(".exe"))
-          )
-          if not files:
-              raise SystemExit("No release assets found for checksum generation")
-
-          with Path("SHA256SUMS").open("w", encoding="utf-8") as out:
-              for path in files:
-                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                  out.write(f"{digest}  {path.name}\n")
-          PY
+          "$ORBIT_DEV_BIN" release-checksums artifacts SHA256SUMS
           cp "$RUNNER_TEMP/release-provenance.json" release-provenance.json
           sha256sum release-provenance.json >> SHA256SUMS
           cat SHA256SUMS
@@ -924,48 +1005,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "${RELEASE_TAG}" --json body --jq .body > release_notes.md
-          python3 - << 'PY'
-          import os
-          import re
-          import textwrap
-          from pathlib import Path
-
-          path = Path("release_notes.md")
-          body = path.read_text(encoding="utf-8")
-          start = "<!-- nexode-platform-availability:start -->"
-          end = "<!-- nexode-platform-availability:end -->"
-          body = re.sub(
-              rf"\n?{re.escape(start)}.*?{re.escape(end)}\n?",
-              "\n",
-              body,
-              flags=re.DOTALL,
-          ).rstrip()
-
-          def status(name: str) -> str:
-              return "available" if os.environ[name] == "true" else "not available in this release"
-
-          windows_signature = (
-              "Authenticode signatures verified for both Windows architectures."
-              if os.environ.get("WINDOWS_SIGNING_ENABLED") == "true"
-              else "Windows executables are **unsigned**. Azure Artifact Signing is not configured and the repository's existing `WINDOWS_SIGNING_REQUIRED=false` override allowed unsigned publication. Windows may show publisher or SmartScreen warnings."
-          )
-          availability = textwrap.dedent(f"""
-              {start}
-              ## Platform availability
-
-              - Linux x86_64: {status('LINUX_X86_64_AVAILABLE')}
-              - Linux aarch64: {status('LINUX_AARCH64_AVAILABLE')}
-              - macOS Apple Silicon: {status('MACOS_AARCH64_AVAILABLE')}
-              - macOS Intel: {status('MACOS_X86_64_AVAILABLE')}
-              - Windows x86_64: {status('WINDOWS_X86_64_AVAILABLE')}
-              - Windows ARM64: {status('WINDOWS_AARCH64_AVAILABLE')}
-              - FreeBSD x86_64: {status('FREEBSD_X86_64_AVAILABLE')}
-
-              {windows_signature}
-              {end}
-          """).strip("\n")
-          path.write_text(f"{body}\n\n{availability}\n", encoding="utf-8")
-          PY
+          "$ORBIT_DEV_BIN" release-availability release_notes.md
           gh release edit "${RELEASE_TAG}" --notes-file release_notes.md
 
       - name: Verify staged assets before publication
@@ -977,8 +1017,7 @@ jobs:
           TAG_SHA: ${{ needs.create-release.outputs.tag_sha }}
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/verify_public_release.py" > "$RUNNER_TEMP/verify-public-release.py"
-          python3 "$RUNNER_TEMP/verify-public-release.py" "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --sha "$TAG_SHA" --allow-draft
+          "$ORBIT_DEV_BIN" verify-public-release "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --sha "$TAG_SHA" --allow-draft
 
       - name: Publish completed release
         env:
@@ -987,7 +1026,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            python3 "$RUNNER_TEMP/recovery.py" --check-public-state "$RELEASE_TAG"
+            "$ORBIT_DEV_BIN" apply-release-recovery --check-public-state "$RELEASE_TAG"
           fi
           if [ "$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft)" = "true" ]; then
             gh release edit "${RELEASE_TAG}" --draft=false --latest
@@ -1004,8 +1043,7 @@ jobs:
           TAG_SHA: ${{ needs.create-release.outputs.tag_sha }}
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/verify_public_release.py" > "$RUNNER_TEMP/verify-public-release.py"
-          python3 "$RUNNER_TEMP/verify-public-release.py" "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --sha "$TAG_SHA"
+          "$ORBIT_DEV_BIN" verify-public-release "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --sha "$TAG_SHA"
 
       - name: Smoke test public Linux installer in an isolated home
         if: env.RELEASE_REPAIR == 'none'

@@ -69,7 +69,11 @@ fn main() -> Result<()> {
             command @ ("check-release-ci"
             | "preview-release"
             | "reconcile-preview-release"
-            | "verify-preview-arm-runtime"),
+            | "verify-preview-arm-runtime"
+            | "apply-release-recovery"
+            | "verify-public-release"
+            | "release-checksums"
+            | "release-availability"),
         ) => release::run(command, args)?,
         Some("package-version") => {
             use std::io::Read;
