@@ -128,7 +128,7 @@ jobs:
   release-automation:
     name: Release Automation
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -141,11 +141,10 @@ jobs:
           python3 tests/test_install_justrust_ci.py
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test hosted_bootstrap
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test public_release
-          python3 tests/test_release_ci.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml release::
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml safety_
-          python3 scripts/test_quick_release.py
-          python3 scripts/test_preview_release.py
-          python3 scripts/test_reconcile_preview_release.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test quick_release
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test preview_workflow
           python3 tests/test_preview_linux_hosted.py
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test hosted_packaging
           python3 tests/test_verify_public_release.py

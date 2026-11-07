@@ -111,7 +111,7 @@ case "$MODE" in
         ;;
 esac
 if ! $DRY_RUN && [[ "$MODE" != "prepare-fast" && "$MODE" != "prepare-fast-macos" ]]; then
-    required_commands+=(gh python3)
+    required_commands+=(gh)
 fi
 for cmd in "${required_commands[@]}"; do
     command -v "$cmd" &>/dev/null || { echo "Error: $cmd not found."; exit 1; }
@@ -178,7 +178,7 @@ tag_and_push() {
         exit 1
     fi
     # Read committed metadata, not a possibly dirty remote-mode working copy.
-    package_version="$(git show "$head_commit:Cargo.toml" | python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["package"]["version"])')"
+    package_version="$(git show "$head_commit:Cargo.toml" | bash scripts/orbit_dev.sh package-version)"
     [[ "$package_version" == "$VERSION_NUM" ]] || {
         echo "Error: committed package version $package_version does not match requested tag $VERSION." >&2
         exit 1
@@ -208,7 +208,7 @@ tag_and_push() {
     echo "▸ Requiring successful exact-SHA CI for $head_commit..."
     origin_url="$(git remote get-url origin)"
     repository="$(gh repo view "$origin_url" --json nameWithOwner --jq .nameWithOwner)"
-    if ! python3 scripts/check_release_ci.py "$head_commit" --repo "$repository" --timeout 0; then
+    if ! bash scripts/orbit_dev.sh check-release-ci "$head_commit" --repo "$repository" --timeout 0; then
         echo "Error: release blocked. Push this commit to main/master and wait for all CI checks to succeed, then retry." >&2
         exit 1
     fi

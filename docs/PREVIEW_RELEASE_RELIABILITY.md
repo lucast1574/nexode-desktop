@@ -77,9 +77,8 @@ preview client did not need changing.
 ## Verification
 
 ```sh
-python3 scripts/test_reconcile_preview_release.py
-python3 scripts/test_preview_release.py
-python3 tests/test_release_ci.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml release::
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test preview_workflow --test quick_release
 cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test workflow_guards
 actionlint .github/workflows/preview-recovery.yml .github/workflows/preview.yml .github/workflows/ci.yml
 cargo xtask check-panics

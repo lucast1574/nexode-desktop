@@ -13,6 +13,7 @@ mod process;
 #[cfg(unix)]
 mod pty;
 mod rehearsal;
+mod release;
 mod reload_storm;
 mod resume_bench;
 mod root_report;
@@ -64,6 +65,24 @@ fn main() -> Result<()> {
         Some("openrelay-check") => discovery::openrelay_check::run(args)?,
         Some("demo-shop") => demo_shop::run(args)?,
         Some("demo-session") => demo_shop::session(args)?,
+        Some(
+            command @ ("check-release-ci"
+            | "preview-release"
+            | "reconcile-preview-release"
+            | "verify-preview-arm-runtime"),
+        ) => release::run(command, args)?,
+        Some("package-version") => {
+            use std::io::Read;
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input)?;
+            let value: toml::Value = input.parse()?;
+            println!(
+                "{}",
+                value["package"]["version"]
+                    .as_str()
+                    .context("package version missing")?
+            );
+        }
         Some("post-discord-release") => discord_release::run(args)?,
         Some("mock-sponsor") => discovery::sponsor::run(args)?,
         Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,

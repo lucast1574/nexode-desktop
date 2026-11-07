@@ -93,6 +93,8 @@ jobs:
             python3 "$RUNNER_TEMP/recovery.py" --check-public-state "$RELEASE_TAG"
           fi
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Require successful exact-commit CI for unpatched source
         if: env.RELEASE_REPAIR == 'none'
         shell: bash
@@ -102,8 +104,9 @@ jobs:
           TAG_SHA: ${{ steps.source.outputs.tag_sha }}
         run: |
           set -euo pipefail
-          git show "$WORKFLOW_SHA:scripts/check_release_ci.py" > "$RUNNER_TEMP/check-release-ci.py"
-          python3 "$RUNNER_TEMP/check-release-ci.py" "$TAG_SHA" --repo "$GITHUB_REPOSITORY" --timeout 10800
+          mkdir -p "$RUNNER_TEMP/release-tools"
+          git archive "$WORKFLOW_SHA" tools/orbit-dev | tar -x -C "$RUNNER_TEMP/release-tools"
+          CARGO_BUILD_RUSTC_WRAPPER='' cargo run --locked --manifest-path "$RUNNER_TEMP/release-tools/tools/orbit-dev/Cargo.toml" -- check-release-ci "$TAG_SHA" --repo "$GITHUB_REPOSITORY" --timeout 10800
 
       - uses: dtolnay/rust-toolchain@stable
 

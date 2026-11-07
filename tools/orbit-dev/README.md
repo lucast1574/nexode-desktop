@@ -82,3 +82,11 @@ Discovery and attribution fixtures are native Rust:
 `cargo xtask bench-reload-storm --socket /path/to/server.sock -n 40 [--home PATH] [--chunk BYTES]` concurrently resumes selected sessions and measures arrival of history. The Rust async client preserves target-session subscriptions and fixed-size chunk experiments, handles JSON spacing, and reports failures as a nonzero exit instead of silently passing an empty or failed run.
 
 Application tests use `orbit-fixture` for authentication subprocesses, browser session daemons, MCP stdio, SSH frames and bridge restart/rollback. `test_support.rs` builds that binary in this independent workspace when needed; CI or local runs can prebuild it and set `ORBIT_TEST_FIXTURE_BIN` to its absolute path. No provider credentials or real browsers are required. Voice process-name tests re-execute their own Rust test binary.
+
+Release gates: `cargo xtask check-release-ci SHA --repo OWNER/REPO --timeout 0`
+checks the latest exact-commit push CI attempt. Preview-only advisory exceptions
+require explicit `--preview` and complete step evidence. `preview-release`,
+`reconcile-preview-release`, and `verify-preview-arm-runtime` preserve the
+existing gated preview workflow; publication remains intentionally unconfigured.
+The ARM runtime command requires a native Linux ARM64 runner and executes only
+the uploaded archive. Tests use local repositories and fake GitHub responses.

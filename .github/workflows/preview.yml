@@ -42,14 +42,15 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
       - name: Reject superseded master commit
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/preview_release.py check-head --sha "$GITHUB_SHA" --tag "$NEXODE_BUILD_SEMVER"
+        run: cargo xtask preview-release check-head --sha "$GITHUB_SHA" --tag "$NEXODE_BUILD_SEMVER"
       - name: Require exact-commit source CI under preview policy
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/check_release_ci.py "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" --timeout 10800 --preview
+        run: cargo xtask check-release-ci "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" --timeout 10800 --preview
 
   build:
     needs: quiet-and-ci
@@ -212,9 +213,10 @@ jobs:
         with:
           name: preview-nexode-linux-aarch64
           path: dist
+      - uses: dtolnay/rust-toolchain@stable
       - name: Verify uploaded ARM archive on native Ubuntu 24.04
         shell: bash
-        run: python3 scripts/verify_preview_arm_runtime.py dist/nexode-linux-aarch64.tar.gz
+        run: cargo xtask verify-preview-arm-runtime dist/nexode-linux-aarch64.tar.gz
 
   publish:
     needs: [quiet-and-ci, build, native-arm-runtime]
@@ -234,10 +236,11 @@ jobs:
           pattern: preview-nexode-*
           merge-multiple: true
           path: dist
+      - uses: dtolnay/rust-toolchain@stable
       - name: Publish complete preview only if master is still current
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/preview_release.py publish --sha "$GITHUB_SHA" --tag "$NEXODE_BUILD_SEMVER" --assets dist
+        run: cargo xtask preview-release publish --sha "$GITHUB_SHA" --tag "$NEXODE_BUILD_SEMVER" --assets dist
 
   publish-sdk:
     needs: publish

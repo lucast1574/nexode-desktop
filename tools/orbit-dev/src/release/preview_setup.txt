@@ -1,0 +1,7 @@
+## First-time preview setup
+
+Existing stable versions do not support `--channel`. Download the archive for your OS and architecture from this release, verify it against `SHA256SUMS`, and extract the entire archive into its own directory (keep all Linux companion files together). Run the extracted binary explicitly, using its full path, rather than the old stable `nexode` on PATH. For Windows, use the extracted `.exe`.
+
+From that preview binary, run `nexode update --channel preview` (substitute its full path for `nexode`) to persist the opt-in channel and receive future previews. To roll back, run the preview binary with `update --channel stable`, or reinstall the current stable release. Stable users are never moved to previews automatically.
+
+This preview series ends when the `v1.0.0` stable tag is created.

@@ -8,6 +8,8 @@ mod browser;
 mod desktop;
 #[path = "fixture/mcp.rs"]
 mod mcp;
+#[path = "fixture/release.rs"]
+mod release;
 #[path = "fixture/transport.rs"]
 mod transport;
 use std::io::{self, Read, Write};
@@ -20,6 +22,9 @@ fn main() {
                 .map(|s| s.to_string_lossy().into_owned())
         })
         .unwrap_or_default();
+    if invoked == "gh" {
+        std::process::exit(release::run().unwrap());
+    }
     if [
         "Xvfb",
         "openbox",

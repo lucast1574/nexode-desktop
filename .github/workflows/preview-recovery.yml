@@ -27,7 +27,7 @@ jobs:
        (github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       # Never execute a PR head, workflow_run artifact, or caller-controlled ref
       # with this token. Recovery only reads trusted default-branch source.
@@ -35,7 +35,8 @@ jobs:
         with:
           ref: master
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
       - name: Reconcile unpublished master preview
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/reconcile_preview_release.py
+        run: cargo xtask reconcile-preview-release
