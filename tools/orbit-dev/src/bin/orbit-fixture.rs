@@ -6,6 +6,8 @@ mod auth;
 mod browser;
 #[path = "fixture/desktop.rs"]
 mod desktop;
+#[path = "fixture/hosted.rs"]
+mod hosted;
 #[path = "fixture/mcp.rs"]
 mod mcp;
 #[path = "fixture/release.rs"]
@@ -24,6 +26,11 @@ fn main() {
                 .map(|s| s.to_string_lossy().into_owned())
         })
         .unwrap_or_default();
+    if std::env::var("ORBIT_HOSTED_FIXTURE").as_deref() == Ok("1")
+        && ["justrust", "rustup", "cargo", "readelf"].contains(&invoked.as_str())
+    {
+        std::process::exit(hosted::run(&invoked).unwrap());
+    }
     if ["uname", "security", "codesign", "ditto", "xcrun"].contains(&invoked.as_str()) {
         std::process::exit(signing::run(&invoked).unwrap());
     }

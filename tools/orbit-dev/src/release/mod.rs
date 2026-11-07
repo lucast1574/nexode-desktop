@@ -1,6 +1,7 @@
 //! Release maintenance. All network mutations are explicit CLI actions.
 mod arm;
 pub mod ci;
+mod hosted;
 mod notes;
 mod preview;
 mod recovery;
@@ -62,6 +63,7 @@ pub fn objects(api: &mut impl Github, endpoint: &str, key: &str) -> Result<Vec<V
 }
 pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<()> {
     match command {
+        "validate-preview-version" | "verify-hosted-linux-abi" => hosted::run(command, args),
         "verify-preview-arm-runtime" => arm::run(args),
         "apply-release-recovery" => recovery::run(args),
         "verify-public-release" => verify::run(args),

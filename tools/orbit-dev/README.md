@@ -120,3 +120,12 @@ Linux smaps RSS/PSS, anonymous, shared/private and swap memory by server/client.
 `cargo xtask monitor [--socket PATH]` displays the Unix debug event dashboard,
 with subscription, periodic pings, automatic reconnect and bounded UTF-8 framing.
 Both commands replace their Python diagnostics; neither starts an inference turn.
+
+`cargo xtask test-ci-suites [all|lib-bins|provider-matrix|e2e] [--parallel]` runs
+the existing CI suites with locked dependencies, progress events and per-suite
+timeouts. Unix interruption/timeout terminates the owned process group.
+`--timeout-scale` adjusts budgets; execution stops at the first failed suite.
+Hosted Linux compilation now invokes `validate-preview-version` and
+`verify-hosted-linux-abi` for native version/ELF/GLIBC/OpenSSL/TLS checks. Its offline
+Rust orchestration tests preserve the x86 and ARM failure matrix; they do not
+prove a real tenant-hosted build or native ARM runtime behavior.

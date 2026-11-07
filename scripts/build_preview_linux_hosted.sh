@@ -22,21 +22,15 @@ esac
 [[ -z ${RUSTC_BOOTSTRAP:-} ]] || fail 'RUSTC_BOOTSTRAP is not a substitute for the pinned managed compiler'
 [[ -z ${CARGO_TARGET_DIR:-} && -z ${CARGO_BUILD_TARGET_DIR:-} ]] || fail 'custom target directories are unsupported by preview artifact discovery'
 [[ -z ${JUSTRUST_DISABLE:-} || ${JUSTRUST_DISABLE} == 0 ]] || fail 'JUSTRUST_DISABLE conflicts with required hosted compilation'
-for tool in git justrust python3 readelf; do
+for tool in git justrust readelf; do
   command -v "$tool" >/dev/null || fail "missing required command: $tool"
 done
 # Match the build-metadata parser's supported preview identity before paying for
 # compilation. Invalid overrides otherwise fall back to the package version.
-python3 - <<'PY'
-import os
-import re
-value = os.environ['NEXODE_BUILD_SEMVER']
-match = re.fullmatch(r'v?1\.0\.0-preview\.([1-9][0-9]*)', value)
-if not match or len(match[1]) > 20 or int(match[1]) > 18446744073709551615:
-    raise SystemExit('error: expected NEXODE_BUILD_SEMVER=v1.0.0-preview.N with a positive u64 N')
-PY
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
+orbit_dev_bin=$(bash "$repo_root/scripts/orbit_dev.sh" --build-only)
+"$orbit_dev_bin" validate-preview-version "$NEXODE_BUILD_SEMVER"
 
 # .git is not mirrored to the tenant host. Snapshot real source metadata before
 # dispatch, including dirty state, rather than embedding unknown or stale values.
@@ -87,44 +81,4 @@ artifact="target/$target/release/nexode"
 # The client validates downloaded artifacts too. Independently gate the exact
 # expected file here, never glob a warm host's other release outputs. Do not run
 # cross artifacts or confuse ELF/TLS inspection with native runtime acceptance.
-python3 - "$artifact" "$target" <<'PY'
-import os
-import pathlib
-import re
-import struct
-import subprocess
-import sys
-
-artifact, target = sys.argv[1:]
-def require(condition, message):
-    if not condition:
-        raise SystemExit('error: ' + message)
-
-def readelf(option):
-    return subprocess.check_output(['readelf', option, artifact], text=True, env={**os.environ, 'LC_ALL': 'C'})
-
-with pathlib.Path(artifact).open('rb') as binary:
-    header = binary.read(64)
-require(len(header) == 64 and header[:7] == b'\x7fELF\x02\x01\x01', 'expected little-endian ELF64 executable')
-kind, machine = struct.unpack_from('<HH', header, 16)
-arm = target == 'aarch64-unknown-linux-gnu'
-require(kind in (2, 3) and machine == (183 if arm else 62), 'ELF executable target architecture mismatch')
-program = readelf('-lW')
-require(re.search(r'^\s*LOAD\s', program, re.M), 'ELF has no load segment')
-loader = '/lib/ld-linux-aarch64.so.1' if arm else '/lib64/ld-linux-x86-64.so.2'
-require('[Requesting program interpreter: ' + loader + ']' in program, 'unexpected GNU/Linux interpreter')
-versions = readelf('-VW')
-labels = re.findall(r'\bName:\s+(GLIBC_[^\s]+)', versions)
-require(labels and all(re.fullmatch(r'GLIBC_\d+(?:\.\d+)+', label) for label in labels), 'missing or malformed GLIBC version requirements')
-maximum = max(tuple(map(int, label[6:].split('.'))) for label in labels)
-baseline = (2, 39) if arm else (2, 17)
-require(maximum <= baseline, f'GLIBC requirement {maximum} exceeds {baseline}')
-dynamic = readelf('-dW')
-require(not re.search(r'\(NEEDED\).*\[lib(?:ssl|crypto)\.', dynamic), 'unexpected external OpenSSL dependency')
-if arm:
-    require(not re.search(r'^\s*TLS\s', program, re.M), 'ARM64 native PT_TLS violates emulated-TLS contract')
-    symbols = readelf('-sW')
-    require('__emutls_get_address' in symbols and '__emutls_v.' in symbols, 'ARM64 emulated-TLS symbols missing')
-print(f'Validated hosted {target} artifact: {artifact}, GLIBC max {".".join(map(str, maximum))}')
-print('Compilation and ABI checks only. Native runtime, baseline smoke, and packaging remain caller gates.')
-PY
+"$orbit_dev_bin" verify-hosted-linux-abi "$artifact" "$target"

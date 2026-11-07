@@ -2,6 +2,7 @@ mod badges;
 mod branding;
 mod browser_fixture;
 mod browser_package;
+mod ci_suites;
 mod compile_report;
 mod demo_shop;
 mod detached_acceptance;
@@ -71,6 +72,8 @@ fn main() -> Result<()> {
         Some("demo-session") => demo_shop::session(args)?,
         Some(
             command @ ("check-release-ci"
+            | "validate-preview-version"
+            | "verify-hosted-linux-abi"
             | "preview-release"
             | "reconcile-preview-release"
             | "verify-preview-arm-runtime"
@@ -98,6 +101,10 @@ fn main() -> Result<()> {
             | "sign-release"),
         ) => handoff::run(command, args)?,
         Some(command @ ("oauth-helper" | "oauth-probe")) => oauth::run(command, args)?,
+        Some("test-ci-suites") => {
+            let code = ci_suites::run(&root()?, args)?;
+            std::process::exit(code);
+        }
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,
