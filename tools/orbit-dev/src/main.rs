@@ -49,6 +49,7 @@ mod pty;
 mod rehearsal;
 mod release;
 mod release_notes;
+mod reload_audit;
 mod reload_storm;
 mod resume_bench;
 mod root_report;
@@ -222,6 +223,7 @@ fn main() -> Result<()> {
             | "release-availability"),
         ) => release::run(command, args)?,
         Some("json-field") => json_field::run(args)?,
+        Some("reload-recovery-audit") => reload_audit::run(args)?,
         Some("package-version") => {
             use std::io::Read;
             let mut input = String::new();

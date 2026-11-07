@@ -488,3 +488,13 @@ copies and must detect exactly two. Exit 0 is clean, 2 is reproduced duplication
 3 is an invalid probe. All stages and the control passed against the actual
 runtime. Isolated debug fixtures redirect provider base URLs to loopback so
 catalog bootstrap does not contact external inference services.
+
+`reload-recovery-audit [--home PATH] [--reload-id ID] [--session ID]
+[--max-log-files 3] [--show-lines] [--json]` correlates reload lifecycle logs,
+structured traces, durable intents and coarse transcript markers without changing
+any state. Verdict precedence and JSON fields match the former analyzer. Hidden
+continuation sends remain global observations, not evidence assigned to a session.
+The human table preserves full session IDs; `--show-lines` adds source evidence.
+Like the original diagnostic, suspect findings do not change the process exit code.
+An eleven-record reference fixture checks exact JSON, latest-reload association,
+malformed input, filters and verdict precedence without requiring Python.
