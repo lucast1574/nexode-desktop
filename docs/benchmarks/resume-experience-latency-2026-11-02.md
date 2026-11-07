@@ -4,7 +4,7 @@
 
 | Surface | Existing measurement | Important limitation |
 | --- | --- | --- |
-| Startup | `scripts/bench_resume_picker.py`: process launch to loading marker, populated list, and cancellation/terminal restoration using a real PTY | Fixed geometry, current on-disk store, medians. PTY bytes are not physical display paint. Never selects/resumes a session. |
+| Startup | `cargo xtask bench-resume-picker`: process launch to loading marker, populated list, and cancellation/terminal restoration using a real PTY | Fixed geometry, current on-disk store, medians. PTY bytes are not physical display paint. Never selects/resumes a session. |
 | Session discovery | `loading_tests.rs` loading-phase benchmarks, including ignored real-store cases | Discovery is not a rendered usable preview. |
 | Search input | `benchmark_resume_search_keystroke_latency` in `transcript_search_tests.rs` | Handler duration, not completion of background transcript search. |
 | Warm rendering | `benchmark_resume_stable_frames` in `performance_tests.rs` | Prepared preview hits, idle/revisit and hashing costs, not first visits. |
@@ -51,12 +51,12 @@ Initial selection starts at picker initialization, not physical key arrival. Pre
 ## Reproduce and retain results
 
 ```bash
-python3 scripts/bench_resume_suite.py --samples 20
+cargo xtask bench-resume-suite --samples 20
 # More useful tail exploration, larger runtime:
-python3 scripts/bench_resume_suite.py --samples 100
+cargo xtask bench-resume-suite --samples 100
 # Also measure real PTY startup and cancellation on a specific installed binary:
-python3 scripts/bench_resume_suite.py --samples 20 --binary /absolute/path/to/nexode
-python3 -m unittest scripts/test_bench_resume_suite.py
+cargo xtask bench-resume-suite --samples 20 --binary /absolute/path/to/nexode
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml resume_bench
 ```
 
 The runner uses hosted `justrust`, the `selfdev` profile (currently `opt-level = 0`, not an optimized distribution build), serial ignored tests, and retains unfiltered raw logs plus `metadata.json` and `results.json` under `target/resume-latency/`. It records revision, dirty state, profile, sample request, and measurement boundaries. Cargo `--config env.NEXODE_RESUME_BENCH_SAMPLES` forwards sample configuration to hosted test execution rather than relying on arbitrary remote environment forwarding. Optional PTY measurements retain their separate raw logs. A failed command or absent benchmark rows fails the suite instead of reporting empty success.

@@ -7,7 +7,10 @@ mod detached_acceptance;
 mod diagnostics;
 mod fake_openai;
 mod process;
+#[cfg(unix)]
+mod pty;
 mod rehearsal;
+mod resume_bench;
 mod root_report;
 mod safety_budget;
 mod safety_scan;
@@ -31,6 +34,7 @@ Checks: check-branding, check-modules, check-boundaries
 Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors, check-wildcards [--update]
 SDK: version-sdk <runtime-tag>
 Browser: browser-fixture [--port N], test-browser-handoff-live --tab-id ID, package-browser <extension-source> <output>
+Benchmarks: bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
 Fixtures: test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
 Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
@@ -40,6 +44,8 @@ fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
+        Some("bench-resume-picker") => resume_bench::run_picker(args)?,
+        Some("bench-resume-suite") => resume_bench::run_suite(&root()?, args)?,
         Some("test-cloud-detached-turn") => detached_acceptance::run(args)?,
         Some("fake-openai-server") => fake_openai::run(args)?,
         Some("browser-fixture") => browser_fixture::run(args)?,

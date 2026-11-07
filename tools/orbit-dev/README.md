@@ -59,3 +59,5 @@ Local test servers: `cargo xtask browser-fixture [--port N]` and `cargo xtask fa
 Live browser acceptance is opt-in: `BROWSER_SESSION=... cargo xtask test-browser-handoff-live --tab-id ID`. It requires an existing disposable fixture/about:blank tab and configured inference credentials. Unit tests never run this live command.
 
 `NEXODE_SCRATCH_DIR=/isolated/scratch cargo xtask test-cloud-detached-turn --binary /absolute/path/to/nexode` exercises a real detached turn against the native fake provider, busy rejection, completion, private logs and session inspection. It uses Linux process ownership markers for cleanup.
+
+`cargo xtask bench-resume-picker /absolute/path/to/nexode --runs 3` measures picker loading, population and terminal restoration using an owned Unix PTY. Add `--cancel-loading` to measure cancellation. `cargo xtask bench-resume-suite --samples 20` runs the offline Rust benchmark matrices with the existing Justrust build runner and preserves metadata, raw logs and structured results; `--binary PATH` adds the PTY measurements.
