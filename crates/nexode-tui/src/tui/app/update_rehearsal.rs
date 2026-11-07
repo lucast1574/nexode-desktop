@@ -1,7 +1,7 @@
 //! Self-dev only: rehearse the *real* release-update flow in a sandbox.
 //!
 //! Unlike `/update-sim` (which only replays UI states), this launches
-//! `scripts/update_rehearsal.py` in a new terminal. That script builds a
+//! `tools/orbit-dev/Cargo.toml` in a new terminal. The Rust tool builds a
 //! throwaway `NEXODE_HOME` on the previous version, serves the current build as
 //! a newer fake release from localhost, and starts nexode so the genuine
 //! check -> download -> install -> reload path runs end to end. Each run starts
@@ -12,12 +12,12 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use std::path::{Path, PathBuf};
 
 pub(super) const UPDATE_REHEARSAL_COMMAND: &str = "/update-rehearsal";
-const UPDATE_REHEARSAL_SCRIPT: &str = "scripts/update_rehearsal.py";
+const UPDATE_REHEARSAL_SCRIPT: &str = "tools/orbit-dev/Cargo.toml";
 const UPDATE_REHEARSAL_KEY_LABEL: &str = "Alt+Shift+U";
 
 const USAGE: &str = "Usage: `/update-rehearsal [options]` (self-dev only, also Alt+Shift+U)\n\n\
 Opens a new terminal running the real updater against a fake local release in a throwaway sandbox. Your real install is never touched.\n\n\
-Options are passed to `scripts/update_rehearsal.py`:\n\
+Options are passed to `cargo xtask update-rehearsal`:\n\
 - `--rate N` download speed in MiB/s (default 10, 0 = unlimited)\n\
 - `--drop-at PCT` drop the connection once at PCT% to exercise resume\n\
 - `--bad-checksum` serve a mismatching SHA256SUMS\n\
@@ -137,7 +137,7 @@ impl App {
             }
             Ok(false) => {
                 self.push_display_message(DisplayMessage::system(format!(
-                    "No terminal emulator found. Run it yourself:\n\n`{} {}`",
+                    "No terminal emulator found. Run it yourself:\n\n`cargo run --locked --manifest-path {} -- update-rehearsal {}`",
                     script.display(),
                     shown_args
                 )));
@@ -155,7 +155,16 @@ fn spawn_rehearsal_terminal(script: &Path, args: Vec<String>, cwd: &Path) -> any
     if cfg!(test) {
         return Ok(false);
     }
-    let command = crate::terminal_launch::TerminalCommand::new(script, args)
+    let mut cargo_args = vec![
+        "run".to_string(),
+        "--locked".to_string(),
+        "--manifest-path".to_string(),
+        script.to_string_lossy().into_owned(),
+        "--".to_string(),
+        "update-rehearsal".to_string(),
+    ];
+    cargo_args.extend(args);
+    let command = crate::terminal_launch::TerminalCommand::new("cargo", cargo_args)
         .title("nexode · update rehearsal".to_string())
         .kind("update-rehearsal");
     crate::terminal_launch::spawn_command_in_new_terminal(&command, cwd)
@@ -207,9 +216,9 @@ mod tests {
     }
 
     #[test]
-    fn script_lives_in_repo_scripts_dir() {
+    fn rehearsal_uses_rust_tool_manifest() {
         let path = rehearsal_script_path(Path::new("/repo"));
-        assert_eq!(path, Path::new("/repo/scripts/update_rehearsal.py"));
+        assert_eq!(path, Path::new("/repo/tools/orbit-dev/Cargo.toml"));
     }
 
     #[test]

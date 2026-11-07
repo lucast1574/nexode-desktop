@@ -186,7 +186,7 @@ fn auto_update_git_repo_skip_reason(path: &std::path::Path) -> Option<&'static s
 }
 
 /// Env var naming a fake "latest release" endpoint used by the self-dev update
-/// rehearsal (`scripts/update_rehearsal.py`).
+/// rehearsal (`cargo xtask update-rehearsal`).
 pub const UPDATE_RELEASE_URL_OVERRIDE_ENV: &str = "NEXODE_UPDATE_RELEASE_URL";
 
 /// Release-endpoint override for update rehearsals.

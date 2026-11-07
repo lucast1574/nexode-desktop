@@ -8,6 +8,8 @@ La migración está en curso. Este documento no declara al repositorio libre de 
 - Inventario remoto implementado en `nexode-remote-inspect`, con un comando interno del binario Orbit. Se retiraron el colector Python y su suite, portando sus escenarios a Rust.
 - Comprobación de marca y manifests: `cargo xtask check-branding`.
 - Guardrails de módulos, dependencias, tamaños, panics, errores descartados y reexports: Rust; se conservan los límites registrados.
+- Ensayo de actualizaciones: `cargo xtask update-rehearsal`, servidor HTTP local, tar/gzip y SHA-256 en Rust; TUI conectada al comando Cargo.
+- Diagnóstico de locks de entorno y comparación Terminal-Bench: `find-unlocked-env-tests` y `tb-compare`.
 - Evaluador de planes exportados: `cargo xtask score-plans`, sin rutas privadas del autor original.
 - Versionado de paquetes SDK: `cargo xtask version-sdk`, con pruebas Rust. Se conservan el SDK TypeScript y sus pruebas de consumidor.
 - Timeout de comandos de CI: `cargo xtask timeout`, sin intérprete Python.
@@ -30,11 +32,12 @@ en wrappers. Hay integraciones con helpers de otros repositorios (Jade y Desktop
 cuyos fuentes no están incluidos aquí. No se han eliminado para simular una
 migración terminada ni se han sustituido por wrappers que ejecuten Python.
 
-El siguiente bloque debe portar los ensayos de actualización y utilidades de diagnóstico, y finalmente las suites
-SSH/TUI/benchmarks. Cada reemplazo debe mantener sus contratos y comprobarse
+Continúa la migración de releases, diagnóstico y suites SSH/TUI/benchmarks. Cada reemplazo debe mantener sus contratos y comprobarse
 antes de retirar el original.
 
 La aceptación final requiere cero scripts/intérpretes Python necesarios en
 los flujos soportados de build, pruebas, instalación y ejecución, verificados
 en entornos sin Python. La capacidad del agente para trabajar con proyectos
 Python de los usuarios se conserva.
+
+El ensayo conserva el requisito del updater de compilar con `NEXODE_RELEASE_REPO` configurado para probar una actualización real. Las pruebas locales del servidor, archivo, sandbox y lanzamiento no publican releases.

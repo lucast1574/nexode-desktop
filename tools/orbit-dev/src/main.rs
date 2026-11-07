@@ -1,6 +1,8 @@
 mod branding;
 mod browser_package;
+mod diagnostics;
 mod process;
+mod rehearsal;
 mod safety_budget;
 mod safety_scan;
 mod score;
@@ -20,6 +22,24 @@ fn root() -> Result<PathBuf> {
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("find-unlocked-env-tests") => {
+            let path = args
+                .next()
+                .map(PathBuf::from)
+                .unwrap_or(root()?.join("crates/nexode-tui/src"));
+            anyhow::ensure!(args.next().is_none(), "unexpected argument");
+            diagnostics::env_tests(&path)?;
+        }
+        Some("tb-compare") => {
+            let jobs = PathBuf::from(args.next().context("missing jobs directory")?);
+            let baseline = args
+                .next()
+                .map(PathBuf::from)
+                .unwrap_or(root()?.join("scripts/tb_baseline_cc_opus48.tsv"));
+            anyhow::ensure!(args.next().is_none(), "unexpected argument");
+            diagnostics::compare(&jobs, &baseline)?;
+        }
+        Some("update-rehearsal") => rehearsal::run(&root()?, args)?,
         Some(command @ ("check-panics" | "check-swallowed-errors" | "check-wildcards")) => {
             let mode = args.next();
             anyhow::ensure!(
