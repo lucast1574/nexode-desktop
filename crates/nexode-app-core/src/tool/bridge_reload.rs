@@ -14,6 +14,10 @@
 //! start the new one, verify the socket accepts, and relaunch the old command
 //! line if the new bridge does not come up.
 
+#[cfg(all(test, target_os = "linux"))]
+#[path = "../../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;
+
 use crate::background::{self, TaskResult};
 use crate::build;
 use crate::tool::ToolOutput;
@@ -442,34 +446,21 @@ mod tests {
     async fn restart_replaces_bridge_and_rolls_back_on_failure() {
         let dir = tempfile::tempdir().unwrap();
         let socket = dir.path().join("api.sock");
-        let script = dir.path().join("bridge.py");
-        std::fs::write(
-            &script,
-            "import socket,sys,os\n\
-             p=sys.argv[1]\n\
-             if '--help' in sys.argv: sys.exit(0)\n\
-             if 'broken' in sys.argv: sys.exit(3)\n\
-             try: os.unlink(p)\n\
-             except OSError: pass\n\
-             s=socket.socket(socket.AF_UNIX); s.bind(p); s.listen(8)\n\
-             while True: s.accept()[0].close()\n",
-        )
-        .unwrap();
         let log = dir.path().join("log");
-        let python = |args: &[&str]| BridgeLaunch {
-            program: PathBuf::from("python3"),
-            args: [script.display().to_string(), socket.display().to_string()]
+        let fixture = |args: &[&str]| BridgeLaunch {
+            program: native_fixture::binary().clone(),
+            args: ["--bridge-fixture".to_string(), socket.display().to_string()]
                 .into_iter()
                 .chain(args.iter().map(|arg| arg.to_string()))
                 .collect(),
         };
 
-        let first = spawn_bridge(&python(&[]), &log).unwrap().pid;
+        let first = spawn_bridge(&fixture(&[]), &log).unwrap().pid;
         assert!(wait_for_socket(&socket, BRIDGE_START_TIMEOUT, None).await);
         assert_eq!(listener_pid(&socket), Some(first as i32));
 
         let result = restart_bridge(
-            python(&[]),
+            fixture(&[]),
             socket.clone(),
             log.clone(),
             dir.path().join("out1"),
@@ -486,7 +477,7 @@ mod tests {
 
         // `--help` succeeds, so preflight passes, but the bridge exits at once.
         let result = restart_bridge(
-            python(&["broken"]),
+            fixture(&["broken"]),
             socket.clone(),
             log.clone(),
             dir.path().join("out2"),

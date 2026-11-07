@@ -1,4 +1,6 @@
 //! Real OpenSSH multiplexing tests with a tiny deterministic API fixture, no CLI/daemon.
+#[path = "../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;
 use super::*;
 use std::os::unix::fs::PermissionsExt;
 use std::time::Instant;
@@ -109,7 +111,7 @@ fn real_shared_master_concurrent_independent_channels_and_cleanup() {
         .local_addr()
         .unwrap()
         .port();
-    let bridge = root.join("bridge.py");
+    let bridge = root.join("bridge-frames.json");
     let hello = serde_json::to_string(&crate::api::ServerFrame::reply(
         1,
         crate::api::ApiEvent::HelloOk {
@@ -124,9 +126,16 @@ fn real_shared_master_concurrent_independent_channels_and_cleanup() {
         crate::api::ApiEvent::Pong,
     ))
     .unwrap();
-    std::fs::write(&bridge, format!("import sys,json,os\nhello=json.loads({hello:?})\npong=json.loads({pong:?})\nhello['server']=str(os.getpid())\nfor line in sys.stdin:\n req=json.loads(line)\n reply=hello.copy() if req['id']==1 else pong.copy()\n reply['reply_to']=req['id']\n print(json.dumps(reply),flush=True)\n")).unwrap();
+    std::fs::write(&bridge, serde_json::json!({"hello":serde_json::from_str::<serde_json::Value>(&hello).unwrap(),"pong":serde_json::from_str::<serde_json::Value>(&pong).unwrap()}).to_string()).unwrap();
+    let quote =
+        |path: &std::path::Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"));
+    let command = format!(
+        "{} --ssh-fixture {}",
+        quote(native_fixture::binary()),
+        quote(&bridge)
+    );
     let server_config = root.join("sshd_config");
-    std::fs::write(&server_config, format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nPidFile {}\nAuthorizedKeysFile {}\nStrictModes no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nUseDNS no\nMaxSessions 4\nPermitUserRC no\nAllowUsers {}\nForceCommand /usr/bin/python3 {}\n", root.join("host").display(), root.join("pid").display(), root.join("client.pub").display(), user.trim(), bridge.display())).unwrap();
+    std::fs::write(&server_config, format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nPidFile {}\nAuthorizedKeysFile {}\nStrictModes no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nUseDNS no\nMaxSessions 4\nPermitUserRC no\nAllowUsers {}\nForceCommand {}\n", root.join("host").display(), root.join("pid").display(), root.join("client.pub").display(), user.trim(), command)).unwrap();
     let mut server_command = Command::new("/usr/bin/sshd");
     server_command.args(["-D", "-e", "-f"]).arg(server_config);
     let server = SshTransport::spawn_command(server_command).unwrap();

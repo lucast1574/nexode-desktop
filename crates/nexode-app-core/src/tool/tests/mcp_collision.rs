@@ -136,51 +136,14 @@ fn mcp_collision_alias_policy_preserves_deny_precedence() {
     clear_session_tool_policy(session);
 }
 
-// Stdio protocol fixture shared in spirit with nexode-base/tests/mcp_stdio_collision_integration.rs.
-const SERVER: &str = r#"
-import json, os, sys
-server, names = sys.argv[1], json.loads(sys.argv[2])
-for line in sys.stdin:
-    req = json.loads(line)
-    method = req.get('method')
-    if method == 'shutdown':
-        break
-    if 'id' not in req:
-        continue
-    reply = {'jsonrpc': '2.0', 'id': req['id']}
-    if method == 'initialize':
-        result = {'protocolVersion': '2024-11-05', 'capabilities': {'tools': {}},
-                  'serverInfo': {'name': server, 'version': '1'}}
-    elif method == 'tools/list':
-        result = {'tools': [{'name': name, 'description': server + ':' + name,
-                            'inputSchema': {'type': 'object', 'properties': {
-                                'token': {'type': 'string'}}}} for name in names]}
-    elif method == 'tools/call' and req['params']['name'] in names:
-        value = {'server': server, 'tool': req['params']['name'],
-                 'arguments': req['params']['arguments'], 'pid': os.getpid()}
-        result = {'content': [{'type': 'text', 'text': json.dumps(value)}], 'isError': False}
-    else:
-        reply['error'] = {'code': -32602, 'message': 'unknown method or original tool name'}
-        print(json.dumps(reply), flush=True)
-        continue
-    reply['result'] = result
-    print(json.dumps(reply), flush=True)
-"#;
+#[path = "../../../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;
 
 #[test]
 fn mcp_collision_manual_lifecycle_real_stdio() {
     const MARKER: &str = "NEXODE_MCP_MANAGEMENT_TEST_CHILD";
     if std::env::var_os(MARKER).is_none() {
-        if !std::process::Command::new("python3")
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-        {
-            eprintln!("SKIP: python3 unavailable for real MCP stdio test");
-            return;
-        }
+        let fixture = native_fixture::binary();
         let home = tempfile::tempdir().unwrap();
         let mut child = std::process::Command::new(std::env::current_exe().unwrap());
         child.env_clear();
@@ -200,6 +163,7 @@ fn mcp_collision_manual_lifecycle_real_stdio() {
         }
         let status = child
             .env(MARKER, "1")
+            .env("ORBIT_TEST_FIXTURE_BIN", fixture)
             .env("NEXODE_HOME", home.path().join("nexode"))
             .env("NEXODE_RUNTIME_DIR", home.path().join("runtime"))
             .current_dir(home.path())
@@ -229,8 +193,8 @@ fn mcp_collision_manual_lifecycle_real_stdio() {
             let legacy = crate::mcp::dispatch_name(&catalog[0].0, &catalog[0].1.name);
             for (index, (server, tool)) in catalog.iter().enumerate() {
                 let output = management.execute(serde_json::json!({
-                    "action":"connect", "server":server, "command":"python3",
-                    "args":["-I", "-S", "-u", "-c", SERVER, server, serde_json::to_string(&vec![&tool.name]).unwrap()]
+                    "action":"connect", "server":server, "command":native_fixture::binary(),
+                    "args":["--mcp-fixture", server, serde_json::to_string(&vec![&tool.name]).unwrap()]
                 }), ctx.clone()).await.unwrap();
                 assert!(output.output.contains("Connected to MCP server"), "{}", output.output);
                 if index == 1 { assert!(output.output.contains(&aliases[1]), "{}", output.output); }

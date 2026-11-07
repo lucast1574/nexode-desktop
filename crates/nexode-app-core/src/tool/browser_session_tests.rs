@@ -1,6 +1,7 @@
 #![allow(clippy::await_holding_lock)]
 use super::*;
-use std::os::unix::fs::PermissionsExt;
+#[path = "../../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;
 use std::time::{Duration, Instant};
 
 struct BrowserFixture {
@@ -26,40 +27,8 @@ impl BrowserFixture {
         crate::env::remove_var("BROWSER_SESSION");
         let bin = temp.path().join("browser/browser");
         std::fs::create_dir_all(bin.parent().unwrap()).unwrap();
-        std::fs::write(&bin, r#"#!/usr/bin/env python3
-import json, os, socket, sys, time
-runtime = os.environ.get('XDG_RUNTIME_DIR', '/tmp')
-home = os.environ['NEXODE_HOME']
-if sys.argv[1:4] == ['session', 'start', '--help']:
-    print('--bind-window')
-elif sys.argv[1:3] == ['session', 'start']:
-    name = sys.argv[3]
-    path = runtime + '/browser-session-' + name
-    with open(home + '/starts', 'a') as f:
-        f.write(json.dumps([name, os.getpid()]) + '\n')
-    if 'blocked' in name:
-        while not os.path.exists(home + '/release'):
-            time.sleep(0.01)
-    else:
-        time.sleep(0.2)
-    listener = socket.socket(socket.AF_UNIX)
-    listener.bind(path + '.sock')
-    listener.listen()
-    with open(path + '.pid', 'w') as f:
-        f.write(str(os.getpid()))
-    while True:
-        conn, _ = listener.accept()
-        with conn:
-            if conn.recv(4096):
-                conn.sendall((json.dumps({'ok': True, 'pid': os.getpid(), 'session': name}) + '\n').encode())
-else:
-    name = os.environ['BROWSER_SESSION']
-    with socket.socket(socket.AF_UNIX) as conn:
-        conn.connect(runtime + '/browser-session-' + name + '.sock')
-        conn.sendall(b'{}\n')
-        print(conn.recv(4096).decode())
-"#).unwrap();
-        std::fs::set_permissions(bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(temp.path().join("browser-fixture-mode"), "session").unwrap();
+        std::os::unix::fs::symlink(native_fixture::binary(), &bin).unwrap();
         Self {
             _env_guard: guard,
             temp,

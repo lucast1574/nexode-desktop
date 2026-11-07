@@ -2,6 +2,8 @@
 //! servers are loaded. The test re-execs itself with an empty home/environment
 //! before constructing a runtime, keeping config/provenance globals isolated.
 
+#[path = "../../../tools/orbit-dev/src/bin/fixture/mcp.rs"]
+mod native_mcp;
 use nexode_base::mcp::{
     McpConfig, McpManager, McpServerConfig, McpToolDef, create_mcp_tools,
     create_mcp_tools_from_cached_many, dispatch_name,
@@ -9,63 +11,32 @@ use nexode_base::mcp::{
 use nexode_tool_core::{Tool, ToolContext, ToolExecutionMode};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 const CHILD_MARKER: &str = "NEXODE_MCP_STDIO_TEST_CHILD";
-const TEST_NAME: &str = "real_stdio_collision_aliases_preserve_original_targets";
 const SERVERS: [(&str, [&str; 2]); 2] = [
     ("server-a", ["query-docs", "only-a"]),
     ("server_a", ["query_docs", "only_b"]),
 ];
 
-// Each server rejects unknown original tool names, and reports its own identity
-// and PID. This catches accidentally forwarding a generated alias to the wire,
-// routing both aliases to one process, and losing arguments during dispatch.
-const SERVER: &str = r#"
-import json, os, sys
-server, names = sys.argv[1], json.loads(sys.argv[2])
-for line in sys.stdin:
-    req = json.loads(line)
-    method = req.get('method')
-    if method == 'shutdown':
-        break
-    if 'id' not in req:
-        continue
-    reply = {'jsonrpc': '2.0', 'id': req['id']}
-    if method == 'initialize':
-        result = {'protocolVersion': '2024-11-05', 'capabilities': {'tools': {}},
-                  'serverInfo': {'name': server, 'version': '1'}}
-    elif method == 'tools/list':
-        result = {'tools': [{'name': name, 'description': server + ':' + name,
-                            'inputSchema': {'type': 'object', 'properties': {
-                                'token': {'type': 'string'}}}} for name in names]}
-    elif method == 'tools/call' and req['params']['name'] in names:
-        value = {'server': server, 'tool': req['params']['name'],
-                 'arguments': req['params']['arguments'], 'pid': os.getpid()}
-        result = {'content': [{'type': 'text', 'text': json.dumps(value)}], 'isError': False}
-    else:
-        reply['error'] = {'code': -32602, 'message': 'unknown method or original tool name'}
-        print(json.dumps(reply), flush=True)
-        continue
-    reply['result'] = result
-    print(json.dumps(reply), flush=True)
-"#;
+// Each server rejects aliases and reports its own identity and PID. The custom
+// test harness also serves the fixture so no libtest banner contaminates stdio.
+fn main() {
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("--fixture-server") {
+        native_mcp::run(
+            &args.next().expect("server"),
+            &args.next().expect("tool names"),
+        );
+        return;
+    }
+    real_stdio_collision_aliases_preserve_original_targets();
+}
 
-#[test]
 fn real_stdio_collision_aliases_preserve_original_targets() {
     if std::env::var_os(CHILD_MARKER).is_none() {
-        if !Command::new("python3")
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
-        {
-            eprintln!("SKIP {TEST_NAME}: python3 is unavailable for real stdio fixtures");
-            return;
-        }
         let sandbox = tempfile::tempdir().expect("isolated MCP test home");
         let mut child = Command::new(std::env::current_exe().expect("test executable"));
         child.env_clear();
@@ -90,7 +61,6 @@ fn real_stdio_collision_aliases_preserve_original_targets() {
             .env("NEXODE_HOME", sandbox.path().join("nexode"))
             .env("NEXODE_RUNTIME_DIR", sandbox.path().join("runtime"))
             .current_dir(sandbox.path())
-            .args(["--exact", TEST_NAME, "--nocapture"])
             .status()
             .expect("run isolated MCP integration test");
         assert!(status.success(), "isolated MCP test failed: {status}");
@@ -111,8 +81,8 @@ fn config() -> McpConfig {
             .iter()
             .map(|(server, names)| {
                 let config: McpServerConfig = serde_json::from_value(json!({
-                    "command": "python3",
-                    "args": ["-I", "-S", "-u", "-c", SERVER, server,
+                    "command": std::env::current_exe().unwrap(),
+                    "args": ["--fixture-server", server,
                              serde_json::to_string(names).unwrap()],
                     "shared": false,
                     "timeout_secs": 5,

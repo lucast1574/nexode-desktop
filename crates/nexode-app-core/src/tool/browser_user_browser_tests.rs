@@ -1,63 +1,13 @@
 //! Regressions for #1743: browser control of the user's own browser.
 #![allow(clippy::await_holding_lock)]
 use super::*;
-use std::os::unix::fs::PermissionsExt;
+#[path = "../../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;
 
 /// Fake bridge CLI. Session daemons answer like the real host. A daemon whose
 /// name has a `stale` marker file reports its bound tab as closed, the way the
 /// host does after the user closes the agent's window. Calls without a session
 /// record their params, as the CLI's direct mode would see them.
-const FAKE_CLI: &str = r#"#!/usr/bin/env python3
-import json, os, socket, sys, time
-runtime = os.environ.get('XDG_RUNTIME_DIR', '/tmp')
-home = os.environ['NEXODE_HOME']
-def log(entry):
-    with open(home + '/calls', 'a') as f:
-        f.write(json.dumps(entry) + '\n')
-if sys.argv[1:4] == ['session', 'start', '--help']:
-    print('--bind-window')
-elif sys.argv[1:3] == ['session', 'start']:
-    name = sys.argv[3]
-    path = runtime + '/browser-session-' + name
-    starts = home + '/starts'
-    with open(starts, 'a') as f:
-        f.write(json.dumps([name, os.getpid()]) + '\n')
-    generation = sum(1 for _ in open(starts))
-    listener = socket.socket(socket.AF_UNIX)
-    listener.bind(path + '.sock')
-    listener.listen()
-    with open(path + '.pid', 'w') as f:
-        f.write(str(os.getpid()))
-    while True:
-        conn, _ = listener.accept()
-        with conn:
-            raw = conn.recv(65536)
-            if not raw:
-                continue
-            if generation == 1 and os.path.exists(home + '/stale'):
-                reply = {'ok': False, 'error': 'No tab with id: 41.'}
-            else:
-                reply = {'ok': True, 'result': {'tabId': 100 + generation, 'windowId': 900 + generation}}
-            conn.sendall((json.dumps(reply) + '\n').encode())
-else:
-    action, params = sys.argv[1], json.loads(sys.argv[2])
-    name = os.environ.get('BROWSER_SESSION')
-    log({'action': action, 'params': params, 'session': name})
-    if name is None:
-        if action == 'uploadFile' and 'path' not in params:
-            print("Error: uploadFile requires 'path' param", file=sys.stderr)
-            sys.exit(1)
-        print(json.dumps({'windows': [{'windowId': 1, 'tabs': [{'tabId': 7, 'url': 'https://app.example.com/'}]}], 'direct': True}))
-        sys.exit(0)
-    with socket.socket(socket.AF_UNIX) as conn:
-        conn.connect(runtime + '/browser-session-' + name + '.sock')
-        conn.sendall((json.dumps({'action': action, 'params': params}) + '\n').encode())
-        reply = json.loads(conn.makefile().readline())
-    if not reply['ok']:
-        print('Error: ' + reply['error'], file=sys.stderr)
-        sys.exit(1)
-    print(json.dumps(reply['result']))
-"#;
 
 struct Fixture {
     _env_guard: std::sync::MutexGuard<'static, ()>,
@@ -76,8 +26,8 @@ impl Fixture {
         crate::env::remove_var("BROWSER_SESSION");
         let bin = temp.path().join("browser/browser");
         std::fs::create_dir_all(bin.parent().unwrap()).unwrap();
-        std::fs::write(&bin, FAKE_CLI).unwrap();
-        std::fs::set_permissions(bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(temp.path().join("browser-fixture-mode"), "user").unwrap();
+        std::os::unix::fs::symlink(native_fixture::binary(), &bin).unwrap();
         Self {
             _env_guard: guard,
             temp,

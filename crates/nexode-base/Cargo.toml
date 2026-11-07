@@ -163,3 +163,8 @@ nexode-provider-openrouter-runtime = { path = "../nexode-provider-openrouter-run
 # Paused-time (auto-advancing virtual clock) tests for the background stall watchdog.
 tokio = { version = "1", features = ["test-util"] }
 
+# Re-exec this native fixture without a libtest banner on the JSON-RPC stream.
+[[test]]
+name = "mcp_stdio_collision_integration"
+path = "tests/mcp_stdio_collision_integration.rs"
+harness = false

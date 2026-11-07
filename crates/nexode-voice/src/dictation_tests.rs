@@ -40,20 +40,38 @@ struct ChildGuard(std::process::Child);
 #[cfg(target_os = "linux")]
 impl ChildGuard {
     fn spawn_named(name: &str) -> Self {
-        let child = std::process::Command::new("python3")
-                .args([
-                    "-c",
-                    "import ctypes, sys, time; libc = ctypes.CDLL(None); libc.prctl(15, sys.argv[1].encode(), 0, 0, 0); time.sleep(30)",
-                    name,
-                ])
-                .spawn()
-                .expect("spawn named helper process");
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "dictation::dictation_tests::named_process_fixture",
+            ])
+            .env("NEXODE_TEST_PROCESS_NAME", name)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn named native helper process");
         Self(child)
     }
 
     fn pid(&self) -> u32 {
         self.0.id()
     }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "subprocess fixture used by dictation tests"]
+fn named_process_fixture() {
+    let Ok(name) = std::env::var("NEXODE_TEST_PROCESS_NAME") else {
+        return;
+    };
+    let name = std::ffi::CString::new(name).unwrap();
+    assert_eq!(
+        unsafe { libc::prctl(libc::PR_SET_NAME, name.as_ptr(), 0, 0, 0) },
+        0
+    );
+    std::thread::sleep(std::time::Duration::from_secs(30));
 }
 
 #[cfg(target_os = "linux")]

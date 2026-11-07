@@ -1,6 +1,83 @@
 //! Native subprocess fixtures used only by maintenance integration tests.
+#[path = "fixture/auth.rs"]
+mod auth;
+#[cfg(unix)]
+#[path = "fixture/browser.rs"]
+mod browser;
+#[path = "fixture/desktop.rs"]
+mod desktop;
+#[path = "fixture/mcp.rs"]
+mod mcp;
+#[path = "fixture/transport.rs"]
+mod transport;
 use std::io::{self, Read, Write};
 fn main() {
+    let invoked = std::env::args_os()
+        .next()
+        .and_then(|s| {
+            std::path::PathBuf::from(s)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+        })
+        .unwrap_or_default();
+    if [
+        "Xvfb",
+        "openbox",
+        "nexode-desktop",
+        "import",
+        "cargo",
+        "xdotool",
+    ]
+    .contains(&invoked.as_str())
+    {
+        desktop::run(&invoked).unwrap();
+        return;
+    }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "--mcp-fixture") {
+        mcp::run(
+            args.get(1).expect("server"),
+            args.get(2).expect("tool names"),
+        );
+        return;
+    }
+    #[cfg(unix)]
+    if std::env::args_os()
+        .next()
+        .and_then(|s| {
+            std::path::PathBuf::from(s)
+                .file_stem()
+                .map(|n| n.to_owned())
+        })
+        .is_some_and(|n| n == "browser")
+    {
+        std::process::exit(browser::run().unwrap());
+    }
+    if args.first().is_some_and(|a| a == "--ssh-fixture") {
+        transport::ssh(std::path::Path::new(args.get(1).expect("frame file"))).unwrap();
+        return;
+    }
+    #[cfg(unix)]
+    if args.first().is_some_and(|a| a == "--bridge-fixture") {
+        std::process::exit(transport::bridge(&args[1..]).unwrap());
+    }
+    if std::env::args_os()
+        .next()
+        .and_then(|s| {
+            std::path::PathBuf::from(s)
+                .file_stem()
+                .map(|n| n.to_owned())
+        })
+        .is_some_and(|n| n == "orbit-auth-fixture")
+    {
+        match auth::run() {
+            Ok(status) => std::process::exit(status),
+            Err(e) => {
+                eprintln!("auth fixture: {e:#}");
+                std::process::exit(1);
+            }
+        }
+    }
     match std::env::var("ORBIT_FIXTURE_MODE").as_deref() {
         #[cfg(target_os = "linux")]
         Ok("startup") => match std::env::args().nth(1).as_deref() {
