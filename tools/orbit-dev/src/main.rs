@@ -266,6 +266,7 @@ fn main() -> Result<()> {
         Some(
             command @ ("measure-key-echo"
             | "profile-remote-resume-burst"
+            | "profile-spawn"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

@@ -413,3 +413,13 @@ identify a deadline that prevented launching or observing every client; early
 process failures are errors. Owned clients, daemon and temporary home are cleaned
 up on success or failure. Validated with four real simultaneous/staggered clients
 and a deliberately incomplete two-client run.
+
+`profile-spawn [BINARY] --runs 5 --sample-interval-ms 2 --client-hold-s 2.5
+[--json report.json] [--skip-client | --skip-server]` measures cold daemon and
+PTY-client startup independently on Linux. The client really spawns its daemon;
+process ownership is checked with a unique environment marker and both are
+cleaned up. Reports retain `server` and `client_full` resource records, startup
+phase deltas, RSS/PSS/swap, CPU since process birth, threads, descriptors, page
+faults, context switches and I/O. JSON is also printed for inspection. Missing
+readiness or an early exit fails the command instead of recording a successful
+empty run. Validated against two complete real daemon/client runs.

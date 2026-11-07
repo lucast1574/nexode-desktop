@@ -16,3 +16,20 @@ fn rejects_invalid_ranges_and_early_server_exit() {
         assert!(!output.status.success());
     }
 }
+
+#[test]
+fn spawn_profile_rejects_invalid_and_failed_binary() {
+    for args in [
+        vec!["--runs", "0"],
+        vec!["--sample-interval-ms", "NaN"],
+        vec!["--skip-client", "--skip-server"],
+        vec!["/bin/false"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_orbit-dev"))
+            .arg("profile-spawn")
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+}

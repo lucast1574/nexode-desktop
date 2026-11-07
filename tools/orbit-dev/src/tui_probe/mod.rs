@@ -30,6 +30,8 @@ mod lag;
 #[cfg(target_os = "linux")]
 mod maki;
 #[cfg(target_os = "linux")]
+mod proc_monitor;
+#[cfg(target_os = "linux")]
 mod process_metrics;
 #[cfg(unix)]
 mod profile;
@@ -43,6 +45,8 @@ mod selfdev_status;
 mod single;
 #[cfg(unix)]
 mod slash;
+#[cfg(target_os = "linux")]
+mod spawn_profile;
 #[cfg(unix)]
 mod theme;
 #[cfg(unix)]
@@ -54,7 +58,16 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "profile-remote-resume-burst" {
+        let result = if command == "profile-spawn" {
+            #[cfg(target_os = "linux")]
+            {
+                spawn_profile::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("spawn profiling requires Linux /proc")
+            }
+        } else if command == "profile-remote-resume-burst" {
             #[cfg(target_os = "linux")]
             {
                 resume_burst::run(args)
