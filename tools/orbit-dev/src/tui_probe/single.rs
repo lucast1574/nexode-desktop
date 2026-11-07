@@ -10,7 +10,7 @@ use std::{
     process::{Child, Command, Stdio},
     time::{Duration, Instant},
 };
-struct Server(Child);
+pub(super) struct Server(pub(super) Child);
 impl Drop for Server {
     fn drop(&mut self) {
         unsafe {
@@ -30,7 +30,7 @@ impl Drop for Server {
         let _ = self.0.wait();
     }
 }
-fn wait_socket(path: &Path, server: &mut Server, timeout: Duration) -> Result<()> {
+pub(super) fn wait_socket(path: &Path, server: &mut Server, timeout: Duration) -> Result<()> {
     let deadline = Instant::now() + timeout;
     loop {
         ensure!(

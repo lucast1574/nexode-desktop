@@ -76,11 +76,18 @@ fn replies(rows: u16, cols: u16) -> Vec<(Vec<u8>, Vec<u8>)> {
 fn answers(pending: &mut Vec<u8>, chunk: &[u8], queries: &[(Vec<u8>, Vec<u8>)]) -> Vec<Vec<u8>> {
     pending.extend_from_slice(chunk);
     let mut out = vec![];
-    for (q, a) in queries {
-        while let Some(i) = pending.windows(q.len()).position(|w| w == q) {
-            pending.drain(i..i + q.len());
-            out.push(a.clone());
-        }
+    while let Some((index, query, answer)) = queries
+        .iter()
+        .filter_map(|(q, a)| {
+            pending
+                .windows(q.len())
+                .position(|w| w == q)
+                .map(|i| (i, q, a))
+        })
+        .min_by_key(|(i, _, _)| *i)
+    {
+        pending.drain(index..index + query.len());
+        out.push(answer.clone());
     }
     let keep = queries
         .iter()

@@ -72,3 +72,20 @@ fn pty_echo_is_application_rendered_and_unread_input_never_appears() {
             .contains("not-rendered")
     );
 }
+
+#[test]
+fn query_responses_follow_terminal_stream_order() {
+    let q = replies(24, 80);
+    let mut pending = vec![];
+    assert_eq!(
+        answers(&mut pending, b"\x1b]11;?\x07\x1b[c", &q),
+        vec![
+            b"\x1b]11;rgb:0000/0000/0000\x07".to_vec(),
+            b"\x1b[?62;c".to_vec()
+        ]
+    );
+    assert_eq!(
+        answers(&mut pending, b"\x1b]4;0;?\x07", &q),
+        vec![b"\x1b]4;0;rgb:0000/0000/0000\x07".to_vec()]
+    );
+}

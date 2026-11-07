@@ -208,3 +208,21 @@ time and startup log lines, then closes both processes. Successful runs retain
 the reported temporary log directory. Missing output or logs fail the check.
 The native runner was also exercised against a real local Nexode binary with
 a disposable HOME and a dummy credential, without submitting a model prompt.
+
+`dump-fresh-spawn-screen`, `why-no-animation-area` and
+`which-overlay-blocks-donut` now use a shared native isolated server/client
+fixture, a disposable HOME and a dummy credential. No prompts are submitted.
+They preserve screen row churn, layout/frame diagnostics and ordered overlay
+queries. `--rows`/`--cols` control the real PTY size; `--fresh-session` actually
+skips resume. An unavailable visual-debug frame is reported as such, not as
+proof that an animation or layout assertion passed. All three commands were
+exercised against a local Nexode binary; these are diagnostics, not performance
+improvement claims.
+
+`count-idle-draws [--window-s 3] [--type-slash] [--no-idle-animation]`
+counts fresh draw samples independently of animation counters, measures actual
+elapsed time and process CPU, and flags a saturated 240-sample buffer.
+`pin-no-area-state [--samples 14] [--interval-s 1]` correlates draw samples with
+current overlay/activity state. Both use the same isolated native UI fixture.
+Malformed sample timestamps fail the measurement; an empty sample window is
+reported as zero draws.

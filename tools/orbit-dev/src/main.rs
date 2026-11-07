@@ -137,7 +137,12 @@ fn main() -> Result<()> {
             command @ ("measure-key-echo"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
-            | "profile-single-spawn"),
+            | "profile-single-spawn"
+            | "dump-fresh-spawn-screen"
+            | "why-no-animation-area"
+            | "which-overlay-blocks-donut"
+            | "count-idle-draws"
+            | "pin-no-area-state"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

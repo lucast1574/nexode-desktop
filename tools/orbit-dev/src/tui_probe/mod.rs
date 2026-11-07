@@ -1,6 +1,12 @@
 //! Shared real PTY + native terminal-emulation diagnostics.
 #[cfg(unix)]
+mod draws;
+#[cfg(unix)]
+mod inspect;
+#[cfg(unix)]
 mod io;
+#[cfg(unix)]
+mod isolated;
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]
@@ -14,7 +20,14 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "profile-single-spawn" {
+        let result = if matches!(command, "count-idle-draws" | "pin-no-area-state") {
+            draws::run(command, args)
+        } else if matches!(
+            command,
+            "dump-fresh-spawn-screen" | "why-no-animation-area" | "which-overlay-blocks-donut"
+        ) {
+            inspect::run(command, args)
+        } else if command == "profile-single-spawn" {
             single::run(args)
         } else if command == "bench-startup-visible-ready" {
             visible::run(args)
