@@ -31,6 +31,8 @@ mod io;
 mod isolated;
 #[cfg(unix)]
 mod lag;
+#[cfg(unix)]
+mod live_duplicate;
 #[cfg(target_os = "linux")]
 mod maki;
 #[cfg(unix)]
@@ -70,7 +72,9 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "repro-input-lag" {
+        let result = if command == "repro-live-duplicate" {
+            live_duplicate::run(args)
+        } else if command == "repro-input-lag" {
             input_lag::run(args)
         } else if command == "benchmark-tools" {
             tool_bench::run(args)

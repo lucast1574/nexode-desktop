@@ -4,7 +4,7 @@ Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migraci
 
 ## Alcance y estado
 
-- Quedan **24 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **23 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -60,7 +60,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [ ] `scripts/reload_recovery_audit.py`
 - [x] `scripts/repro_expand_edit_shortcut.py` — migrado a `orbit-dev`, verificado con runtime real.
 - [x] `scripts/repro_input_lag.py` — PTY Rust: cinco escenarios, dos clientes de fondo, limpieza real; diagnóstico de idle conserva umbral y exit 1.
-- [ ] `scripts/repro_live_duplicate.py`
+- [x] `scripts/repro_live_duplicate.py` — seis snapshots reales por cliente y control positivo de duplicación, con recarga/reconexión.
 - [x] `scripts/test_desktop_selfdev.py` — migrado a `cargo xtask test-desktop-selfdev`.
 - [ ] `scripts/test_reload.py`
 - [ ] `scripts/test_soft_interrupt.py`

@@ -275,6 +275,7 @@ fn main() -> Result<()> {
             | "debug-call"
             | "benchmark-tools"
             | "repro-input-lag"
+            | "repro-live-duplicate"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

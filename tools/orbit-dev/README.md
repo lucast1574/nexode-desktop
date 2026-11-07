@@ -475,3 +475,16 @@ setup/probe failure. A real run with two background clients passed the default
 budgets; an immediate run preserved low typing latency but correctly returned 1
 for 13.5 idle output chunks/s (budget 8), with successful owned-session cleanup.
 The full native test suite passed after the shared PTY event capture change.
+
+`repro-live-duplicate --binary PATH [--turns 3] [--keep] [-v]
+[--no-self-test]` seeds a disposable transcript with unique assistant, tool-input
+and tool-result markers. It reads each PTY client's own debug channel across
+initial resume, two-client attachment, reload and detach/reattach, yielding six
+snapshots. It waits for server resume before consulting server truth; missing
+visible markers and invalid setup cannot produce a clean result. Tool inputs are
+not exposed by current display-history JSON, so their display counts are reported
+without requiring them to be visible. The positive control injects two assistant
+copies and must detect exactly two. Exit 0 is clean, 2 is reproduced duplication,
+3 is an invalid probe. All stages and the control passed against the actual
+runtime. Isolated debug fixtures redirect provider base URLs to loopback so
+catalog bootstrap does not contact external inference services.

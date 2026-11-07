@@ -18,6 +18,9 @@ pub(super) struct Fixture {
     _root: tempfile::TempDir,
 }
 impl Fixture {
+    pub fn home(&self) -> PathBuf {
+        self._root.path().join("home")
+    }
     pub fn client_command(&self, binary: &Path) -> Command {
         let root = self._root.path();
         let mut command = Command::new(binary);
@@ -28,6 +31,8 @@ impl Fixture {
             .env("NEXODE_HOME", root.join("home"))
             .env("NEXODE_RUNTIME_DIR", root.join("run"))
             .env("NEXODE_NO_TELEMETRY", "1")
+            .env("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
+            .env("ANTHROPIC_BASE_URL", "http://127.0.0.1:9")
             .args(["--no-update", "--no-selfdev", "--socket"])
             .arg(root.join("run/nexode.sock"));
         command
@@ -57,6 +62,8 @@ impl Fixture {
             .env("NEXODE_SOCKET", &socket)
             .env("NEXODE_DEBUG_CONTROL", "1")
             .env("NEXODE_NO_TELEMETRY", "1")
+            .env("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
+            .env("ANTHROPIC_BASE_URL", "http://127.0.0.1:9")
             .env("NEXODE_TEMP_SERVER", "1")
             .env("NEXODE_SERVER_OWNER_PID", std::process::id().to_string())
             .env("ANTHROPIC_API_KEY", "sk-ant-local-ui-fixture")
