@@ -31,3 +31,6 @@ node_modules/
 /.claude/
 # Application builds need a reproducible dependency lockfile.
 !/Cargo.lock
+
+!/tools/orbit-dev/Cargo.lock
+/tools/orbit-dev/target/

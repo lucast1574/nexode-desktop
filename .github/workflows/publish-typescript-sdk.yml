@@ -56,7 +56,7 @@ jobs:
 
       - name: Test release versioning
         working-directory: ${{ github.workspace }}
-        run: node --test scripts/test_version_sdk_release.mjs
+        run: cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml sdk_version
 
       - name: Validate SDK
         run: npm run check
@@ -66,7 +66,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           NEXODE_RELEASE_TAG: ${{ inputs.nexode_release_tag }}
-        run: node scripts/version_sdk_release.mjs "$NEXODE_RELEASE_TAG" >> "$GITHUB_OUTPUT"
+        run: cargo xtask version-sdk "$NEXODE_RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Download released nexode runtimes
         working-directory: ${{ github.workspace }}

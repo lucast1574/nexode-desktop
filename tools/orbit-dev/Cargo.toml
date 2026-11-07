@@ -1,0 +1,18 @@
+[package]
+name = "orbit-dev"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyhow = "1"
+libc = "0.2"
+serde_json = { version = "1", features = ["preserve_order"] }
+toml = "0.8"
+roxmltree = "0.20"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"

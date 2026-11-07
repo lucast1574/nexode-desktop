@@ -35,3 +35,6 @@ rustc-wrapper = "scripts/rustc-parallel-frontend"
 # memory-safe on a ~15 GiB machine while staying parallel. The adaptive
 # dev_cargo.sh path uses more cores when memory allows.
 jobs = 4
+
+[alias]
+xtask = "run --locked --manifest-path tools/orbit-dev/Cargo.toml --"

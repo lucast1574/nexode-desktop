@@ -7,7 +7,7 @@ Entorno: Linux x86_64, Rust 1.99.1; validación del snapshot local previa a inic
 - `cargo check --locked --all-targets --all-features`: correcto.
 - `cargo fmt --all --check`: correcto.
 - SDK TypeScript: `npm ci --ignore-scripts --omit=optional` y `npm run check`; 90 pruebas correctas, typecheck y build correctos.
-- `python3 scripts/check_branding.py`: nombres, rutas del workspace, manifests del SDK y activos verificados. La atribución legal es una excepción deliberada.
+- `cargo xtask check-branding`: nombres, rutas del workspace, manifests del SDK y activos verificados. La atribución legal es una excepción deliberada.
 - SVG del wordmark y favicon idénticos a los originales del monorepo Nexode. PNG, ICO e ICNS generados desde el icono orbital; banner revisado visualmente.
 - Sintaxis Bash de los instaladores y del script de paquetes: correcta.
 - Monorepo Cloud sin cambios; el historial original del agente se eliminó antes de crear el nuevo repositorio.

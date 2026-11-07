@@ -76,36 +76,10 @@ record_rust_action_log() {
   NEXODE_LOG_PROFILE="$profile" \
   NEXODE_LOG_REPO="$repo_root" \
   NEXODE_LOG_EXECUTION="$rust_action_log_execution" \
-  python3 - "$rust_action_log_path" "${cargo_argv[@]}" <<'PY' || true
-import json
-import os
-import sys
-
-path = sys.argv[1]
-record = {
-    "started_at": os.environ["NEXODE_LOG_STARTED_AT"],
-    "duration_ms": int(os.environ["NEXODE_LOG_DURATION_MS"]),
-    "gate_wait_ms": int(os.environ["NEXODE_LOG_GATE_WAIT_MS"]),
-    "execution_duration_ms": max(
-        0,
-        int(os.environ["NEXODE_LOG_DURATION_MS"])
-        - int(os.environ["NEXODE_LOG_GATE_WAIT_MS"]),
-    ),
-    "exit_code": int(os.environ["NEXODE_LOG_EXIT_CODE"]),
-    "success": os.environ["NEXODE_LOG_EXIT_CODE"] == "0",
-    "action": os.environ["NEXODE_LOG_ACTION"],
-    "profile": os.environ["NEXODE_LOG_PROFILE"],
-    "repository": os.environ["NEXODE_LOG_REPO"],
-    "execution": os.environ["NEXODE_LOG_EXECUTION"],
-    "argv": sys.argv[2:],
-}
-line = (json.dumps(record, separators=(",", ":")) + "\n").encode()
-fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-try:
-    os.write(fd, line)
-finally:
-    os.close(fd)
-PY
+  CARGO_BUILD_RUSTC_WRAPPER="" command cargo run --quiet --locked \
+    --manifest-path "$repo_root/tools/orbit-dev/Cargo.toml" \
+    --target-dir "$repo_root/tools/orbit-dev/target" \
+    -- log-build "$rust_action_log_path" "${cargo_argv[@]}" || true
   return 0
 }
 

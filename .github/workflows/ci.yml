@@ -241,7 +241,7 @@ jobs:
       - name: Compile library and binary tests
         shell: bash
         run: |
-          python3 .github/scripts/run_with_timeout.py 900 \
+          cargo xtask timeout 900 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} --lib --bins --no-run
 
       - name: Run deterministic retention-readiness cohort
@@ -250,7 +250,7 @@ jobs:
           # A cold nexode-app-core test harness compiles heavy optional provider
           # dependencies and can exceed three minutes on hosted runners. The
           # cohort itself runs in under a second once the lib test is built.
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} \
             -p nexode-app-core --lib retention_readiness -- --nocapture
 
@@ -269,7 +269,7 @@ jobs:
         # nexode-base lib test harness, which exceeded 300s on a hosted macOS
         # runner (run 30591536707) while the cohort itself runs in a second.
         run: |
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} \
             -p nexode-base --lib secret_input -- --nocapture
 
@@ -288,15 +288,15 @@ jobs:
         run: |
           set -euo pipefail
           cargo_bin="$(rustup which cargo)"
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-grok-build-runtime --lib
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-openrouter-runtime --lib
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-gemini-runtime --lib developer_catalog
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-copilot-runtime -p nexode-provider-cursor-runtime -p nexode-provider-antigravity-runtime --lib
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-bedrock --features aws-sdk --lib
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-base --lib catalog_refresh_reaches_every_runtime_slot_and_compatible_profile
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-base --lib forced_catalog_refresh_bypasses_freshness_and_throttle_but_not_in_flight
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-app-core --lib model_prefetch
-          python3 .github/scripts/run_with_timeout.py 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-app-core --lib periodic_model_refresh
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-grok-build-runtime --lib
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-openrouter-runtime --lib
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-gemini-runtime --lib developer_catalog
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-copilot-runtime -p nexode-provider-cursor-runtime -p nexode-provider-antigravity-runtime --lib
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-provider-bedrock --features aws-sdk --lib
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-base --lib catalog_refresh_reaches_every_runtime_slot_and_compatible_profile
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-base --lib forced_catalog_refresh_bypasses_freshness_and_throttle_but_not_in_flight
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-app-core --lib model_prefetch
+          cargo xtask timeout 600 "$cargo_bin" test --locked --target ${{ matrix.target }} -p nexode-app-core --lib periodic_model_refresh
 
       - name: Run embedding numeric-stability cohort (Linux only)
         if: runner.os == 'Linux'
@@ -322,7 +322,7 @@ jobs:
           # degrade back into a silent skip.
           test -s "$model_dir/model.onnx"
           test -s "$model_dir/tokenizer.json"
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} \
             -p nexode-embedding --lib -- --nocapture \
             | tee /tmp/embedding-cohort.log
@@ -354,7 +354,7 @@ jobs:
         # because these tests drive `head -n1`, which stock Windows does not
         # provide; the Windows detector still has no test coverage.
         run: |
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} \
             -p nexode-app-core --lib tool::bash::tests::test_stdin_forwarding -- --nocapture
 
@@ -390,7 +390,7 @@ jobs:
         env:
           COLORTERM: truecolor
         run: |
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} \
             -p nexode-tui --lib -- --test-threads=1 \
             --skip test_prompt_entry_shimmer_color_moves_across_positions \
@@ -403,14 +403,14 @@ jobs:
         # (burst-spawn concurrency), and folding compilation into its 900s run
         # budget was pushing slower hosted ubuntu/macos runners over the limit.
         run: |
-          python3 .github/scripts/run_with_timeout.py 900 \
+          cargo xtask timeout 900 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} \
             --test provider_matrix --test e2e --no-run
 
       - name: Run provider matrix tests
         shell: bash
         run: |
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} --test provider_matrix
 
       - name: Run e2e tests
@@ -419,7 +419,7 @@ jobs:
           # e2e is fast (~1-2 min of execution); the generous budget only guards
           # against an occasional slow hosted runner. Compilation is already done
           # in the dedicated compile step above.
-          python3 .github/scripts/run_with_timeout.py 600 \
+          cargo xtask timeout 600 \
             "$(rustup which cargo)" test --locked --target ${{ matrix.target }} --test e2e
 
       - name: Check PowerShell script syntax (Windows)
@@ -667,8 +667,10 @@ jobs:
         run: npm run check
         working-directory: sdk/typescript
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: SDK release versioning
-        run: node --test scripts/test_version_sdk_release.mjs
+        run: cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml sdk_version
 
       # `npm run check` proves the source compiles; it says nothing about what
       # a consumer actually receives. The published tarball is a separate
