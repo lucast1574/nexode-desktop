@@ -144,7 +144,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 
 ## Límites de la validación actual
 
-La última suite completa de `tools/orbit-dev` y su Clippy de todos los targets pasaron para el bloque de diagnóstico de RSS de sesiones ociosas. Esto no certifica todos los scripts pendientes ni todas las plataformas. El Clippy del workspace raíz mantiene errores previos fuera de esta migración; no debe presentarse como aprobado. Las pruebas locales de RSS verificaron funcionamiento, no demostraron ausencia de fugas a largo plazo.
+La suite completa de `tools/orbit-dev` pasó en Linux/WSL: **223 pruebas, 0 fallos**; Clippy de todos los targets pasó con `-D warnings`. Se compiló también el cliente real de aceptación del SDK de Desktop y se compararon las notas de versión antiguas/nativas en tres escenarios con salida idéntica. Los flujos cloud, heap y consumo se verificaron con fixtures locales; no se ejecutaron despliegues cloud, inferencia real ni aceptación completa contra daemons de producción. Esto no certifica los 46 scripts Python pendientes ni Windows/macOS. El Clippy del workspace raíz mantiene errores previos fuera de esta migración; no debe presentarse como aprobado. Las pruebas locales de RSS verificaron funcionamiento, no demostraron ausencia de fugas a largo plazo.
 
 ## Cómo actualizar el inventario
 
