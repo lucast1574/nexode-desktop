@@ -103,6 +103,10 @@ fn main() -> Result<()> {
 }
 
 fn run_main() -> Result<()> {
+    // Read-only SSH inventory must not initialize the daemon or providers.
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("__remote-inventory")) {
+        return nexode_remote_inspect::run(std::env::args_os().skip(2));
+    }
     configure_system_allocator();
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 

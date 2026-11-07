@@ -26,7 +26,11 @@ The probe bounds directory scans, metadata reads, runtime and SSH output. Incomp
 ## Verification
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p test_cloud_directories_probe.py -v
+cargo test --locked -p nexode-remote-inspect
 justrust test -p nexode-tui --lib cloud_ -- --nocapture
 justrust test -p nexode-tui --test cloud_widget_api
 ```
+
+## Rust inventory protocol
+
+The SSH panel calls `nexode __remote-inventory <directory> <session>` using the configured `NEXODE_SSH_BINARY`. This read-only internal command exits before provider and daemon initialization. The remote host must run a version containing this command; older hosts report inventory unavailable/stale rather than falling back to Python. The standalone `nexode-remote-inspect` binary exposes the same collector for tests and diagnostics.

@@ -38,12 +38,18 @@ pub struct CloudDirectoryEntry {
     pub busy: usize,
 }
 
-const DIRECTORIES_PROBE: &str = include_str!("cloud_directories_probe.py");
-
+#[cfg(not(test))]
 fn directories_script(session_id: Option<&str>) -> String {
-    let hint = session_id.unwrap_or("").replace('\'', "'\\''");
+    let binary = std::env::var("NEXODE_SSH_BINARY").unwrap_or_else(|_| "nexode".into());
+    inventory_command(&binary, session_id)
+}
+
+fn inventory_command(binary: &str, session_id: Option<&str>) -> String {
+    let quote = |s: &str| format!("'{}'", s.replace('\'', "'\\''"));
     format!(
-        "python3 - \"$1\" '{hint}' <<'NEXODE_DIRECTORIES_PY'\n{DIRECTORIES_PROBE}\nNEXODE_DIRECTORIES_PY\n"
+        "exec {} __remote-inventory \"$1\" {}\n",
+        quote(binary),
+        quote(session_id.unwrap_or(""))
     )
 }
 
@@ -478,31 +484,30 @@ mod tests {
         assert!(info.directories.unwrap().entries.is_empty());
     }
 
+    #[cfg(unix)]
     #[tokio::test]
-    async fn directory_script_runs_through_real_shell_transport() {
-        let home = tempfile::tempdir().unwrap();
-        let project = home.path().join("project ' 雲");
-        std::fs::create_dir(&project).unwrap();
-        let mut command = super::super::cloud_git::script_command(
+    async fn inventory_shell_transport_preserves_arguments_without_evaluation() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("orbit ' helper");
+        std::fs::write(&binary, "#!/bin/sh\nprintf '%s\\000' \"$@\"\n").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let cwd = "/project ' $(not-a-command) 雲";
+        let session = "id'; exit 1; '";
+        let command = super::super::cloud_git::script_command(
             None,
             None,
-            project.to_str().unwrap(),
-            &directories_script(None),
+            cwd,
+            &inventory_command(binary.to_str().unwrap(), Some(session)),
         );
-        command.env("HOME", home.path());
-        command.env("NEXODE_HOME", home.path().join(".nexode"));
         let (status, bytes) =
-            super::super::cloud_git::bounded_output(command, Duration::from_secs(8), 1024 * 1024)
+            super::super::cloud_git::bounded_output(command, Duration::from_secs(2), 4096)
                 .await
-                .expect("bounded directory probe");
+                .unwrap();
         assert!(status.success());
-        let snapshot = parse_directories(&bytes).expect("valid directory wire response");
-        assert_eq!(snapshot.current_path.as_deref(), Some("~/project ' 雲"));
-        assert!(
-            snapshot
-                .entries
-                .iter()
-                .any(|entry| entry.path == "~/project ' 雲" && entry.agents == 0)
+        assert_eq!(
+            bytes,
+            format!("__remote-inventory\0{cwd}\0{session}\0").as_bytes()
         );
     }
 
