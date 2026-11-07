@@ -9,6 +9,8 @@ mod draws;
 mod idle;
 #[cfg(unix)]
 mod idle_perf;
+#[cfg(target_os = "linux")]
+mod idle_rss;
 #[cfg(unix)]
 mod input_flicker;
 #[cfg(unix)]
@@ -40,7 +42,16 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "bench-nexode-maki" {
+        let result = if command == "repro-idle-session-rss" {
+            #[cfg(target_os = "linux")]
+            {
+                idle_rss::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("RSS probe requires Linux /proc")
+            }
+        } else if command == "bench-nexode-maki" {
             #[cfg(target_os = "linux")]
             {
                 maki::run(args)

@@ -304,3 +304,13 @@ server is included. Reports are written atomically after each seeded job.
 Validation exercised a real Nexode daemon/client and a Maki CLI fixture, including
 secret-env exclusion, no-splash configuration, all 20 echoes and process cleanup.
 No real Maki performance comparison was run or claimed during migration.
+
+`repro-idle-session-rss [--binary PATH] [--sessions 20] [--rounds 4]`
+opens/closes native subscriptions and records server RSS, anonymous memory,
+allocator statistics and a final memory report. Framed acknowledgements must
+match the subscription, and owned servers are reaped on every exit. The default
+uses synthetic credentials; `--source-home PATH` explicitly snapshots selected
+local credentials/config privately without writable symlinks. `--trim` enables
+optional gdb malloc trimming, and privilege elevation additionally needs
+`--sudo`. Neither is used by validation. A short real-daemon check verified
+protocol/accounting/cleanup, not long-term memory-retention behavior.

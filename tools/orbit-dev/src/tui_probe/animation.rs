@@ -304,7 +304,10 @@ while true; do
    printf 'ok' > "$NEXODE_DEBUG_RESPONSE_PATH"
   fi
  fi
- if IFS= read -r -t 0.01 -n1 key; then printf '\033[1;1H1> %s' "$key"; fi
+ key=''
+ IFS= read -r -t 0.01 -n1 key || true
+ # Bash can consume the byte at the timeout boundary but return nonzero.
+ if [[ -n $key ]]; then printf '\033[1;1H1> %s' "$key"; fi
 done
 "#).unwrap();
         fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
