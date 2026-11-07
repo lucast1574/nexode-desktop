@@ -57,3 +57,5 @@ Architecture reports: `cargo xtask compile-isolation [--json] [--top N] [--stric
 Local test servers: `cargo xtask browser-fixture [--port N]` and `cargo xtask fake-openai-server <port>`. The provider requires `FAKE_LOG` and supports `FAKE_LABEL`, `FAKE_CONTROL_DIR`, and `FAKE_PORT_FILE`. Both bind only loopback. `scripts/orbit_dev.sh --build-only` prepares a native binary before tests clear their environment.
 
 Live browser acceptance is opt-in: `BROWSER_SESSION=... cargo xtask test-browser-handoff-live --tab-id ID`. It requires an existing disposable fixture/about:blank tab and configured inference credentials. Unit tests never run this live command.
+
+`NEXODE_SCRATCH_DIR=/isolated/scratch cargo xtask test-cloud-detached-turn --binary /absolute/path/to/nexode` exercises a real detached turn against the native fake provider, busy rejection, completion, private logs and session inspection. It uses Linux process ownership markers for cleanup.
