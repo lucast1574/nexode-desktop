@@ -1,14 +1,12 @@
 //! Regressions for #1743: browser control of the user's own browser.
 #![allow(clippy::await_holding_lock)]
 use super::*;
-#[path = "../../../../tools/orbit-dev/test_support.rs"]
-mod native_fixture;
+use crate::native_fixture;
 
 /// Fake bridge CLI. Session daemons answer like the real host. A daemon whose
 /// name has a `stale` marker file reports its bound tab as closed, the way the
 /// host does after the user closes the agent's window. Calls without a session
 /// record their params, as the CLI's direct mode would see them.
-
 struct Fixture {
     _env_guard: std::sync::MutexGuard<'static, ()>,
     temp: tempfile::TempDir,

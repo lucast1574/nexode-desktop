@@ -176,6 +176,10 @@ pub use launch::{
 #[cfg(feature = "ssh-native")]
 pub use native_ssh::{NativeSshKey, NativeSshOptions, NativeSshTransport};
 pub use nexode_applet_types as applet;
+#[cfg(all(test, unix))]
+#[path = "../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;
+
 pub use nexode_harness_api::{
     SessionEditStats, enrich_sessions_from_edit_stats, enrich_sessions_from_local_edit_stats,
     enrich_sessions_from_local_swarm_state, enrich_sessions_from_swarm_state,

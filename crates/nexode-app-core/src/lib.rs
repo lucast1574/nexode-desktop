@@ -68,3 +68,7 @@ pub fn set_current_session(session_id: &str) {
 pub fn get_current_session() -> Option<String> {
     CURRENT_SESSION_ID.lock().ok()?.clone()
 }
+
+#[cfg(test)]
+#[path = "../../../tools/orbit-dev/test_support.rs"]
+mod native_fixture;

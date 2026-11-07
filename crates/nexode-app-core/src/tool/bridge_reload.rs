@@ -15,8 +15,7 @@
 //! line if the new bridge does not come up.
 
 #[cfg(all(test, target_os = "linux"))]
-#[path = "../../../../tools/orbit-dev/test_support.rs"]
-mod native_fixture;
+use crate::native_fixture;
 
 use crate::background::{self, TaskResult};
 use crate::build;

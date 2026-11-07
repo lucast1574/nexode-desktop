@@ -1,7 +1,6 @@
-#[cfg(unix)]
-#[path = "../../../../tools/orbit-dev/test_support.rs"]
-mod native_fixture;
 use super::*;
+#[cfg(unix)]
+use crate::native_fixture;
 
 /// Explicit opt-in: uses an installed CLI, isolated empty credential homes,
 /// and only offline begin/cancel. Never opens a browser or exchanges tokens.

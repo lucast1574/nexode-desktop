@@ -136,8 +136,7 @@ fn mcp_collision_alias_policy_preserves_deny_precedence() {
     clear_session_tool_policy(session);
 }
 
-#[path = "../../../../../tools/orbit-dev/test_support.rs"]
-mod native_fixture;
+use crate::native_fixture;
 
 #[test]
 fn mcp_collision_manual_lifecycle_real_stdio() {

@@ -1,7 +1,6 @@
 #![allow(clippy::await_holding_lock)]
 use super::*;
-#[path = "../../../../tools/orbit-dev/test_support.rs"]
-mod native_fixture;
+use crate::native_fixture;
 use std::time::{Duration, Instant};
 
 struct BrowserFixture {

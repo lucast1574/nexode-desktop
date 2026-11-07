@@ -1,7 +1,6 @@
 //! Real OpenSSH multiplexing tests with a tiny deterministic API fixture, no CLI/daemon.
-#[path = "../../../tools/orbit-dev/test_support.rs"]
-mod native_fixture;
 use super::*;
+use crate::native_fixture;
 use std::os::unix::fs::PermissionsExt;
 use std::time::Instant;
 
