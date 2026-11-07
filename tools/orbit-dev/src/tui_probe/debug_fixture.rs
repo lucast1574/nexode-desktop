@@ -18,6 +18,24 @@ pub(super) struct Fixture {
     _root: tempfile::TempDir,
 }
 impl Fixture {
+    pub fn client_command(&self, binary: &Path) -> Command {
+        let root = self._root.path();
+        let mut command = Command::new(binary);
+        command
+            .env_clear()
+            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+            .env("HOME", root.join("home"))
+            .env("NEXODE_HOME", root.join("home"))
+            .env("NEXODE_RUNTIME_DIR", root.join("run"))
+            .env("NEXODE_NO_TELEMETRY", "1")
+            .args(["--no-update", "--no-selfdev", "--socket"])
+            .arg(root.join("run/nexode.sock"));
+        command
+    }
+    pub fn retain_artifacts(self) -> PathBuf {
+        drop(self._server);
+        self._root.keep()
+    }
     pub fn new(binary: &Path) -> Result<Self> {
         let root = tempfile::Builder::new()
             .prefix("orbit-debug-fixture-")

@@ -20,6 +20,7 @@ pub(super) struct Snapshot {
     pub colors: std::collections::BTreeSet<[u8; 3]>,
     pub first_output: Option<Instant>,
     pub last_output: Option<Instant>,
+    pub output_events: VecDeque<Instant>,
     pub history: VecDeque<(u64, Instant, Option<String>)>,
     pub error: Option<String>,
     pub eof: bool,
@@ -173,6 +174,10 @@ impl Client {
                             }
                             state.first_output.get_or_insert(at);
                             state.last_output = Some(at);
+                            state.output_events.push_back(at);
+                            if state.output_events.len() > 100_000 {
+                                state.output_events.pop_front();
+                            }
                             state.rows = rows;
                             if state
                                 .history

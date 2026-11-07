@@ -274,6 +274,7 @@ fn main() -> Result<()> {
             | "socket-connect"
             | "debug-call"
             | "benchmark-tools"
+            | "repro-input-lag"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

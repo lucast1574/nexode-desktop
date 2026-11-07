@@ -22,6 +22,8 @@ mod idle_rss;
 #[cfg(unix)]
 mod input_flicker;
 #[cfg(unix)]
+mod input_lag;
+#[cfg(unix)]
 mod inspect;
 #[cfg(unix)]
 mod io;
@@ -68,7 +70,9 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "benchmark-tools" {
+        let result = if command == "repro-input-lag" {
+            input_lag::run(args)
+        } else if command == "benchmark-tools" {
             tool_bench::run(args)
         } else if matches!(command, "socket-connect" | "debug-call") {
             socket_cli::run(command, args)

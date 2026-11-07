@@ -462,3 +462,16 @@ iteration, response validation, CSV output and sorted timing summaries. All writ
 use temporary files and an owned session. `--live` on an external configured daemon
 adds semantic memory recall. Two repetitions of all 27 local cases passed against
 the real runtime. The historical shell entrypoint delegates to this command.
+
+`repro-input-lag --binary PATH [--json] [--repeat N] [--background-clients N]
+[--immediate] [--no-idle-animation] [--keep]` measures five original typing/slash
+scenarios using real PTY output events, first-output and settling latency, idle
+output rate, and client slow-frame/draw diagnostics. `--live` uses an explicitly
+selected `--socket`/`--debug-socket` or the current runtime paths. Sessions created
+by the probe are destroyed before closing their clients. First-output events can
+include idle output; settling values are diagnostic, not causal proof of key
+latency. Exit 0 means within budget, 1 means a reproduced budget violation, 3 means
+setup/probe failure. A real run with two background clients passed the default
+budgets; an immediate run preserved low typing latency but correctly returned 1
+for 13.5 idle output chunks/s (budget 8), with successful owned-session cleanup.
+The full native test suite passed after the shared PTY event capture change.
