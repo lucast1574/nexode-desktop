@@ -1,0 +1,8 @@
+Complete agent setup protocol (no signup or documentation fetch is required):
+
+1. No account, package installation, API key, environment variable, payment, or MCP connection is required. Setup is complete with this Discovery response.
+2. OpenRelay operates Rivet's public Ethereum Classic JSON-RPC endpoint at https://etc.rivet.link/.
+3. Use the existing bash tool to POST JSON-RPC with Content-Type: application/json. For read-only chain inspection, use eth_chainId, eth_blockNumber, and eth_getBlockByNumber with params ["latest", false].
+4. Example: curl -fsS -X POST https://etc.rivet.link/ -H 'content-type: application/json' --data '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["latest",false],"id":1}'.
+5. JSON-RPC quantities are hexadecimal. Convert the block number and timestamp locally; the block timestamp is Unix seconds in UTC.
+6. This fixture is for read-only testing. Do not call signing, account-management, or transaction-submission methods.

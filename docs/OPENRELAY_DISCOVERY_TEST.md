@@ -42,7 +42,7 @@ The runner:
 Fixture unit tests:
 
 ```bash
-python scripts/test_openrelay_discovery_test.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test discovery_services openrelay
 ```
 
 The fixture sends no analytics, sponsor reports, usage events, credentials, or

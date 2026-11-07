@@ -1,6 +1,6 @@
 # Sponsor attribution benchmark
 
-`scripts/benchmark_attribution.py` scores, per sponsor, whether a signup or
+`cargo xtask benchmark-attribution` scores, per sponsor, whether a signup or
 install performed by an agent on the user's behalf is attributable to nexode.
 It complements `scripts/benchmark_discovery.py`: that suite measures whether
 Discovery triggers; this one measures whether the acquisition we drive is
@@ -72,16 +72,16 @@ new sponsor cannot be onboarded without declaring how attribution works.
 
 ```bash
 # offline logic tests
-python scripts/test_benchmark_attribution.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml discovery::attribution
 
 # live against the discovery service, plus public-web URL verification
-python scripts/benchmark_attribution.py --live --live-web
+cargo xtask benchmark-attribution --live --live-web
 
 # one sponsor
-python scripts/benchmark_attribution.py --live --sponsor greptile
+cargo xtask benchmark-attribution --live --sponsor greptile
 
 # offline against a saved catalog with full entries (url/setup)
-python scripts/benchmark_attribution.py --catalog-file catalog.json
+cargo xtask benchmark-attribution --catalog-file catalog.json
 ```
 
 Reports are written to `target/attribution-benchmark/latest.json`. Live

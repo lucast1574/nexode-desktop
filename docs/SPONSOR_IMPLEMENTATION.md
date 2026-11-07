@@ -25,7 +25,7 @@ Before a campaign is considered attributable:
 
 1. The sponsor implements and tests its attribution contract.
 2. The live Nexode select response includes the exact configured marker.
-3. `python scripts/benchmark_attribution.py --live --live-web --sponsor TOOL`
+3. `cargo xtask benchmark-attribution --live --live-web --sponsor TOOL`
    reports `CLI attribution: attributed` and a score of 100.
 4. A clean end-to-end signup through a release Nexode binary creates a sponsor
    record with the expected acquisition source.
@@ -35,7 +35,7 @@ The internal catalog and rollout runbook remains
 
 ## Exercise the reference implementation
 
-`scripts/mock_sponsor_service.py` is a runnable reference sponsor boundary. It
+`cargo xtask mock-sponsor` is a runnable reference sponsor boundary. It
 exposes a real local HTTP signup API and account API plus CLI commands for
 signup, magic-link confirmation, and account inspection. Attribution is carried
 inside signed, expiring, one-use state and persisted in SQLite on first account
@@ -44,7 +44,7 @@ creation.
 Run the end-to-end acceptance suite:
 
 ```bash
-python scripts/test_mock_sponsor_service.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test discovery_services
 ```
 
 The suite invokes the public CLI in subprocesses and crosses the HTTP boundary.
@@ -54,7 +54,7 @@ state is rejected, and a magic link cannot be reused. This reference proves the
 proposed contract is implementable. Sponsor production acceptance still
 requires the live catalog benchmark and a test account in the sponsor's system.
 It also exposes a discovery-compatible browse/select endpoint and runs the real
-`benchmark_attribution.py` entry point against it, including marked public-web
+`cargo xtask benchmark-attribution` entry point against it, including marked public-web
 URL resolution. The integrated reference must score 100 with CLI attribution
 reported as `attributed`.
 The end-to-end suite also fetches the select response, extracts the exact setup

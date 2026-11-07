@@ -67,8 +67,8 @@ After deploying the AgentCard CLI and updating Nexode's hosted catalog:
 
 ```bash
 cd /path/to/nexode
-python scripts/test_benchmark_attribution.py
-python scripts/benchmark_attribution.py --live --live-web --sponsor agentcard
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml discovery::attribution
+cargo xtask benchmark-attribution --live --live-web --sponsor agentcard
 ```
 
 The second command exercises the live browse and select API used by release
@@ -91,6 +91,6 @@ The HTTP benchmark proves Nexode serves the contract. The clean signup proves
 AgentCard receives and persists it. Both are required.
 
 Before implementing this in AgentCard, the same contract can be exercised
-locally with `python scripts/test_mock_sponsor_service.py`; see
+locally with `cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test discovery_services`; see
 [`SPONSOR_IMPLEMENTATION.md`](../SPONSOR_IMPLEMENTATION.md) for the modeled
 service boundary and covered failure cases.

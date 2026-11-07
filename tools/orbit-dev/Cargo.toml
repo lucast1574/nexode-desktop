@@ -25,3 +25,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tempfile = "3"
 tiny_http = "0.12"
 url = "2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+hmac = "0.12"
+base64 = "0.22"

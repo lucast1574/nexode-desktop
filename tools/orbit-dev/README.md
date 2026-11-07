@@ -63,3 +63,11 @@ Live browser acceptance is opt-in: `BROWSER_SESSION=... cargo xtask test-browser
 `cargo xtask bench-resume-picker /absolute/path/to/nexode --runs 3` measures picker loading, population and terminal restoration using an owned Unix PTY. Add `--cancel-loading` to measure cancellation. `cargo xtask bench-resume-suite --samples 20` runs the offline Rust benchmark matrices with the existing Justrust build runner and preserves metadata, raw logs and structured results; `--binary PATH` adds the PTY measurements.
 
 `cargo xtask bench-startup /absolute/path/to/nexode --runs 3 --check` measures help/version, socket readiness and cold-client startup profiles in isolated Linux sandboxes. It uses a native PTY, enforces the original configurable budgets, rejects missing required measurements, and cleans up only processes bearing its unique workspace marker. It requires neither Python nor `script`/`timeout`. Budget failures exit with status 2.
+
+Discovery and attribution fixtures are native Rust:
+
+- `cargo xtask mock-sponsor serve --db /tmp/sponsor.sqlite` starts the local reference service. The `signup`, `confirm`, and `account` subcommands exercise signed, expiring, one-use links and immutable first-acquisition attribution in SQLite.
+- `cargo xtask benchmark-attribution --catalog-file catalog.json` evaluates saved entries; `--live --endpoint URL` checks browse/select and `--live-web` also checks referral redirects. Missing or unknown CLI attribution fails the gate, even with a lower `--min-score`.
+- `cargo xtask openrelay-discovery-server --ready-file /tmp/discovery-ready.json` serves the local OpenRelay listing. `openrelay-check` validates readiness metadata, RPC chain identity, and recorded agent traces for the existing live shell runner.
+
+`cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test discovery_services` runs the public CLI/HTTP round trips with an empty PATH. It creates no real sponsor accounts or external model calls.

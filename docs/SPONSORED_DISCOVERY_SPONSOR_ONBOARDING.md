@@ -382,7 +382,7 @@ A sponsor is onboarded only when every box is checked:
 - [ ] Intake, ownership, campaign dates, and rollback contact are recorded.
 - [ ] An attribution mechanism is declared in
       `scripts/attribution_benchmark_sponsors.json` and
-      `python scripts/benchmark_attribution.py --live --sponsor <tool>` scores
+      `cargo xtask benchmark-attribution --live --sponsor <tool>` scores
       100. See `docs/ATTRIBUTION_BENCHMARK.md`.
 - [ ] Placement-only policy and independent recommendations are accepted.
 - [ ] Category and factual copy are approved.

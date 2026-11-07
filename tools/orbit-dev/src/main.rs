@@ -5,6 +5,7 @@ mod browser_package;
 mod compile_report;
 mod detached_acceptance;
 mod diagnostics;
+mod discovery;
 mod fake_openai;
 mod process;
 #[cfg(unix)]
@@ -35,8 +36,8 @@ Checks: check-branding, check-modules, check-boundaries
 Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors, check-wildcards [--update]
 SDK: version-sdk <runtime-tag>
 Browser: browser-fixture [--port N], test-browser-handoff-live --tab-id ID, package-browser <extension-source> <output>
-Benchmarks: bench-startup [binary] [--check], bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
-Fixtures: test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
+Benchmarks: benchmark-attribution [--help], bench-startup [binary] [--check], bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
+Fixtures: mock-sponsor [--help], openrelay-discovery-server [--help], openrelay-check [endpoint|rpc|trace], test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
 Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
 Rehearsal: update-rehearsal [--help]
@@ -45,6 +46,10 @@ fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
+        Some("benchmark-attribution") => discovery::attribution::run(&root()?, args)?,
+        Some("openrelay-check") => discovery::openrelay_check::run(args)?,
+        Some("mock-sponsor") => discovery::sponsor::run(args)?,
+        Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,
         Some("bench-startup") => startup_bench::run(args)?,
         Some("bench-resume-picker") => resume_bench::run_picker(args)?,
         Some("bench-resume-suite") => resume_bench::run_suite(&root()?, args)?,

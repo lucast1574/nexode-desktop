@@ -29,7 +29,7 @@ EOF
     ;;
   --dry-run)
     printf 'server=%s\nprovider=%s\nmodel=%s\nprompt=%s\noutput=%s\n' \
-      "$REPO_ROOT/scripts/openrelay_discovery_test_server.py" \
+      "cargo xtask openrelay-discovery-server" \
       "$PROVIDER" "$MODEL" "$PROMPT" "$OUTPUT"
     exit 0
     ;;
@@ -40,7 +40,7 @@ EOF
     ;;
 esac
 
-for command in python curl; do
+for command in curl; do
   command -v "$command" >/dev/null || { printf 'Missing required command: %s\n' "$command" >&2; exit 1; }
 done
 [[ -x "$NEXODE_BIN" ]] || { printf 'Nexode binary is not executable: %s\n' "$NEXODE_BIN" >&2; exit 1; }
@@ -64,7 +64,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-python "$REPO_ROOT/scripts/openrelay_discovery_test_server.py" \
+orbit_dev_bin="$("$REPO_ROOT/scripts/orbit_dev.sh" --build-only)"
+"$orbit_dev_bin" openrelay-discovery-server \
   --ready-file "$ready_file" >"$SERVER_LOG" 2>&1 &
 server_pid=$!
 
@@ -74,7 +75,7 @@ for _ in $(seq 1 100); do
   sleep 0.05
 done
 [[ -s "$ready_file" ]] || { printf 'Discovery fixture did not become ready\n' >&2; exit 1; }
-endpoint="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["endpoint"])' "$ready_file")"
+endpoint="$("$orbit_dev_bin" openrelay-check endpoint "$ready_file")"
 
 cat >"$test_home/config.toml" <<EOF
 [sponsors]
@@ -96,7 +97,7 @@ done
 rpc_probe="$(curl -fsS --max-time 10 -X POST https://etc.rivet.link/ \
   -H 'content-type: application/json' \
   --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}')"
-python -c 'import json,sys; assert json.loads(sys.argv[1]).get("result") == "0x3d"' "$rpc_probe"
+"$orbit_dev_bin" openrelay-check rpc <<< "$rpc_probe"
 
 printf 'NEXODE_PROGRESS {"percent":10,"message":"Local Discovery fixture ready"}\n'
 printf 'NEXODE_PROGRESS {"percent":20,"message":"OpenRelay public RPC verified"}\n'
@@ -120,69 +121,7 @@ set -e
 
 printf 'NEXODE_PROGRESS {"percent":90,"message":"Validating agent trace"}\n'
 set +e
-python - "$OUTPUT" "$SERVER_LOG" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-output_path, server_log_path = map(Path, sys.argv[1:])
-agent_events = []
-for line in output_path.read_text(errors="replace").splitlines():
-    try:
-        agent_events.append(json.loads(line))
-    except json.JSONDecodeError:
-        pass
-server_events = []
-for line in server_log_path.read_text(errors="replace").splitlines():
-    try:
-        event = json.loads(line)
-    except json.JSONDecodeError:
-        continue
-    if event.get("event") == "discovery_request":
-        server_events.append(event)
-
-browse = any(
-    event.get("phase") == "browse"
-    and event.get("category") == "cloud-infrastructure"
-    for event in server_events
-)
-select = any(
-    event.get("phase") == "select"
-    and event.get("tool") == "openrelay-rivet"
-    for event in server_events
-)
-bash_calls = [
-    event for event in agent_events
-    if event.get("type") == "tool_done" and event.get("name") == "bash"
-]
-active_tool = None
-bash_inputs = []
-for event in agent_events:
-    if event.get("type") == "tool_start":
-        active_tool = event.get("name")
-    elif event.get("type") == "tool_input" and active_tool == "bash":
-        bash_inputs.append(str(event.get("delta", "")))
-    elif event.get("type") in {"tool_exec", "tool_done"}:
-        active_tool = None
-combined = "\n".join(json.dumps(event) for event in agent_events).lower()
-bash_input = "\n".join(bash_inputs).lower()
-has_rpc_query = all(
-    term in bash_input
-    for term in ("etc.rivet.link", "eth_chainid", "eth_getblockbynumber")
-)
-has_result = all(term in combined for term in ("ethereum classic", "utc", "chain id"))
-
-summary = {
-    "browse_openrelay_category": browse,
-    "selected_openrelay": select,
-    "bash_tool_completed": bool(bash_calls),
-    "bash_queried_openrelay_rpc": has_rpc_query,
-    "answer_mentions_requested_fields": has_result,
-}
-print(json.dumps({"openrelay_discovery_test": summary}, indent=2))
-if not all(summary.values()):
-    raise SystemExit(1)
-PY
+"$orbit_dev_bin" openrelay-check trace "$OUTPUT" "$SERVER_LOG"
 validation_status=$?
 set -e
 
