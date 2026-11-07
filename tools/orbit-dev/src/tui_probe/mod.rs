@@ -43,6 +43,8 @@ mod proc_monitor;
 mod process_metrics;
 #[cfg(unix)]
 mod profile;
+#[cfg(unix)]
+mod reload_probe;
 #[cfg(target_os = "linux")]
 mod resume_burst;
 #[cfg(unix)]
@@ -72,7 +74,9 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "repro-live-duplicate" {
+        let result = if command == "test-reload" {
+            reload_probe::run(args)
+        } else if command == "repro-live-duplicate" {
             live_duplicate::run(args)
         } else if command == "repro-input-lag" {
             input_lag::run(args)

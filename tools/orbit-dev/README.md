@@ -498,3 +498,13 @@ The human table preserves full session IDs; `--show-lines` adds source evidence.
 Like the original diagnostic, suspect findings do not change the process exit code.
 An eleven-record reference fixture checks exact JSON, latest-reload association,
 malformed input, filters and verdict precedence without requiring Python.
+
+`test-reload --fresh --binary PATH --repo CHECKOUT` (or `--socket DEBUG
+[--nexode-home PATH]`) verifies session lifecycle, concurrent debug responsiveness,
+self-dev diagnostics and read-only reload artifacts. `--test SUBSTRING` selects
+checks. All twelve groups passed against an isolated real daemon. Responsiveness
+does not prove shutdown or signal delivery: those contracts are checked by
+`cargo test --locked --no-default-features -p nexode-app-core --lib FILTER`, with
+filters `reload_tests`, `reload_context`, and `reload_marker_scope_tests` (34 tests
+passed). The legacy context regression verifies that a different session cannot
+consume the context. Missing canaries are observations; stale markers are warnings.

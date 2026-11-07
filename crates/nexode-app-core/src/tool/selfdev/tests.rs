@@ -307,6 +307,50 @@ fn test_reload_context_save_and_load_for_session_uses_session_scoped_file() {
 }
 
 #[test]
+fn test_reload_context_legacy_nonmatching_session_does_not_consume() {
+    let _storage_guard = crate::storage::lock_test_env();
+    let home = tempfile::tempdir().expect("temporary home");
+    let _home_guard = EnvVarGuard::set("NEXODE_HOME", home.path());
+    let context = ReloadContext {
+        task_context: Some("legacy migration acceptance".into()),
+        version_before: "before".into(),
+        version_after: "after".into(),
+        session_id: "session_owner".into(),
+        timestamp: "2026-11-07T00:00:00Z".into(),
+    };
+    let path = home.path().join("reload-context.json");
+    std::fs::write(&path, serde_json::to_vec(&context).unwrap()).unwrap();
+    let original = std::fs::read(&path).unwrap();
+    assert!(
+        ReloadContext::peek_for_session("session_other")
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        ReloadContext::load_for_session("session_other")
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+    assert_eq!(
+        ReloadContext::peek_for_session("session_owner")
+            .unwrap()
+            .unwrap()
+            .version_after,
+        "after"
+    );
+    assert!(path.exists(), "peek must not consume the matching context");
+    assert_eq!(
+        ReloadContext::load_for_session("session_owner")
+            .unwrap()
+            .unwrap()
+            .session_id,
+        "session_owner"
+    );
+    assert!(!path.exists(), "matching load consumes exactly its context");
+}
+
+#[test]
 fn test_recovery_directive_prefers_reload_context_when_present() {
     let ctx = ReloadContext {
         task_context: Some("Resume a self-dev reload".to_string()),

@@ -43,7 +43,7 @@ impl Drop for Session<'_> {
         }
     }
 }
-fn probe(socket: &Path, repo: &Path, action: &str) -> Result<Value> {
+pub(super) fn probe(socket: &Path, repo: &Path, action: &str) -> Result<Value> {
     let output = io::debug(
         socket,
         &format!("create_session:selfdev:{}", repo.display()),
@@ -66,7 +66,12 @@ fn probe(socket: &Path, repo: &Path, action: &str) -> Result<Value> {
     )?;
     session.close()?;
     if response["ok"] == false || response["type"] == "error" {
-        let error = response["error"].as_str().unwrap_or("").to_lowercase();
+        let error = ["error", "output", "message"]
+            .into_iter()
+            .filter_map(|k| response[k].as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
         ensure!(
             error.contains("not available")
                 && (action == "socket-info" || error.contains("selfdev")),
@@ -80,7 +85,7 @@ fn probe(socket: &Path, repo: &Path, action: &str) -> Result<Value> {
         json!({"action":action,"status":"passed","contains_socket_info": action != "socket-info" || output.to_lowercase().contains("socket")}),
     )
 }
-fn context(home: &Path) -> Result<Value> {
+pub(super) fn context(home: &Path) -> Result<Value> {
     let mut candidates = if home.exists() {
         fs::read_dir(home)?
             .collect::<std::io::Result<Vec<_>>>()?

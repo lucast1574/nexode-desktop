@@ -278,6 +278,7 @@ fn main() -> Result<()> {
             | "benchmark-tools"
             | "repro-input-lag"
             | "repro-live-duplicate"
+            | "test-reload"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"
