@@ -15,6 +15,7 @@ mod fake_openai;
 mod gateway;
 mod handoff;
 mod memory_snapshot;
+mod mermaid_probe;
 mod monitor;
 mod niri_fuzz;
 mod oauth;
@@ -124,6 +125,10 @@ fn main() -> Result<()> {
         Some("fuzz-niri-insert-point") => niri_fuzz::run(args)?,
         Some("verify-browser-cold-start") => {
             let code = browser_cold::run(args)?;
+            std::process::exit(code);
+        }
+        Some("mermaid-fit-probe") => {
+            let code = mermaid_probe::run(args)?;
             std::process::exit(code);
         }
         Some("monitor") => monitor::run(args)?,

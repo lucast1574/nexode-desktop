@@ -165,3 +165,9 @@ extension assets into a fresh profile, establishes the zombie precondition in
 Rust and writes the same readiness/tab evidence. SIGINT/SIGTERM explicitly exit
 namespace PID 1 to clean up browser descendants. Migration tests use fixtures;
 a real Firefox acceptance run remains a separate opt-in check.
+
+`cargo xtask mermaid-fit-probe [--inner 73x46] [--image 1180x1470] [--font 8x16]`
+reproduces the old/fixed diagram fit plans. `--png` decodes alpha bounds natively
+in Rust; `--alpha-bbox L,T,R,B` accepts measured bounds. Camera and clipping
+assertions return nonzero for failed conditions; a camera assertion without
+visible content evidence is an error. No Pillow or Python is needed.

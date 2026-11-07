@@ -33,3 +33,4 @@ tokio = { version = "1", features = ["rt", "time", "net", "io-util", "macros"] }
 shlex = "2"
 getrandom = "0.4"
 tungstenite = "0.24"
+png = "0.17"
