@@ -17,6 +17,7 @@ mod safety_scan;
 mod score;
 mod sdk_version;
 mod size_budget;
+mod startup_bench;
 mod structure;
 mod ws_cache;
 use anyhow::{Context, Result, bail};
@@ -34,7 +35,7 @@ Checks: check-branding, check-modules, check-boundaries
 Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors, check-wildcards [--update]
 SDK: version-sdk <runtime-tag>
 Browser: browser-fixture [--port N], test-browser-handoff-live --tab-id ID, package-browser <extension-source> <output>
-Benchmarks: bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
+Benchmarks: bench-startup [binary] [--check], bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
 Fixtures: test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
 Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
@@ -44,6 +45,7 @@ fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
+        Some("bench-startup") => startup_bench::run(args)?,
         Some("bench-resume-picker") => resume_bench::run_picker(args)?,
         Some("bench-resume-suite") => resume_bench::run_suite(&root()?, args)?,
         Some("test-cloud-detached-turn") => detached_acceptance::run(args)?,

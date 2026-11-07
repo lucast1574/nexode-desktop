@@ -10,4 +10,4 @@ if [[ ! -x "$binary" ]]; then
   exit 1
 fi
 
-exec python3 "$repo_root/scripts/bench_startup.py" "$binary" --check --runs 3
+exec "$repo_root/scripts/orbit_dev.sh" bench-startup "$binary" --check --runs 3

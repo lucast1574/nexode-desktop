@@ -6,7 +6,7 @@ A nexode "spawn" is the full cold-launch path of the interactive client:
     process start -> tokio runtime -> startup setup -> arg parse
         -> (cold) spawn the background server daemon -> connect TUI client.
 
-This profiler complements scripts/bench_startup.py (which only measures time)
+This profiler complements cargo xtask bench-startup (which only measures time)
 by also attributing RESOURCE UTILIZATION to each spawned process:
 
   * wall-clock time (and the built-in startup-profile phase breakdown)
