@@ -18,6 +18,11 @@ mod signing;
 mod transport;
 use std::io::{self, Read, Write};
 fn main() {
+    #[cfg(unix)]
+    if std::env::args().any(|s| s == "--desktop-daemon-fixture") {
+        transport::desktop_daemon().unwrap();
+        return;
+    }
     #[cfg(target_os = "linux")]
     if std::env::args().any(|s| s == "--heap-server-fixture") {
         transport::heap_server().unwrap();

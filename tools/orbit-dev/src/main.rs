@@ -10,6 +10,8 @@ mod ci_suites;
 mod cloud_runtime;
 mod compile_report;
 mod demo_shop;
+#[cfg(unix)]
+mod desktop_acceptance;
 mod detached_acceptance;
 mod diagnostics;
 mod discord_release;
@@ -78,6 +80,12 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("test-desktop-selfdev") => {
+            #[cfg(unix)]
+            desktop_acceptance::run(&root()?, args)?;
+            #[cfg(not(unix))]
+            bail!("desktop SDK acceptance requires Unix sockets");
+        }
         Some("update-cloud-runtime") => {
             #[cfg(target_os = "linux")]
             std::process::exit(cloud_runtime::run(args)?);

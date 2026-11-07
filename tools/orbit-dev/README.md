@@ -329,3 +329,13 @@ optional `--activate-launcher` switches the backend symlink with rollback on
 verification failure; it never reloads the daemon. Staging retries SSH transport
 failures, but activation never retries automatically. Requires Linux, `ldd`, and
 SSH access configured by the operator. Unit tests use local shell fixtures only.
+
+`test-desktop-selfdev [--nexode-binary PATH] [--bridge-binary PATH]`
+`[--desktop-repo PATH] [--output-dir NEW_DIRECTORY] [--compile-only]` compiles
+and runs the real Rust SDK acceptance client. It checks five working-directory
+paths, Desktop/CLI mode boundaries, prepared tools and prompts, context-only
+persistence and reattachment. Build the runtime and harness API bridge first.
+The SDK build is offline, so its dependencies must already be cached. Artifacts
+must be outside both checkouts; all daemons use private homes and sockets with
+no inherited credentials. `--compile-only` starts no runtime. Fixture tests
+verify orchestration and cleanup separately from real runtime acceptance.

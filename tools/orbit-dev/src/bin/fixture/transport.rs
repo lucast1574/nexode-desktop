@@ -4,6 +4,24 @@ use std::{
     io::{BufRead, Write},
     path::Path,
 };
+#[cfg(unix)]
+pub fn desktop_daemon() -> Result<()> {
+    use std::{fs, os::unix::net::UnixListener};
+    assert!(std::env::var_os("REAL_PROVIDER_SECRET").is_none());
+    let run = std::path::PathBuf::from(std::env::var_os("NEXODE_RUNTIME_DIR").unwrap());
+    fs::write(run.join("daemon-pid"), std::process::id().to_string())?;
+    let debug = UnixListener::bind(run.join("daemon-debug.sock"))?;
+    std::thread::spawn(move || {
+        for stream in debug.incoming() {
+            drop(stream.unwrap());
+        }
+    });
+    let listener = UnixListener::bind(run.join("daemon.sock"))?;
+    for stream in listener.incoming() {
+        drop(stream?);
+    }
+    Ok(())
+}
 #[cfg(target_os = "linux")]
 pub fn heap_server() -> Result<()> {
     use std::{fs, io::BufReader, os::unix::net::UnixListener};

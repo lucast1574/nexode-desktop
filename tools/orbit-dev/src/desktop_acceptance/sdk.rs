@@ -1,0 +1,119 @@
+use nexode_sdk::{api::ApiRequest, ConnectOptions, NexodeClient};
+use serde_json::{json, Value};
+use std::{io::{BufRead, BufReader, Write}, os::unix::net::UnixStream, path::PathBuf, time::Duration};
+
+fn debug(socket: &str, session: &str, command: &str, ok: bool) -> Value {
+    let mut stream = UnixStream::connect(socket).expect("private debug connect");
+    stream.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+    writeln!(stream, "{}", json!({"type":"debug_command", "id":1,
+        "session_id":session, "command":command})).unwrap();
+    let mut reader = BufReader::new(stream);
+    loop {
+        let mut line = String::new();
+        assert!(reader.read_line(&mut line).unwrap() > 0, "debug socket closed");
+        let frame: Value = serde_json::from_str(&line).unwrap();
+        if frame["id"] != 1 { continue; }
+        assert_eq!(frame["ok"], ok, "{command}: {frame}");
+        if !ok { return frame; }
+        return serde_json::from_str(frame["output"].as_str().unwrap()).unwrap();
+    }
+}
+fn connect(api: &str) -> NexodeClient {
+    NexodeClient::connect(ConnectOptions {
+        socket_path: Some(PathBuf::from(api)), ensure_runtime: false,
+        client_name: "desktop-selfdev-real-sdk-acceptance".into(),
+        request_timeout: Some(Duration::from_secs(20)),
+        supports_user_response: false,
+    }).expect("real SDK handshake")
+}
+fn names(context: &Value) -> Vec<&str> {
+    context["prepared_tools"].as_array().unwrap().iter()
+        .map(|tool| tool["name"].as_str().unwrap()).collect()
+}
+fn verify(api: &str, dbg: &str, cwd: &str, mode: &str, desktop_root: &str) {
+    let client = connect(api);
+    let session = client.create_session(Some(cwd.into())).expect("SDK create");
+    let id = &session.session_id;
+    let before = debug(dbg, id, "agent:info", true);
+    let context = debug(dbg, id, "agent:context:prepare", true);
+    assert_eq!(context["mode"], mode, "{context}");
+    assert_eq!(context["tools_locked"], true);
+    assert_eq!(context["prepared_tools"], context["effective_tools"]);
+    let tool_names = names(&context);
+    assert_eq!(context["locked_tool_names"], json!(tool_names));
+    let prompt = context["system_prompt"]["static"].as_str().unwrap();
+    assert_eq!(prompt.contains("# Nexode Desktop Self-Development Mode"), mode == "desktop");
+    assert_eq!(prompt.contains("# Self-Development Mode"), mode == "cli");
+    match mode {
+        "desktop" => {
+            assert_eq!(context["is_canary"], false);
+            assert!(tool_names.contains(&"desktop_selfdev"));
+            for tool in ["selfdev", "debug_socket", "nexode_docs"] {
+                assert!(!tool_names.contains(&tool));
+            }
+            let definition = context["prepared_tools"].as_array().unwrap().iter()
+                .find(|t| t["name"] == "desktop_selfdev").unwrap();
+            assert!(definition["input_schema"]["properties"]["action"]["enum"]
+                .as_array().unwrap().contains(&json!("status")));
+            let status = debug(dbg, id, r#"tool:desktop_selfdev {"action":"status"}"#, true);
+            let status: Value = serde_json::from_str(status["output"].as_str().unwrap()).unwrap();
+            assert_eq!(status["mode"], "desktop");
+            assert_eq!(status["repo"], desktop_root);
+            assert!(status["instance"].is_null(), "must not see a live Desktop host");
+            let test = debug(dbg, id,
+                r#"tool:desktop_selfdev {"action":"test","command":"printf 'desktop-sdk-no-inference\\n'; pwd","timeout_seconds":10}"#, true);
+            let output = test["output"].as_str().unwrap();
+            assert!(output.contains("desktop-sdk-no-inference"), "{output}");
+            assert!(output.contains(desktop_root), "{output}");
+            for tool in ["selfdev", "debug_socket"] {
+                debug(dbg, id, &format!("tool:{tool} {{\"action\":\"status\"}}"), false);
+            }
+        }
+        "cli" => {
+            assert_eq!(context["is_canary"], true);
+            assert!(tool_names.contains(&"selfdev"));
+            assert!(!tool_names.contains(&"desktop_selfdev"));
+            debug(dbg, id, r#"tool:desktop_selfdev {"action":"status"}"#, false);
+        }
+        "regular" => {
+            assert_eq!(context["is_canary"], false);
+            assert!(!tool_names.contains(&"selfdev"));
+            assert!(!tool_names.contains(&"desktop_selfdev"));
+            debug(dbg, id, r#"tool:desktop_selfdev {"action":"status"}"#, false);
+        }
+        _ => panic!("unknown mode"),
+    }
+    let after = debug(dbg, id, "agent:info", true);
+    assert_eq!(before["session"]["message_count"], after["session"]["message_count"]);
+    assert_eq!(before["token_usage"], after["token_usage"]);
+    assert_eq!(after["token_usage"]["output"], 0);
+    // Persist a marker using the SDK's explicit no_reply path, then reattach.
+    let reply = client.request(ApiRequest::SendMessage {
+        session_id: id.clone(), content: "desktop SDK acceptance context only".into(),
+        images: vec![], system_reminder: None, no_reply: true,
+    }).expect("SDK context-only persistence");
+    assert!(matches!(reply.event, nexode_sdk::api::ApiEvent::Ok));
+    let history = client.get_history(id).expect("SDK history");
+    let observer = connect(api);
+    let attached = observer.attach_session(id).expect("SDK reattach");
+    assert_eq!(&attached.session_id, id);
+    assert_eq!(attached.working_dir.as_deref(), Some(cwd));
+    assert_eq!(serde_json::to_value(observer.get_history(id).unwrap()).unwrap(),
+        serde_json::to_value(history).unwrap());
+    let restored = debug(dbg, id, "agent:context:prepare", true);
+    assert_eq!(restored["mode"], mode);
+    assert_eq!(restored["prepared_tools"], context["prepared_tools"]);
+    assert_eq!(debug(dbg, id, "agent:info", true)["token_usage"]["output"], 0);
+    println!("{}", json!({"mode":mode,"cwd":cwd,"session_id":id,
+        "sdk_create":true,"sdk_reattach":true,"provider_prompt_and_tools":true,
+        "actual_desktop_status_and_test":mode=="desktop","model_calls":0}));
+}
+fn main() {
+    let a: Vec<String> = std::env::args().collect();
+    assert_eq!(a.len(), 8);
+    verify(&a[1], &a[2], &a[3], "desktop", &a[3]);
+    verify(&a[1], &a[2], &a[4], "desktop", &a[3]);
+    verify(&a[1], &a[2], &a[5], "desktop", &a[3]);
+    verify(&a[1], &a[2], &a[6], "regular", &a[3]);
+    verify(&a[1], &a[2], &a[7], "cli", &a[3]);
+}
