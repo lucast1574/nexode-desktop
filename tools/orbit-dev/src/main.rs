@@ -29,6 +29,7 @@ mod discovery;
 mod fake_openai;
 mod gateway;
 mod handoff;
+mod json_field;
 #[cfg(unix)]
 mod key_capture;
 mod login_qr;
@@ -220,6 +221,7 @@ fn main() -> Result<()> {
             | "release-checksums"
             | "release-availability"),
         ) => release::run(command, args)?,
+        Some("json-field") => json_field::run(args)?,
         Some("package-version") => {
             use std::io::Read;
             let mut input = String::new();
@@ -267,6 +269,7 @@ fn main() -> Result<()> {
             command @ ("measure-key-echo"
             | "profile-remote-resume-burst"
             | "profile-spawn"
+            | "test-memory"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

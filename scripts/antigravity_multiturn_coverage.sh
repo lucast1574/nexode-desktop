@@ -20,6 +20,7 @@
 #
 # Exit status is non-zero when any model fails, so this is usable as a gate.
 set -uo pipefail
+ORBIT_DEV=$(bash "$(dirname "${BASH_SOURCE[0]}")/orbit_dev.sh" --build-only) || exit 1
 
 JC=${JC:-./target/selfdev/nexode}
 TURN_TIMEOUT=${TURN_TIMEOUT:-120}
@@ -70,18 +71,8 @@ run_turn() {
     return 1
   fi
   TURN_RC=0
-  TURN_SESSION=$(python3 -c '
-import json,sys
-try:
-    print(json.loads(sys.stdin.read()).get("session_id",""))
-except Exception:
-    print("")' <<<"$out")
-  TURN_TEXT=$(python3 -c '
-import json,sys
-try:
-    print(json.loads(sys.stdin.read()).get("text",""))
-except Exception:
-    print("")' <<<"$out")
+  TURN_SESSION=$("$ORBIT_DEV" json-field /session_id <<<"$out") || return 1
+  TURN_TEXT=$("$ORBIT_DEV" json-field /text <<<"$out") || return 1
   [[ -n "$TURN_TEXT" ]]
 }
 

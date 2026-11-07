@@ -4,6 +4,8 @@ mod animation;
 #[cfg(unix)]
 mod animation_verify;
 #[cfg(unix)]
+mod debug_fixture;
+#[cfg(unix)]
 mod draws;
 #[cfg(unix)]
 mod expand_badge;
@@ -29,6 +31,8 @@ mod isolated;
 mod lag;
 #[cfg(target_os = "linux")]
 mod maki;
+#[cfg(unix)]
+mod memory_probe;
 #[cfg(target_os = "linux")]
 mod proc_monitor;
 #[cfg(target_os = "linux")]
@@ -58,7 +62,9 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "profile-spawn" {
+        let result = if command == "test-memory" {
+            memory_probe::run(args)
+        } else if command == "profile-spawn" {
             #[cfg(target_os = "linux")]
             {
                 spawn_profile::run(args)

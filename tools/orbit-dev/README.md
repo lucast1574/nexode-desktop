@@ -423,3 +423,18 @@ phase deltas, RSS/PSS/swap, CPU since process birth, threads, descriptors, page
 faults, context switches and I/O. JSON is also printed for inspection. Missing
 readiness or an early exit fails the command instead of recording a successful
 empty run. Validated against two complete real daemon/client runs.
+
+`test-memory --fresh --binary PATH [--provider claude|openai]` tests actual memory
+remember/list/search/recent-recall/tag/link/graph traversal in a disposable daemon
+with synthetic credentials. Both provider configurations have passed against the
+real binary. `test-memory --socket DEBUG --live` additionally exercises Jev
+semantic recall, four real provider messages and extraction; these external
+requests are explicitly skipped without `--live`. The live protocol and failure
+cleanup are covered by a local socket fixture, not by paid provider calls.
+Created sessions and explicitly remembered entries are cleaned up. On an external
+daemon, live extraction can persist newly extracted test memories in its home.
+
+`json-field POINTER [--decode POINTER] [--length]` extracts JSON from stdin using
+RFC 6901 pointers. Missing fields, malformed input, nulls and oversized input fail.
+Antigravity multi-turn shell coverage uses this native parser; success and invalid
+JSON cases are tested with a synthetic CLI without invoking the provider.
