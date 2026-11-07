@@ -546,14 +546,14 @@ Current TUI-boundary stance:
 ## Root-Crate Decomposition Strategy (2026-05-29)
 
 The previous splits created many `*-types` / `*-core` crates that the root re-exports from, but
-`scripts/analyze_root_crate.py` shows **334K of 336K root-crate lines are still genuinely in-root**:
+`cargo xtask analyze-root-crate` shows **334K of 336K root-crate lines are still genuinely in-root**:
 the heavy logic stayed behind thin facades. The analyzer (committed alongside this section) gives the
 objective map needed to finish the job. Run it any time:
 
 ```bash
-python3 scripts/analyze_root_crate.py          # ranked modules + blockers + cycles + feedback arcs
-python3 scripts/analyze_root_crate.py --full    # full feedback-arc-set listing
-python3 scripts/analyze_root_crate.py --json     # machine-readable
+cargo xtask analyze-root-crate          # ranked modules + blockers + cycles + feedback arcs
+cargo xtask analyze-root-crate --full    # full feedback-arc-set listing
+cargo xtask analyze-root-crate --json     # machine-readable
 ```
 
 ### The core problem: one giant dependency cycle

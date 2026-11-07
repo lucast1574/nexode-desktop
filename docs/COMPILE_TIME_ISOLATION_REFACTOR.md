@@ -65,7 +65,7 @@ Track at least:
 3. `nexode-base -> nexode-app-core -> nexode-tui -> nexode lib -> nexode bin` stack span.
 4. Sum of frontend time in the serial stack.
 5. Incremental rebuild after touching representative high-churn files.
-6. Static report drift from `scripts/compile_isolation_report.py`: LOC, inline tests, `async_trait`, and target-state dependency advisories.
+6. Static report drift from `cargo xtask compile-isolation`: LOC, inline tests, `async_trait`, and target-state dependency advisories.
 
 ## Target architecture
 
@@ -111,7 +111,7 @@ Status: started.
 Deliverables:
 
 - `scripts/compile_time_probe.sh`
-- `scripts/compile_isolation_report.py`
+- `cargo xtask compile-isolation`
 - this document
 - dependency boundary checks/advisory reports
 
@@ -208,7 +208,7 @@ Before committing a phase:
 
 ```bash
 scripts/compile_time_probe.sh --skip-build
-scripts/compile_isolation_report.py
+cargo xtask compile-isolation
 scripts/check_dependency_boundaries.py
 cargo check --profile selfdev -p nexode --bin nexode
 ```

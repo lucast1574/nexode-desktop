@@ -1,9 +1,11 @@
 mod badges;
 mod branding;
 mod browser_package;
+mod compile_report;
 mod diagnostics;
 mod process;
 mod rehearsal;
+mod root_report;
 mod safety_budget;
 mod safety_scan;
 mod score;
@@ -27,13 +29,15 @@ Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors,
 SDK: version-sdk <runtime-tag>
 Browser: package-browser <extension-source> <output>
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
-Diagnostics: analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
+Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
 Rehearsal: update-rehearsal [--help]
 Repository: downloads-badge [--help], star-history [--help]";
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
+        Some("analyze-root-crate") => root_report::run(&root()?, args)?,
+        Some("compile-isolation") => compile_report::run(&root()?, args)?,
         Some("analyze-ws-cache") => ws_cache::run(args)?,
         Some("downloads-badge") => badges::run(false, args)?,
         Some("star-history") => badges::run(true, args)?,
