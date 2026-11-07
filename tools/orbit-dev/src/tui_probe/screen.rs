@@ -15,6 +15,7 @@ use std::{
 pub(super) struct Snapshot {
     pub rows: Vec<String>,
     pub frames: u64,
+    pub colors: std::collections::BTreeSet<[u8; 3]>,
     pub first_output: Option<Instant>,
     pub last_output: Option<Instant>,
     pub history: VecDeque<(u64, Instant, Option<String>)>,
@@ -102,6 +103,14 @@ fn answers(pending: &mut Vec<u8>, chunk: &[u8], queries: &[(Vec<u8>, Vec<u8>)]) 
 }
 impl Client {
     pub(super) fn spawn(command: &mut Command, rows: u16, cols: u16) -> Result<Self> {
+        Self::spawn_palette(command, rows, cols, None)
+    }
+    pub(super) fn spawn_palette(
+        command: &mut Command,
+        rows: u16,
+        cols: u16,
+        light: Option<bool>,
+    ) -> Result<Self> {
         let r = NonZeroU16::new(rows).context("rows must be positive")?;
         let c = NonZeroU16::new(cols).context("cols must be positive")?;
         let mut terminal = crate::pty::Terminal::spawn(command, rows, cols)?;
@@ -114,7 +123,19 @@ impl Client {
         let worker = std::thread::spawn(move || {
             let run = || -> Result<()> {
                 let mut parser = vt100::Parser::new(r, c, 0);
-                let queries = replies(rows, cols);
+                let mut queries = replies(rows, cols);
+                if light == Some(true) {
+                    for (query, answer) in &mut queries {
+                        if query.starts_with(b"\x1b]10;") || query.starts_with(b"\x1b]11;") {
+                            *answer = String::from_utf8_lossy(answer)
+                                .replace("ffff", "TEMP")
+                                .replace("0000", "ffff")
+                                .replace("TEMP", "0000")
+                                .into_bytes();
+                        }
+                    }
+                }
+                let mut colors = super::theme::Colors::default();
                 let mut pending = vec![];
                 let mut sequence = 0;
                 while !signal.load(Ordering::Relaxed) {
@@ -127,9 +148,15 @@ impl Client {
                         let at = Instant::now();
                         let rows: Vec<_> = parser.screen().rows(0, cols).collect();
                         let current = composer(&rows);
+                        if light.is_some() {
+                            colors.feed(&bytes)?;
+                        }
                         {
                             let mut state = view.lock().unwrap();
                             state.frames += 1;
+                            if light.is_some() {
+                                state.colors = colors.values.clone();
+                            }
                             state.first_output.get_or_insert(at);
                             state.last_output = Some(at);
                             state.rows = rows;

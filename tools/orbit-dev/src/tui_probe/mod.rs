@@ -16,13 +16,17 @@ mod screen;
 #[cfg(unix)]
 mod single;
 #[cfg(unix)]
+mod theme;
+#[cfg(unix)]
 mod visible;
 use anyhow::Result;
 pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if matches!(
+        let result = if command == "verify-light-theme" {
+            theme::run(args)
+        } else if matches!(
             command,
             "measure-animation-cpu-cost" | "sweep-animation-fps"
         ) {

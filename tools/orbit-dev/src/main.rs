@@ -144,7 +144,8 @@ fn main() -> Result<()> {
             | "count-idle-draws"
             | "pin-no-area-state"
             | "measure-animation-cpu-cost"
-            | "sweep-animation-fps"),
+            | "sweep-animation-fps"
+            | "verify-light-theme"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

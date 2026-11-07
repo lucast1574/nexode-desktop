@@ -235,3 +235,10 @@ Typing latency retains the original first-output definition: an animation frame
 can satisfy it, so it is not a key-to-paint measurement. Load and missing samples
 are reported. Native PTY/command-channel fixtures verify both ON/OFF paths;
 validation does not attach to a user daemon or claim a CPU improvement.
+
+`verify-light-theme [--binary PATH] [--seconds 12]` advertises black and white
+terminal backgrounds through ordered OSC replies, captures fragmented truecolor
+SGR sequences natively, and enforces the existing dim-text/accent contrast
+checks. It isolates both daemons and homes. The local Nexode binary passed both
+palettes with 19 distinct foreground colors per run. Color collection is
+disabled in other probes so it does not alter their measurements.

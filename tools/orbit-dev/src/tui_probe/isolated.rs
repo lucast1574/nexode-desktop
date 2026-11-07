@@ -43,6 +43,19 @@ impl Session {
         fresh: bool,
         environment: &[(&str, &str)],
     ) -> Result<Self> {
+        Self::configured(binary, rows, cols, fresh, environment, None)
+    }
+    pub fn with_palette(binary: &Path, light: bool) -> Result<Self> {
+        Self::configured(binary, 24, 80, false, &[], Some(light))
+    }
+    fn configured(
+        binary: &Path,
+        rows: u16,
+        cols: u16,
+        fresh: bool,
+        environment: &[(&str, &str)],
+        light: Option<bool>,
+    ) -> Result<Self> {
         ensure!(
             rows > 0 && cols > 0 && rows <= 512 && cols <= 1024,
             "terminal dimensions out of range"
@@ -80,6 +93,9 @@ impl Session {
                 .current_dir(&work)
                 .args(["--no-update", "--no-selfdev", "--socket"])
                 .arg(&socket);
+            if light.is_some() {
+                c.env_remove("NEXODE_THEME").env("COLORTERM", "truecolor");
+            }
             c
         };
         let mut launch = command();
@@ -101,7 +117,7 @@ impl Session {
         launch
             .env("NEXODE_DEBUG_CMD_PATH", &cmd)
             .env("NEXODE_DEBUG_RESPONSE_PATH", &resp);
-        let client = Client::spawn(&mut launch, rows, cols)?;
+        let client = Client::spawn_palette(&mut launch, rows, cols, light)?;
         let session = Self {
             client,
             _server: server,
