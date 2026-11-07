@@ -15,6 +15,7 @@ mod gateway;
 mod handoff;
 mod memory_snapshot;
 mod monitor;
+mod niri_fuzz;
 mod oauth;
 mod process;
 #[cfg(unix)]
@@ -119,6 +120,7 @@ fn main() -> Result<()> {
             let code = token_compare::run(&root()?, args)?;
             std::process::exit(code);
         }
+        Some("fuzz-niri-insert-point") => niri_fuzz::run(args)?,
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,

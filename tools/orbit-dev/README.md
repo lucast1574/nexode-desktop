@@ -151,3 +151,10 @@ existing three-prompt live Nexode/Claude CLI comparison. Binary and model flags
 allow explicit matching installations. Both output modes now fail for missing
 usage, partial runs or more than 50% total-token overhead; no live providers are
 used by unit tests. Undefined percentage differences serialize as JSON null.
+
+`cargo xtask fuzz-niri-insert-point [SEED] [COUNT] [--output PATH]` generates
+the same KDL stress constructs and keeps only configurations accepted by the real
+`niri validate`. The Rust seed stream is deterministic but differs from Python.
+The default corpus remains `~/.nexode/scratch/fuzz719/valid_inputs.json`; validation
+timeouts fail instead of silently treating tool failures as valid inputs. This
+command generates a corpus; the setup-hints Rust tests verify insertion behavior.
