@@ -6,9 +6,14 @@ mod browser_cold;
 mod browser_fixture;
 mod browser_package;
 mod ci_suites;
+#[cfg(unix)]
+mod cloud_credentials;
 #[cfg(target_os = "linux")]
 mod cloud_runtime;
+#[cfg(unix)]
+mod cloud_session_acceptance;
 mod compile_bench;
+mod compile_probe;
 mod compile_report;
 mod demo_shop;
 #[cfg(unix)]
@@ -20,6 +25,8 @@ mod discovery;
 mod fake_openai;
 mod gateway;
 mod handoff;
+#[cfg(unix)]
+mod key_capture;
 mod login_qr;
 mod memory_snapshot;
 mod mermaid_probe;
@@ -37,10 +44,13 @@ mod release_notes;
 mod reload_storm;
 mod resume_bench;
 mod root_report;
+#[cfg(target_os = "linux")]
+mod runtime_upgrade;
 mod safety_budget;
 mod safety_scan;
 mod score;
 mod sdk_version;
+mod shell_helpers;
 mod size_budget;
 mod startup_bench;
 mod structure;
@@ -71,6 +81,23 @@ Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [-
 Rehearsal: update-rehearsal [--help]
 Repository: downloads-badge [--help], star-history [--help]";
 fn main() -> Result<()> {
+    #[cfg(unix)]
+    if std::env::var_os("CLOUD_CLI_FIXTURE").is_some() {
+        let executable = std::env::args_os()
+            .next()
+            .map(PathBuf::from)
+            .context("missing argv0")?;
+        let name = executable
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        if matches!(
+            name,
+            "cloud-transport" | "ssh" | "ssh-keygen" | "curl" | "wget"
+        ) {
+            return cloud_session_acceptance::fixture(name);
+        }
+    }
     if std::env::args_os().next().is_some_and(|s| {
         std::path::Path::new(&s)
             .file_stem()
@@ -94,6 +121,38 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("capture-alt-shift-e") => {
+            #[cfg(unix)]
+            key_capture::run(args)?;
+            #[cfg(not(unix))]
+            bail!("terminal capture requires Unix");
+        }
+        Some(command @ "niri-window") => shell_helpers::run(command, args)?,
+        Some("test-cloud-credentials") => {
+            #[cfg(unix)]
+            cloud_credentials::run(args)?;
+            #[cfg(not(unix))]
+            bail!("cloud credential acceptance requires Unix pipes");
+        }
+        Some(command @ "expand-badge-headless") => {
+            std::process::exit(tui_probe::run(command, args)?)
+        }
+        Some("test-cloud-session-cli") => {
+            #[cfg(unix)]
+            cloud_session_acceptance::run(args)?;
+            #[cfg(not(unix))]
+            bail!("cloud CLI acceptance requires Unix");
+        }
+        Some(command @ ("strip-selfdev-marker" | "kitty-window" | "replay-keys")) => {
+            shell_helpers::run(command, args)?
+        }
+        Some("compile-time-probe") => compile_probe::run(&root()?, args)?,
+        Some("runtime-upgrade-acceptance") => {
+            #[cfg(target_os = "linux")]
+            runtime_upgrade::run(args)?;
+            #[cfg(not(target_os = "linux"))]
+            bail!("runtime upgrade acceptance requires Linux namespaces");
+        }
         Some("bench-compile") => std::process::exit(compile_bench::run(&root()?, args)?),
         Some("bench-selfdev-checkpoints") => compile_bench::checkpoints(&root()?, args)?,
         Some("phone-lambda") => phone::run(args)?,

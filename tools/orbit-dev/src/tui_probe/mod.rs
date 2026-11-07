@@ -5,6 +5,8 @@ mod animation;
 mod animation_verify;
 #[cfg(unix)]
 mod draws;
+#[cfg(unix)]
+mod expand_badge;
 #[cfg(target_os = "linux")]
 mod heap_diff;
 #[cfg(unix)]
@@ -46,7 +48,9 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "test-oauth-usage" {
+        let result = if command == "expand-badge-headless" {
+            expand_badge::run(args)
+        } else if command == "test-oauth-usage" {
             usage_probe::oauth(args)
         } else if command == "test-caching-detailed" {
             usage_probe::run(args)

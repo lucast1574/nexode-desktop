@@ -57,16 +57,7 @@ sleep 1
 # Step 4: Type the prompt into nexode
 echo "[4/5] Sending prompt..."
 # Find the kitty window id
-KITTY_WIN_ID=$(kitten @ --to unix:$SOCK ls 2>/dev/null | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for os_win in data:
-    for tab in os_win.get('tabs', []):
-        for win in tab.get('windows', []):
-            if 'nexode-demo-$DEMO_NAME' in win.get('title', ''):
-                print(win['id'])
-                sys.exit(0)
-")
+KITTY_WIN_ID=$(kitten @ --to unix:$SOCK ls 2>/dev/null | "$repo_root/scripts/orbit_dev.sh" kitty-window id "nexode-demo-$DEMO_NAME")
 
 if [ -n "$KITTY_WIN_ID" ]; then
     # Type the prompt character by character with small delay for visual effect
@@ -97,16 +88,7 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
     ELAPSED=$((ELAPSED + 5))
     
     # Check if the kitty window title indicates idle (no streaming)
-    CURRENT_TITLE=$(kitten @ --to unix:$SOCK ls 2>/dev/null | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for os_win in data:
-    for tab in os_win.get('tabs', []):
-        for win in tab.get('windows', []):
-            if win['id'] == $KITTY_WIN_ID:
-                print(win.get('title', ''))
-                sys.exit(0)
-" 2>/dev/null || echo "unknown")
+    CURRENT_TITLE=$(kitten @ --to unix:$SOCK ls 2>/dev/null | "$repo_root/scripts/orbit_dev.sh" kitty-window title "$KITTY_WIN_ID" 2>/dev/null || echo "unknown")
     
     echo "  [${ELAPSED}s] Window: $CURRENT_TITLE"
 done

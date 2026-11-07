@@ -51,17 +51,7 @@ touch_file() {
 revert_file() {
     local file="$1"
     # Remove the exact marker we appended (plus its preceding blank line).
-    python3 - "$file" << 'EOF'
-import sys
-path = sys.argv[1]
-with open(path) as fh:
-    content = fh.read()
-marker = "\n// bench_selfdev_build touch\n"
-if content.endswith(marker):
-    content = content[: -len(marker)]
-with open(path, "w") as fh:
-    fh.write(content)
-EOF
+    "$repo_root/scripts/orbit_dev.sh" strip-selfdev-marker "$file"
 }
 
 echo "selfdev build benchmark ($(git rev-parse --short HEAD), $(nproc) cpus)"

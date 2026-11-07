@@ -73,7 +73,7 @@ not a reason to reset or clean the cloud checkout: doing so could discard work.
 The process-level acceptance suite uses synthetic credentials, isolated `NEXODE_HOME` directories, and a local transport instead of SSH. It exercises both providers, refresh-token return, expired access tokens, identity-less accounts, dry runs, conflicts, and secret redaction without accessing any real provider or account:
 
 ```sh
-python3 tests/test_cloud_credentials.py /absolute/path/to/new/nexode
+scripts/orbit_dev.sh test-cloud-credentials /absolute/path/to/new/nexode
 ```
 
 The auth transfer and account-store modules also have focused Rust tests for payload validation, permissions, symlinks, concurrent writers, and preservation of existing accounts.

@@ -4,7 +4,7 @@ Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migraci
 
 ## Alcance y estado
 
-- Quedan **42 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **38 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -17,13 +17,13 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 ### Cloud, SSH y actualización del runtime
 
 - [ ] `scripts/cloud_acceptance_tui.py`
-- [ ] `scripts/runtime_upgrade_acceptance.py`
+- [x] `scripts/runtime_upgrade_acceptance.py` — `runtime-upgrade-acceptance`; probado contra el runtime real, con red y credenciales aisladas.
 - [ ] `scripts/test_cloud_acceptance.py`
-- [ ] `scripts/test_cloud_session_cli.py`
+- [x] `scripts/test_cloud_session_cli.py` — `test-cloud-session-cli`; probado contra la CLI real y transporte nativo hermético.
 - [x] `scripts/test_update_cloud_runtime.py` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/update_cloud_runtime.py` — migrado a Rust en `tools/orbit-dev`.
 - [ ] `tests/test_cloud_acceptance_harness.py`
-- [ ] `tests/test_cloud_credentials.py`
+- [x] `tests/test_cloud_credentials.py` — `test-cloud-credentials`; 14 escenarios con binario real y credenciales sintéticas.
 - [ ] `tests/test_native_ssh_cli.py`
 - [ ] `tests/test_native_ssh_import.py`
 - [ ] `tests/test_native_ssh_login.py`
@@ -66,7 +66,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [ ] `scripts/test_soft_interrupt.py`
 - [ ] `scripts/tests/mcp_cli_acceptance.py`
 - [ ] `tests/e2e/expand_badge_headed_wtype.py`
-- [ ] `tests/e2e/expand_badge_headless.py`
+- [x] `tests/e2e/expand_badge_headless.py` — `expand-badge-headless`; probado con PTY y runtime reales, en un daemon aislado.
 - [ ] `tests/test_injection_fix.py`
 - [ ] `tests/test_injection_thorough.py`
 - [ ] `tests/test_selfdev_reload.py`
@@ -90,14 +90,14 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 
 - [ ] `scripts/antigravity_multiturn_coverage.sh`
 - [x] `scripts/bench_compile.sh` — migrado a Rust en `tools/orbit-dev`.
-- [ ] `scripts/bench_selfdev_build.sh`
+- [x] `scripts/bench_selfdev_build.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/bench_selfdev_checkpoints.sh` — migrado a Rust en `tools/orbit-dev`.
 - [ ] `scripts/benchmark_tools.sh`
 - [ ] `scripts/compare_discovery_rate.sh`
-- [ ] `scripts/compile_time_probe.sh`
+- [x] `scripts/compile_time_probe.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/generate_release_notes.sh` — lanzador de `generate-release-notes` nativo.
-- [ ] `scripts/record_demo.sh`
-- [ ] `scripts/replay_recording.sh`
+- [x] `scripts/record_demo.sh` — Python sustituido por comandos nativos de orbit-dev.
+- [x] `scripts/replay_recording.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [ ] `scripts/run_terminal_bench_claude.sh`
 - [ ] `scripts/run_terminal_bench_harbor.sh`
 - [ ] `scripts/startup_acceptance_matrix.sh`
@@ -109,7 +109,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - [ ] `scripts/test_cloud_move_tui_e2e.sh`
 - [ ] `scripts/test_cloud_replace_e2e.sh`
 - [ ] `scripts/test_ssh_slash_workflows.sh`
-- [ ] `scripts/verify_alt_shift_e_reaches_terminal.sh`
+- [x] `scripts/verify_alt_shift_e_reaches_terminal.sh` — capturador de terminal Rust y selección de ventanas nativa; captura verificada con PTY.
 - [ ] `scripts/webfetch_corpus.sh`
 
 ## Integraciones que requieren atención especial

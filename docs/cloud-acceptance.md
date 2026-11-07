@@ -32,7 +32,7 @@ other terminals must reconnect to their migrated sessions.
 | --- | --- |
 | `cli` | `scripts/test_cloud_move_e2e.sh`: real cloud move/return commands and daemons, with a local transport script into a **bubblewrap** filesystem sandbox instead of SSH. Exercises dry run, repository/index/untracked state, session and todo transfer, ownership fencing, round-trip merge and conflict handling. |
 | `agent` | `scripts/test_cloud_move_agent_e2e.sh`: real agent turns before move, in the bubblewrap destination and after return. Checks conversation continuity, cloud notice in provider context and refusal to run the away local copy. Transport is local, not SSH. |
-| `credentials` | `tests/test_cloud_credentials.py`: synthetic OpenAI/Claude OAuth and router credentials over local pipes. Checks round trips, all-account transfer, permissions, secret-free archives/diagnostics, stale and expired tokens, dry run, identity/refresh conflicts, ownership rollback, one-way router transfer and failure before transfer with an incompatible remote. No production authentication or refresh endpoint is used. |
+| `credentials` | `orbit-dev test-cloud-credentials`: synthetic OpenAI/Claude OAuth and router credentials over local pipes. Checks round trips, all-account transfer, permissions, secret-free archives/diagnostics, stale and expired tokens, dry run, identity/refresh conflicts, ownership rollback, one-way router transfer and failure before transfer with an incompatible remote. No production authentication or refresh endpoint is used. |
 | `group` | `scripts/test_cloud_group_e2e.sh`: real local/cloud daemons with isolated homes and a bubblewrap transport. Checks automatic swarm selection, explicit independent-session inclusion, excluded sessions, one shared repository and environment replay, preserved conversation/todo/swarm state, preview, and safe retry after a lost activation response. No live cloud account or model is used. |
 | `tui` | `scripts/cloud_acceptance_tui.py`: the **actual interactive TUI in tmux**, a real loopback OpenSSH server and client, isolated local/cloud homes, real daemons, and a user/mount namespace providing separate repository contents at the same absolute path. No cloud-transport override is used in this layer. |
 
@@ -124,11 +124,11 @@ python3 scripts/test_cloud_acceptance.py --binary /absolute/path/to/nexode \
 
 Other `--scenario` values are listed above. `--scenario` filters only TUI scenarios,
 so pair it with `--layers tui` for a one-case run. The underlying credential suite
-also supports unittest's individual test selection:
+also supports individual scenario selection:
 
 ```bash
-python3 tests/test_cloud_credentials.py /absolute/path/to/nexode \
-  CloudCredentials.test_return_conflict_restores_cloud_ownership
+scripts/orbit_dev.sh test-cloud-credentials /absolute/path/to/nexode \
+  --case return_conflict_ownership_recovery
 ```
 
 `--timeout` defaults to 240 seconds per CLI, agent or credential stage. TUI waits

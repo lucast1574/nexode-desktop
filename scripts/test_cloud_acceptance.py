@@ -133,9 +133,12 @@ def main():
                     script = {"cli": "scripts/test_cloud_move_e2e.sh",
                               "agent": "scripts/test_cloud_move_agent_e2e.sh",
                               "group": "scripts/test_cloud_group_e2e.sh",
-                              "credentials": "tests/test_cloud_credentials.py"}[layer]
-                    command = ([sys.executable, script, binary] if layer == "credentials"
-                               else ["bash", script])
+                              "credentials": "scripts/orbit_dev.sh"}[layer]
+                    if layer == "credentials":
+                        native = subprocess.check_output([str(ROOT / script), "--build-only"], text=True, timeout=600).strip()
+                        command = [native, "test-cloud-credentials", binary]
+                    else:
+                        command = ["bash", script]
                     child(command, env, directory / "output.log", args.timeout)
             except Exception as exc:
                 record.update(status="failed", error=str(exc), traceback=traceback.format_exc())

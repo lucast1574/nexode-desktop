@@ -356,3 +356,34 @@ falling back to conventional-commit groups. It selects the previous release from
 the numeric index, ancestor tags or sorted tags and appends the GitHub comparison
 link. `scripts/generate_release_notes.sh` remains a compatible native launcher.
 No release is created or published by this command.
+
+### Runtime and cloud CLI acceptance
+
+On Linux, run `orbit-dev runtime-upgrade-acceptance --binary /absolute/path/to/nexode`.
+It launches credential-free daemons in private user/network namespaces, verifies
+invalid/busy/same-version/downgrade refusals and a real exec/reconnect with exact
+history and PID preservation. `--artifacts` must name a new short directory;
+otherwise evidence is retained under `NEXODE_SCRATCH_DIR` or `~/.nexode/scratch`.
+
+`NEXODE_SCRATCH_DIR=/short/path orbit-dev test-cloud-session-cli --binary /absolute/path/to/nexode`
+checks real CLI status/wait/log/send parsing, adversarial prompt quoting, response
+validation, redacted problem logs, read-only doctor and traversal rejection. Its
+native transport parses the generated shell source without executing it. No cloud
+account, provider, remote host or existing daemon is used.
+
+`orbit-dev compile-time-probe [--skip-build] [--timing-html PATH] [--touch PATH]
+[--profile selfdev] [--package nexode] [--bin nexode] [--feature-profile default]
+[--json PATH] [--top 12]` replaces embedded Python in `compile_time_probe.sh`.
+It preserves the Cargo timing JSON summary, including serial-stack spans and
+frontend/codegen section durations, and bounds the build duration.
+
+The demo scripts use `kitty-window id TITLE` / `kitty-window title ID` to read
+Kitty JSON from stdin and `replay-keys FILE [--dry-run]` to replay recorded events
+with native argument vectors. Dry-run emits JSON actions without typing keys.
+`strip-selfdev-marker FILE` removes only the benchmark's exact trailing marker.
+
+`orbit-dev expand-badge-headless --binary /absolute/path/to/nexode` starts a private daemon and real PTY client, renders the edit fixture and sends CSI-u Alt+Shift+E bytes. It checks Inline → FullInline without inserted text, preserving artifacts on failure.
+
+`orbit-dev test-cloud-credentials /absolute/path/to/nexode [--case NAME]` checks 14 synthetic OAuth/router handoff scenarios using isolated local directories and pipes. It rejects secrets in diagnostics and archives (including gzip tar), verifies private file permissions, conflict rollback, dry-run behavior, refreshed-token return and one-way API-key transfer. `--case return_conflict_ownership_recovery` selects the ownership recovery scenario.
+
+The compositor verifier now launches `capture-alt-shift-e OUTPUT` (native raw terminal mode with automatic restoration) and reads niri JSON using `niri-window app APP_ID` / `niri-window focused`. The keyboard capture is tested with a real PTY; the compositor check still requires an interactive niri/Kitty/wtype environment.
