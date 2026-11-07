@@ -1,10 +1,10 @@
 # Migración pendiente de Python a Rust
 
-Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. La migración queda pausada por decisión del mantenedor. Este documento registra pendientes; no afirma que el repositorio esté libre de Python.
+Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migración reanudada por petición del mantenedor. Este documento registra pendientes; no afirma que el repositorio esté libre de Python.
 
 ## Alcance y estado
 
-- Quedan **52 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **49 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -20,8 +20,8 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [ ] `scripts/runtime_upgrade_acceptance.py`
 - [ ] `scripts/test_cloud_acceptance.py`
 - [ ] `scripts/test_cloud_session_cli.py`
-- [ ] `scripts/test_update_cloud_runtime.py`
-- [ ] `scripts/update_cloud_runtime.py`
+- [x] `scripts/test_update_cloud_runtime.py` — migrado a Rust en `tools/orbit-dev`.
+- [x] `scripts/update_cloud_runtime.py` — migrado a Rust en `tools/orbit-dev`.
 - [ ] `tests/test_cloud_acceptance_harness.py`
 - [ ] `tests/test_cloud_credentials.py`
 - [ ] `tests/test_native_ssh_cli.py`
@@ -48,7 +48,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 ### Memoria, perfiles y estrés
 
 - [ ] `scripts/analyze_runtime_memory_log.py`
-- [ ] `scripts/heap_diff_idle_sessions.py`
+- [x] `scripts/heap_diff_idle_sessions.py` — migrado a Rust en `tools/orbit-dev`.
 - [ ] `scripts/profile_remote_resume_burst.py`
 - [ ] `scripts/profile_spawn.py`
 - [ ] `scripts/stress_test.py`

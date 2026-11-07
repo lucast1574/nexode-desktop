@@ -6,6 +6,8 @@ mod browser_cold;
 mod browser_fixture;
 mod browser_package;
 mod ci_suites;
+#[cfg(target_os = "linux")]
+mod cloud_runtime;
 mod compile_report;
 mod demo_shop;
 mod detached_acceptance;
@@ -76,6 +78,12 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("update-cloud-runtime") => {
+            #[cfg(target_os = "linux")]
+            std::process::exit(cloud_runtime::run(args)?);
+            #[cfg(not(target_os = "linux"))]
+            bail!("runtime bundling requires Linux");
+        }
         Some("verify-auth-import") => auth_import::run(args)?,
         Some("verify-login-qr") => login_qr::run(args)?,
         Some("pair-service") => pair_service::run(args)?,
@@ -162,7 +170,8 @@ fn main() -> Result<()> {
             | "repro-startup-lag"
             | "repro-real-spawn-lag"
             | "bench-nexode-maki"
-            | "repro-idle-session-rss"),
+            | "repro-idle-session-rss"
+            | "heap-diff-idle-sessions"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

@@ -314,3 +314,18 @@ local credentials/config privately without writable symlinks. `--trim` enables
 optional gdb malloc trimming, and privilege elevation additionally needs
 `--sudo`. Neither is used by validation. A short real-daemon check verified
 protocol/accounting/cleanup, not long-term memory-retention behavior.
+
+`heap-diff-idle-sessions --binary PATH [--sessions 30] [--rounds 4] [--settle 40]`
+compares jemalloc live heaps before and after isolated idle-session churn on Linux.
+The binary must support jemalloc profiling. Optional `--abrupt` and `--realistic`
+exercise disconnect and bootstrap traffic; `--gdb PATH`, `--jeprof PATH` and
+explicit `--sudo` configure the profiler. Private homes use synthetic credentials;
+no personal credentials are copied. Artifacts include both heaps, debugger logs,
+`diff.txt` and `diff_cum.txt`. Owned processes are cleaned on failure and interrupt.
+
+`update-cloud-runtime BINARY [--host nexode-cloud] [--ssh-config PATH]`
+stages a checksum-verified Linux runtime and dynamic libraries over SSH. The
+optional `--activate-launcher` switches the backend symlink with rollback on
+verification failure; it never reloads the daemon. Staging retries SSH transport
+failures, but activation never retries automatically. Requires Linux, `ldd`, and
+SSH access configured by the operator. Unit tests use local shell fixtures only.

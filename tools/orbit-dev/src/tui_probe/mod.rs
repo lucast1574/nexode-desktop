@@ -5,6 +5,8 @@ mod animation;
 mod animation_verify;
 #[cfg(unix)]
 mod draws;
+#[cfg(target_os = "linux")]
+mod heap_diff;
 #[cfg(unix)]
 mod idle;
 #[cfg(unix)]
@@ -42,7 +44,16 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "repro-idle-session-rss" {
+        let result = if command == "heap-diff-idle-sessions" {
+            #[cfg(target_os = "linux")]
+            {
+                heap_diff::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("heap profiling requires Linux /proc");
+            }
+        } else if command == "repro-idle-session-rss" {
             #[cfg(target_os = "linux")]
             {
                 idle_rss::run(args)

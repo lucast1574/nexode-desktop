@@ -38,10 +38,15 @@ fn memory_text(text: &str) -> Result<BTreeMap<String, u64>> {
     }
     Ok(values)
 }
-fn memory(pid: u32) -> Result<BTreeMap<String, u64>> {
+pub(super) fn memory(pid: u32) -> Result<BTreeMap<String, u64>> {
     memory_text(&fs::read_to_string(format!("/proc/{pid}/status"))?)
 }
-fn subscribe(socket: &Path, work: &Path, abrupt: bool, realistic: bool) -> Result<UnixStream> {
+pub(super) fn subscribe(
+    socket: &Path,
+    work: &Path,
+    abrupt: bool,
+    realistic: bool,
+) -> Result<UnixStream> {
     let mut stream = UnixStream::connect(socket)?;
     stream.set_write_timeout(Some(Duration::from_secs(15)))?;
     writeln!(

@@ -4,6 +4,24 @@ use std::{
     io::{BufRead, Write},
     path::Path,
 };
+#[cfg(target_os = "linux")]
+pub fn heap_server() -> Result<()> {
+    use std::{fs, io::BufReader, os::unix::net::UnixListener};
+    assert!(std::env::var_os("REAL_PROVIDER_SECRET").is_none());
+    let run = std::path::PathBuf::from(std::env::var_os("NEXODE_RUNTIME_DIR").unwrap());
+    fs::write(run.join("pid"), std::process::id().to_string())?;
+    let listener = UnixListener::bind(run.join("t.sock"))?;
+    for connection in listener.incoming() {
+        let mut stream = connection?;
+        let mut line = String::new();
+        if BufReader::new(stream.try_clone()?).read_line(&mut line)? > 0 {
+            let v: Value = serde_json::from_str(&line)?;
+            assert_eq!(v["type"], "subscribe");
+            writeln!(stream, "{{\"type\":\"done\",\"id\":1}}")?;
+        }
+    }
+    Ok(())
+}
 pub fn ssh(path: &Path) -> Result<()> {
     let frames: Value = serde_json::from_slice(&std::fs::read(path)?)?;
     let mut hello = frames["hello"].clone();
