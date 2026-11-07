@@ -1,6 +1,6 @@
 # Browser handoff paired benchmark
 
-`benchmark_browser_handoff.py` is a Python 3 standard-library-only benchmark.
+`cargo xtask benchmark-browser-handoff` is a native Rust benchmark.
 It does not claim handoff is always faster. It measures actual fresh-session
 behavior on a synthetic task suite against direct browser tools, using the same
 requested parent model/provider. The default explicit Jev experiment is separate
@@ -25,8 +25,8 @@ from the optional natural-default trigger experiment.
    and tab ID:
 
 ```bash
-python3 scripts/benchmark_browser_handoff.py --self-test
-python3 scripts/benchmark_browser_handoff.py \
+bash scripts/orbit_dev.sh benchmark-browser-handoff --self-test
+bash scripts/orbit_dev.sh benchmark-browser-handoff \
   --binary "$PWD/target/selfdev/nexode" \
   --model 'openai-api:gpt-6-astra' \
   --nexode-home "$NEXODE_SCRATCH_DIR/prepared-browser-benchmark-home" \

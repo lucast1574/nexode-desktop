@@ -147,3 +147,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(unix)]
+pub mod benchmark;

@@ -27,7 +27,7 @@ users are never automatically upgraded to previews.
 Each push to canonical `nexode-agent/unconfigured`'s `master` starts a cancellable **15-minute
 quiet period**. A newer push cancels the old wait and any obsolete builds. After
 the quiet period, the workflow rejects superseded SHAs and uses the same
-`scripts/check_release_ci.py` exact-commit push-CI gate as stable releases. It
+`cargo xtask check-release-ci` exact-commit push-CI gate as stable releases. It
 builds six required archives: Linux, macOS, and Windows, each x86_64 and aarch64.
 Linux x86_64 reuses the glibc 2.17 compatibility builder, Linux ARM64 preserves
 emulated TLS, and macOS retains stable ad-hoc signing identity. Windows preview
@@ -63,9 +63,9 @@ prevent normal duplicate posts.
 Run the publication and workflow regression checks without network writes:
 
 ```bash
-python3 scripts/test_preview_release.py
-python3 -m unittest -v scripts/test_post_discord_release.py
-python3 tests/test_release_ci.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test preview_workflow
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml discord_release
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev release::ci
 actionlint -shellcheck= .github/workflows/preview.yml .github/workflows/release.yml
 ```
 
@@ -78,12 +78,12 @@ actionlint -shellcheck= .github/workflows/preview.yml .github/workflows/release.
 
    ```bash
    git push origin master
-   python3 scripts/check_release_ci.py "$(git rev-parse HEAD)" \
+   cargo xtask check-release-ci "$(git rev-parse HEAD)" \
      --repo nexode-agent/unconfigured --timeout 0
    scripts/quick-release.sh --remote v0.98.1
    ```
 
-   The explicit Python check is optional because the helper repeats it. If CI is pending, missing, failed, cancelled, or cannot be queried, the helper exits without pushing the tag. Wait for successful CI and retry. It also rejects a tag version that differs from the committed `Cargo.toml` package version, conflicting tags, failed remote lookups, and HEAD changes during preparation/preflight.
+   The explicit native CI check is optional because the helper repeats it. If CI is pending, missing, failed, cancelled, or cannot be queried, the helper exits without pushing the tag. Wait for successful CI and retry. It also rejects a tag version that differs from the committed `Cargo.toml` package version, conflicting tags, failed remote lookups, and HEAD changes during preparation/preflight.
 5. Watch the tag-triggered release workflow. Do not announce or manually publish a partial draft. Publication waits for all required platform builds, Windows signing, checksums, and provenance.
 
    Use `scripts/watch_release_run.sh <run-id>` to monitor it to completion. Its default four-hour budget covers the 150-minute Windows build timeout plus finalization and runner queues. A successful v0.97 recovery run took about 71 minutes, so a short wait is not evidence that a release is stuck. Every completed non-success conclusion is reported immediately.
@@ -92,7 +92,7 @@ Use the helper instead of manually pushing `v*` tags. Git itself cannot enforce 
 
 ### Exact-SHA CI evidence
 
-`scripts/check_release_ci.py` selects the latest exact-SHA `push` run of `ci.yml` on `main`/`master`, checks the latest attempt, and requires the run and these mandatory jobs to have completed successfully:
+`cargo xtask check-release-ci` selects the latest exact-SHA `push` run of `ci.yml` on `main`/`master`, checks the latest attempt, and requires the run and these mandatory jobs to have completed successfully:
 
 - Quality Guardrails
 - Build & Test (ubuntu-latest)
@@ -128,7 +128,7 @@ scripts/quick-release.sh --dry-run v0.98.1
 
 Fast modes require the recorded binary hash to be unchanged and the preparation commit to be the release commit's parent. The release commit may modify only `Cargo.toml`, `Cargo.lock`, and `changelog/`. Push that metadata commit and wait for its own CI before running the packaging mode. The staged Linux selfdev binary targets the build host's runtime baseline until CI replaces it.
 
-All local preparation/build modes require a clean working tree. Remote mode tags only committed HEAD and warns that working-tree changes are excluded. Non-dry-run release modes require authenticated `gh` and Python 3.11 or newer, including remote mode. The repository used for the preflight is resolved from `origin`, not an unrelated `GH_REPO` default. Local staging refuses to overwrite an already-public release.
+All local preparation/build modes require a clean working tree. Remote mode tags only committed HEAD and warns that working-tree changes are excluded. Non-dry-run release modes require authenticated `gh` and the native `orbit-dev` tool, including remote mode. The launcher builds it with Cargo unless `ORBIT_DEV_BIN` selects an existing binary. The repository used for the preflight is resolved from `origin`, not an unrelated `GH_REPO` default. Local staging refuses to overwrite an already-public release.
 
 The fast paths no longer make single-platform releases public immediately. They leave publication to the complete-platform workflow, just like the default path. Build durations depend on cache warmth and runner availability. Exact-SHA CI must finish before tag push, then release builds and signing must finish before publication.
 
@@ -185,7 +185,7 @@ A missing platform asset fails finalization and keeps a new release as a draft. 
 After making the complete release public, the finalizer downloads the actual public assets and verifies their hashes and exact-SHA unpatched provenance before announcements or package-manager updates. Repeat that verification when checking a release manually:
 
 ```bash
-python3 scripts/verify_public_release.py v0.98.1 --repo nexode-agent/unconfigured \
+cargo xtask verify-public-release v0.98.1 --repo nexode-agent/unconfigured \
   --sha "$(git rev-parse 'refs/tags/v0.98.1^{commit}')"
 ```
 
@@ -238,9 +238,9 @@ macOS binaries are ad-hoc signed with the stable identifier `com.nexode.cli`, us
 
 ```bash
 bash -n scripts/quick-release.sh
-python3 scripts/test_quick_release.py
-python3 tests/test_release_ci.py
-python3 tests/test_verify_public_release.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test quick_release
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev release::ci
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test public_release
 ```
 
 The quick-release tests exercise the real remote and standard-mode script with disposable Git repositories and bare remotes plus a simulated GitHub API. Standard-mode binary builders and signing are stubbed, while CI gating, tagging, packaging, and draft-only staging run through the real script. They cover successful exact-SHA tagging, non-green/missing/wrong-SHA evidence, existing/conflicting tags, API/remote failures, and concurrent HEAD/tag changes without writing to GitHub. Helper unit tests cover latest-run/attempt selection, mandatory jobs, and bounded waiting.

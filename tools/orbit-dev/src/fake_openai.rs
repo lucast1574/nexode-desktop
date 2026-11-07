@@ -167,10 +167,15 @@ fn serve(mut request: Request, opts: &Options, lock: &Mutex<()>, stop: &AtomicBo
     let has_tool = msgs[last.map_or(0, |i| i + 1)..]
         .iter()
         .any(|m| m["role"] == "tool");
-    let mut tool = None;
+    let mut tools = Vec::new();
     if let Some(control) = &opts.control {
-        if prompt.contains("[e2e:todo]") && !has_tool {
-            tool = Some(
+        if let Some(c) = Regex::new(r"\[e2e:tools:([a-z0-9_-]+)\]")?.captures(&prompt) {
+            if !has_tool {
+                let plan = control.join(format!("{}.tools.json", &c[1]));
+                tools = serde_json::from_slice(&fs::read(plan)?)?;
+            }
+        } else if prompt.contains("[e2e:todo]") && !has_tool {
+            tools.push(
                 json!({"id":"call_acceptance_todo","type":"function","function":{"name":"todo","arguments":json!({"intent":"Create an open task for the handoff acceptance test","todos":[{"id":"acceptance-open","content":"Continue on cloud","status":"in_progress","priority":"high","confidence":"plausible"}]}).to_string()}}),
             );
         } else if let Some(c) = Regex::new(r"\[e2e:hold:([a-z0-9_-]+)\]")?.captures(&prompt) {
@@ -194,19 +199,24 @@ fn serve(mut request: Request, opts: &Options, lock: &Mutex<()>, stop: &AtomicBo
             }
         }
     }
-    let finish = if tool.is_some() { "tool_calls" } else { "stop" };
+    let finish = if !tools.is_empty() {
+        "tool_calls"
+    } else {
+        "stop"
+    };
     let usage = json!({"prompt_tokens":1,"completion_tokens":1,"total_tokens":2});
     if !truthy(&req["stream"]) {
-        let mut message =
-            json!({"role":"assistant","content":if tool.is_some(){Value::Null}else{json!(text)}});
-        if let Some(tool) = tool {
-            message["tool_calls"] = json!([tool]);
+        let mut message = json!({"role":"assistant","content":if !tools.is_empty(){Value::Null}else{json!(text)}});
+        if !tools.is_empty() {
+            message["tool_calls"] = json!(tools);
         }
         return respond(request,json!({"id":"x","object":"chat.completion","model":"fake-model","choices":[{"index":0,"finish_reason":finish,"message":message}],"usage":usage}).to_string(),"application/json",200);
     }
-    let delta = if let Some(mut tool) = tool {
-        tool["index"] = json!(0);
-        json!({"role":"assistant","tool_calls":[tool]})
+    let delta = if !tools.is_empty() {
+        for (index, tool) in tools.iter_mut().enumerate() {
+            tool["index"] = json!(index);
+        }
+        json!({"role":"assistant","tool_calls":tools})
     } else {
         json!({"role":"assistant","content":text})
     };

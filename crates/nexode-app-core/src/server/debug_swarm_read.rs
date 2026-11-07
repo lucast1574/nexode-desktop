@@ -365,45 +365,46 @@ pub(super) async fn maybe_handle_swarm_read_command(
     if cmd.starts_with("swarm:context:") {
         let arg = cmd.strip_prefix("swarm:context:").unwrap_or("").trim();
         let ctx = shared_context.read().await;
-        let output = if let Some((swarm_id, key)) = arg.split_once(':') {
-            if let Some(entries) = ctx.get(swarm_id) {
-                if let Some(context) = entries.get(key) {
-                    serde_json::json!({
-                        "swarm_id": swarm_id,
+        let output =
+            if let Some((swarm_id, key)) = split_context_key(arg, ctx.keys().map(String::as_str)) {
+                if let Some(entries) = ctx.get(swarm_id) {
+                    if let Some(context) = entries.get(key) {
+                        serde_json::json!({
+                            "swarm_id": swarm_id,
+                            "key": key,
+                            "value": context.value,
+                            "from_session": context.from_session,
+                            "from_name": context.from_name,
+                            "created_secs_ago": context.created_at.elapsed().as_secs(),
+                            "updated_secs_ago": context.updated_at.elapsed().as_secs(),
+                        })
+                        .to_string()
+                    } else {
+                        return Err(anyhow::anyhow!(
+                            "No context key '{}' in swarm '{}'",
+                            key,
+                            swarm_id
+                        ));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("No context for swarm '{}'", swarm_id));
+                }
+            } else if let Some(entries) = ctx.get(arg) {
+                let mut out: Vec<serde_json::Value> = Vec::new();
+                for (key, context) in entries.iter() {
+                    out.push(serde_json::json!({
                         "key": key,
                         "value": context.value,
                         "from_session": context.from_session,
                         "from_name": context.from_name,
                         "created_secs_ago": context.created_at.elapsed().as_secs(),
                         "updated_secs_ago": context.updated_at.elapsed().as_secs(),
-                    })
-                    .to_string()
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "No context key '{}' in swarm '{}'",
-                        key,
-                        swarm_id
-                    ));
+                    }));
                 }
+                serde_json::to_string_pretty(&out).unwrap_or_else(|_| "[]".to_string())
             } else {
-                return Err(anyhow::anyhow!("No context for swarm '{}'", swarm_id));
-            }
-        } else if let Some(entries) = ctx.get(arg) {
-            let mut out: Vec<serde_json::Value> = Vec::new();
-            for (key, context) in entries.iter() {
-                out.push(serde_json::json!({
-                    "key": key,
-                    "value": context.value,
-                    "from_session": context.from_session,
-                    "from_name": context.from_name,
-                    "created_secs_ago": context.created_at.elapsed().as_secs(),
-                    "updated_secs_ago": context.updated_at.elapsed().as_secs(),
-                }));
-            }
-            serde_json::to_string_pretty(&out).unwrap_or_else(|_| "[]".to_string())
-        } else {
-            "[]".to_string()
-        };
+                "[]".to_string()
+            };
         return Ok(Some(output));
     }
 
@@ -823,4 +824,42 @@ pub(super) async fn maybe_handle_swarm_read_command(
     }
 
     Ok(None)
+}
+
+// Session-scoped swarm IDs contain ':' themselves. Resolve the longest known
+// swarm prefix before splitting the context key (which can also contain ':').
+fn split_context_key<'a>(
+    arg: &'a str,
+    swarm_ids: impl Iterator<Item = &'a str>,
+) -> Option<(&'a str, &'a str)> {
+    let ids: Vec<_> = swarm_ids.collect();
+    if ids.contains(&arg) {
+        return None;
+    }
+    ids.into_iter()
+        .filter_map(|id| arg.strip_prefix(id)?.strip_prefix(':').map(|key| (id, key)))
+        .max_by_key(|(id, _)| id.len())
+        .or_else(|| arg.split_once(':'))
+}
+
+#[cfg(test)]
+mod context_key_tests {
+    use super::split_context_key;
+    #[test]
+    fn session_scoped_swarm_and_proposal_keys_preserve_all_colons() {
+        let ids = ["session", "session:root", "/tmp/work"];
+        assert_eq!(
+            split_context_key("session:root:plan_proposal:worker", ids.into_iter()),
+            Some(("session:root", "plan_proposal:worker"))
+        );
+        assert_eq!(split_context_key("session:root", ids.into_iter()), None);
+        assert_eq!(
+            split_context_key("/tmp/work:plan_proposal:worker", ids.into_iter()),
+            Some(("/tmp/work", "plan_proposal:worker"))
+        );
+        assert_eq!(
+            split_context_key("missing:key", ids.into_iter()),
+            Some(("missing", "key"))
+        );
+    }
 }

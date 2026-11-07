@@ -2,6 +2,115 @@ mod tests {
     use super::super::*;
     use crate::server::debug_jobs::DebugJobStatus;
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rejected_debug_handlers_reply_and_keep_connection_alive() {
+        use super::debug_execution_tests::TestProvider;
+        use crate::server::Server;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        const CHILD: &str = "NEXODE_TEST_REJECTED_DEBUG_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "rejected_debug_handlers_reply_and_keep_connection_alive",
+                    "--test-threads=1",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .env("NEXODE_DEBUG_CONTROL", "1")
+                .env("NEXODE_HOME", home.path())
+                .env("NEXODE_RUNTIME_DIR", home.path().join("runtime"))
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+            return;
+        }
+        let server = Server::new_with_name(Arc::new(TestProvider), Some("debug-rejection".into()));
+        let (client, stream) = tokio::net::UnixStream::pair().unwrap();
+        let handler = tokio::spawn(super::super::handle_debug_client(
+            stream,
+            server.sessions,
+            server.is_processing,
+            server.session_id,
+            server.provider,
+            server.client_connections,
+            server.swarm_state.members,
+            server.swarm_state.swarms_by_id,
+            server.shared_context,
+            server.swarm_state.plans,
+            server.swarm_state.coordinators,
+            server.file_touch,
+            server.channel_subscriptions,
+            server.channel_subscriptions_by_session,
+            server.client_debug_state,
+            server.client_debug_response_tx,
+            server.debug_jobs,
+            server.event_history,
+            server.event_counter,
+            server.swarm_event_tx,
+            server.identity,
+            Instant::now(),
+            None,
+            None,
+            server.shutdown_signals,
+            server.soft_interrupt_queues,
+        ));
+        let (reader, mut writer) = client.into_split();
+        let mut reader = BufReader::new(reader);
+        for (index, command) in [
+            "swarm:notify:missing-session hello",
+            "swarm:session:missing-session",
+            "destroy_session:missing-session",
+            "job_status:missing-job",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let request =
+                serde_json::json!({"type":"debug_command","id":index+1,"command":command});
+            writer
+                .write_all(format!("{request}\n").as_bytes())
+                .await
+                .unwrap();
+            let mut line = String::new();
+            let count = tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                reader.read_line(&mut line),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert!(
+                count > 0,
+                "{command} closed transport instead of responding"
+            );
+            let response: serde_json::Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(response["type"], "debug_response");
+            assert_eq!(response["id"], index + 1);
+            assert_eq!(response["ok"], false, "{response}");
+            assert!(!response["output"].as_str().unwrap().is_empty());
+        }
+        writer
+            .write_all(b"{\"type\":\"ping\",\"id\":99}\n")
+            .await
+            .unwrap();
+        let mut line = String::new();
+        reader.read_line(&mut line).await.unwrap();
+        let response: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(response["type"], "pong");
+        assert_eq!(response["id"], 99);
+        drop(writer);
+        drop(reader);
+        handler.await.unwrap().unwrap();
+    }
+
     #[test]
     fn production_group_transfer_does_not_enable_arbitrary_debug_control() {
         let bundle = serde_json::json!({

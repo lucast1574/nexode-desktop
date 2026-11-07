@@ -2,7 +2,7 @@
 
 `cargo xtask benchmark-attribution` scores, per sponsor, whether a signup or
 install performed by an agent on the user's behalf is attributable to nexode.
-It complements `scripts/benchmark_discovery.py`: that suite measures whether
+It complements `cargo xtask benchmark-discovery`: that suite measures whether
 Discovery triggers; this one measures whether the acquisition we drive is
 actually credited to us.
 

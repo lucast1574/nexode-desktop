@@ -156,14 +156,14 @@ done
 test -S "${SOCK%.sock}-debug.sock" || exit 1
 readlink -f "/proc/$SERVER_PID/exe"
 "$BIN" debug --socket "$SOCK" server:info
+ORBIT_DEV_BIN="$(scripts/orbit_dev.sh --build-only)"
 SID=$("$BIN" debug --socket "$SOCK" create_session "$PWD" |
-  python3 -c 'import json,sys; print(json.load(sys.stdin)["session_id"])')
+  "$ORBIT_DEV_BIN" json-field /session_id)
 
-PAYLOAD=$(python3 -c 'import json,os; print(json.dumps({
-  "action":"handoff", "tab_id":int(os.environ["NEXODE_BROWSER_HANDOFF_TEST_TAB_ID"]),
-  "frame_id":0, "max_steps":8,
-  "goal":"Open Documentation, then Browser controls. Finish only when Fast browser integration verified is visible. Stay on the local fixture website."
-}))')
+# The sole interpolated value is a decimal tab ID; validate before making JSON.
+[[ $NEXODE_BROWSER_HANDOFF_TEST_TAB_ID =~ ^(0|[1-9][0-9]*)$ ]] || exit 1
+PAYLOAD=$(printf '{"action":"handoff","tab_id":%s,"frame_id":0,"max_steps":8,"goal":"Open Documentation, then Browser controls. Finish only when Fast browser integration verified is visible. Stay on the local fixture website."}' \
+  "$NEXODE_BROWSER_HANDOFF_TEST_TAB_ID")
 "$BIN" debug --socket "$SOCK" --session "$SID" tool "browser $PAYLOAD"
 ```
 

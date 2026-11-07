@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 #[derive(Clone, Default)]
-pub(super) struct Snapshot {
+pub(crate) struct Snapshot {
     pub rows: Vec<String>,
     pub frames: u64,
     pub bytes: u64,
@@ -25,14 +25,14 @@ pub(super) struct Snapshot {
     pub error: Option<String>,
     pub eof: bool,
 }
-pub(super) struct Client {
+pub(crate) struct Client {
     pub pid: u32,
     state: Arc<Mutex<Snapshot>>,
     input: mpsc::SyncSender<Vec<u8>>,
     stop: Arc<AtomicBool>,
     worker: Option<std::thread::JoinHandle<()>>,
 }
-pub(super) fn composer(rows: &[String]) -> Option<String> {
+pub(crate) fn composer(rows: &[String]) -> Option<String> {
     static PROMPT: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     static STATUS: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     let prompt = PROMPT.get_or_init(|| Regex::new(r"^\s*\d+>\s?(.*)$").unwrap());
@@ -105,10 +105,10 @@ fn answers(pending: &mut Vec<u8>, chunk: &[u8], queries: &[(Vec<u8>, Vec<u8>)]) 
     out
 }
 impl Client {
-    pub(super) fn spawn(command: &mut Command, rows: u16, cols: u16) -> Result<Self> {
+    pub(crate) fn spawn(command: &mut Command, rows: u16, cols: u16) -> Result<Self> {
         Self::spawn_palette(command, rows, cols, None)
     }
-    pub(super) fn spawn_palette(
+    pub(crate) fn spawn_palette(
         command: &mut Command,
         rows: u16,
         cols: u16,
@@ -217,7 +217,7 @@ impl Client {
             worker: Some(worker),
         })
     }
-    pub(super) fn snapshot(&self) -> Result<Snapshot> {
+    pub(crate) fn snapshot(&self) -> Result<Snapshot> {
         let s = self.state.lock().unwrap();
         ensure!(
             s.error.is_none(),
@@ -226,7 +226,7 @@ impl Client {
         );
         Ok(s.clone())
     }
-    pub(super) fn send(&self, bytes: &[u8]) -> Result<()> {
+    pub(crate) fn send(&self, bytes: &[u8]) -> Result<()> {
         ensure!(bytes.len() <= 65536, "terminal input too large");
         self.input
             .try_send(bytes.to_vec())

@@ -96,7 +96,7 @@ Use this checklist for every type or pure-helper migration. Copy it into the PR/
 Run this guard after adding or changing any type crate dependency:
 
 ```sh
-python3 scripts/check_dependency_boundaries.py
+cargo xtask check-boundaries
 ```
 
 The guard blocks direct dependencies from `nexode-*-types` crates to root/runtime-heavy internal crates such as `nexode`, `nexode-core`, provider crates, TUI crates, protocol/runtime crates, and desktop/mobile crates. Type crates may depend on external lightweight libraries and other type crates. If a new internal dependency is needed, first decide whether it should itself be a type crate.

@@ -130,7 +130,9 @@ pub(super) async fn maybe_handle_swarm_write_command(
         let (target_swarm_id, message) = if let Some(space_idx) = rest.find(' ') {
             let potential_id = &rest[..space_idx];
             let msg = rest[space_idx + 1..].trim();
-            if potential_id.contains('/') {
+            if potential_id.contains('/')
+                || ctx.swarms_by_id.read().await.contains_key(potential_id)
+            {
                 (Some(potential_id.to_string()), msg.to_string())
             } else {
                 (None, rest.to_string())
@@ -531,6 +533,37 @@ pub(super) async fn maybe_handle_swarm_write_command(
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[tokio::test]
+    async fn broadcast_explicit_session_swarm_does_not_fall_back_to_current_session() {
+        let session_id = Arc::new(RwLock::new("unrelated-current-session".to_string()));
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+            "session:owned-root".to_string(),
+            HashSet::new(),
+        )])));
+        let shared_context = Arc::new(RwLock::new(HashMap::new()));
+        let swarm_plans = Arc::new(RwLock::new(HashMap::new()));
+        let swarm_coordinators = Arc::new(RwLock::new(HashMap::new()));
+        let ctx = DebugSwarmWriteContext {
+            session_id: &session_id,
+            swarm_members: &swarm_members,
+            swarms_by_id: &swarms_by_id,
+            shared_context: &shared_context,
+            swarm_plans: &swarm_plans,
+            swarm_coordinators: &swarm_coordinators,
+        };
+        let output = maybe_handle_swarm_write_command(
+            "swarm:broadcast:session:owned-root scoped message",
+            &ctx,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(value["swarm_id"], "session:owned-root");
+        assert_eq!(value["sent_to"], 0);
+    }
 
     struct EnvGuard {
         _lock: std::sync::MutexGuard<'static, ()>,

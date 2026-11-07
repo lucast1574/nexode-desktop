@@ -66,7 +66,7 @@ impl View {
         }
     }
 }
-fn seed(home: &Path, cwd: &Path, turns: usize) -> Result<(String, Vec<String>)> {
+pub(super) fn seed(home: &Path, cwd: &Path, turns: usize) -> Result<(String, Vec<String>)> {
     let mut bytes = [0u8; 8];
     getrandom::fill(&mut bytes).map_err(|e| anyhow::anyhow!("random id: {e}"))?;
     let suffix = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();

@@ -41,4 +41,4 @@ any consequential financial or order action.
 Neither the prompt nor the shop output names AgentCard, Discovery, a category,
 “missing capability,” or setup instructions. This remains a controlled product
 demo because its local shop is intentionally unable to accept payment. Use
-`scripts/benchmark_discovery.py` for representative full-tool measurement.
+`cargo xtask benchmark-discovery` for representative full-tool measurement.

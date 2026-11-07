@@ -1,6 +1,6 @@
 # Discovery trigger benchmark
 
-`scripts/benchmark_discovery.py` measures whether ordinary user requests cause
+`cargo xtask benchmark-discovery` measures whether ordinary user requests cause
 Nexode to browse the expected sponsored-discovery category and receive a specific
 tool in the listing. It also supports no-Discovery controls that fail if the
 agent browses the catalog for a task that does not require an external service.
@@ -14,21 +14,21 @@ consequential action.
 Run one retry-until-hit trial for every live catalog entry:
 
 ```bash
-python scripts/benchmark_discovery.py
+bash scripts/orbit_dev.sh benchmark-discovery
 ```
 
 Run three trials per entry, allowing at most five model attempts per trial:
 
 ```bash
-python scripts/benchmark_discovery.py --trials 3 --max-attempts 5
+bash scripts/orbit_dev.sh benchmark-discovery --trials 3 --max-attempts 5
 ```
 
 Run one case by case ID or tool name:
 
 ```bash
-python scripts/benchmark_discovery.py --case agentcard
-python scripts/benchmark_discovery.py --case agentmail
-python scripts/benchmark_discovery.py --case context-dev-website-enrichment
+bash scripts/orbit_dev.sh benchmark-discovery --case agentcard
+bash scripts/orbit_dev.sh benchmark-discovery --case agentmail
+bash scripts/orbit_dev.sh benchmark-discovery --case context-dev-website-enrichment
 ```
 
 The default uses Nexode's normal toolset so Discovery competes with built-in
@@ -37,7 +37,7 @@ generalization score. Use `--discovery-only` for a focused smoke test that
 measures category and listing selection without competing tools:
 
 ```bash
-python scripts/benchmark_discovery.py --discovery-only --trials 3
+bash scripts/orbit_dev.sh benchmark-discovery --discovery-only --trials 3
 ```
 
 Reports are written to `target/discovery-benchmark/latest.json` by default.
@@ -55,13 +55,13 @@ listing leaves stale positive cases.
 Validate coverage without model calls:
 
 ```bash
-python scripts/benchmark_discovery.py --dry-run
+bash scripts/orbit_dev.sh benchmark-discovery --dry-run
 ```
 
 For offline runner tests, pass a saved category-to-listing JSON file:
 
 ```bash
-python scripts/benchmark_discovery.py \
+bash scripts/orbit_dev.sh benchmark-discovery \
   --catalog-file /path/to/catalog.json \
   --dry-run
 ```

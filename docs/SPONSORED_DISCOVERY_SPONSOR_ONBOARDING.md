@@ -146,7 +146,7 @@ client-reported evidence rather than cryptographic proof. They contain no
 transcript content, file paths, account identity, credentials, or user-authored
 text.
 
-Runs launched by `scripts/benchmark_discovery.py` also send
+Runs launched by `cargo xtask benchmark-discovery` also send
 `x-nexode-discovery-benchmark: 1`. The service must retain that marker with its
 request logs so benchmark traffic can be excluded from ordinary discovery and
 sponsor reporting.

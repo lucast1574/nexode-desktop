@@ -70,7 +70,20 @@ fn real_unix_connection_subscribes_handles_fragments_and_detects_eof() {
     );
     drop(reader);
     drop(peer);
-    assert!(c.tick(&mut s).is_err());
+    // A concurrently spawning test can briefly inherit the descriptor between
+    // fork and exec. Nonblocking EOF observation is eventual, not synchronous
+    // with this thread's final close.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if c.tick(&mut s).is_err() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "closed socket never produced EOF"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
     let mut replacement = Connection::connect(&path, &mut id).unwrap();
     let (_peer, _) = listener.accept().unwrap();
     replacement.tick(&mut s).unwrap();

@@ -1,119 +1,110 @@
-# Terminal-Bench 2.0 with nexode
+# Native Terminal-Bench runner
 
-This document describes the cleanest currently-working path for running nexode on Terminal-Bench 2.0 through Harbor.
-
-## What is in the repo
-
-- `scripts/nexode_harbor_agent.py`
-  - Harbor custom agent adapter for nexode
-- `scripts/run_terminal_bench_harbor.sh`
-  - helper that wires Harbor to the adapter and a Linux-compatible nexode binary
-- `scripts/run_terminal_bench_campaign.py`
-  - sequential campaign runner that preserves small batches in a stitchable layout
-- `scripts/build_linux_compat.sh`
-  - builds a Linux nexode artifact against an older glibc baseline for TB-style containers
-
-## Why the compat binary matters
-
-Many Terminal-Bench task containers use an older glibc than a locally-built host binary. The Harbor adapter should use a Linux binary produced by:
+`orbit-dev terminal-bench` runs Harbor-format Linux tasks directly through Docker.
+The runner, provider adapters, result parsing and campaign bookkeeping are Rust;
+Harbor, uvx and a host Python interpreter are no longer required. Task verifiers
+may still install their own dependencies inside disposable task containers.
 
 ```bash
-scripts/build_linux_compat.sh /tmp/nexode-compat-dist
+scripts/run_terminal_bench_harbor.sh --path /tmp/terminal-bench-2 \
+  --include-task-name regex-log --n-concurrent 1 -k 1 \
+  --jobs-dir /tmp/nexode-tb2 --job-name regex-log-pilot
+scripts/run_terminal_bench_claude.sh --path /tmp/terminal-bench-2.1 \
+  --include-task-name regex-log --dry-run
 ```
 
-The helper script will build it for you automatically if it is missing.
+The shell entrypoints delegate to `scripts/orbit_dev.sh`. Use `--help` for the
+native options. `--dry-run` validates the task configuration without starting
+containers, reading provider credentials or making inference requests.
 
-## Auth and model assumptions
+Each attempt gets a new container and isolated Nexode home. The runner stages
+the binary, sibling OpenSSL libraries, CA bundle and selected provider auth,
+executes `nexode run --ndjson`, then uploads and runs `tests/test.sh`. It never
+replaces the container's system certificate directory. Secrets travel in private
+temporary env files or copied auth files, not command arguments or result metadata.
+The environment's default user and explicit agent/verifier user overrides apply.
+The container and images built by the runner are removed after success or failure;
+pre-existing images are retained. Agent/verifier timeouts are bounded and reported
+as failed trials, never manufactured zero rewards.
 
-The current adapter is designed for:
+The task contract is `task.toml`, `instruction.md`, and `tests/test.sh`, with either
+`environment/Dockerfile` or `environment.docker_image`. CPU, memory and GPU limits,
+working directory, environment templates, timeouts and public/disabled networking
+are supported. `storage_mb` is retained in the source task configuration; Docker
+storage quotas are backend-specific and are not imposed by this runner. Advanced
+Harbor features such as Compose, multiple steps, separate verifier environments,
+MCP provisioning, custom artifact collection, healthchecks and network allowlists
+are rejected explicitly before any trial. This is a native task runner, not a
+Python plugin implementing Harbor's full plugin API.
 
-- OpenAI OAuth auth file at `~/.nexode/openai-auth.json`
-- `gpt-5.4`
-- high reasoning effort
-- priority service tier
+Rewards are parsed from `/logs/verifier/reward.json` first, or `reward.txt` if JSON
+is absent. Values must be finite numbers; malformed JSON cannot fall back to an
+older text reward. Output contains per-trial `result.json`, verifier logs, agent
+NDJSON, final payload, token usage and job `result.json` in the existing stitchable
+layout. A zero reward is a completed evaluation, not an infrastructure error.
 
-Those defaults can be overridden with environment variables.
+## Binary and authentication
 
-## Sequential campaign mode
+A compatibility build avoids the glibc mismatch between a developer host and task
+images. The default missing binary is built with
+`scripts/build_linux_compat.sh /tmp/nexode-compat-dist`. Explicit missing binary
+paths fail without silently selecting a different binary.
 
-If you want to run only a few tasks at a time but keep a coherent artifact set, use the campaign runner.
+- `NEXODE_HARBOR_BINARY`, or `--binary`: host binary to stage.
+- `NEXODE_HARBOR_BINARY_DIR`: compatibility build directory.
+- `NEXODE_HARBOR_OPENAI_AUTH`: OpenAI OAuth file, default `~/.nexode/openai-auth.json`.
+- `NEXODE_HARBOR_CLAUDE_AUTH`: Claude OAuth file, default `~/.nexode/auth.json`.
+- `ANTHROPIC_API_KEY` / `NEXODE_HARBOR_ANTHROPIC_KEY`, or
+  `NEXODE_HARBOR_ANTHROPIC_ENV`: native Anthropic API credentials.
+- `OPENROUTER_API_KEY` / `NEXODE_HARBOR_OPENROUTER_KEY`, or
+  `NEXODE_HARBOR_OPENROUTER_ENV`: OpenRouter credentials.
+- `NEXODE_HARBOR_CA_BUNDLE`, `NEXODE_HARBOR_LIBSSL`, `NEXODE_HARBOR_LIBCRYPTO`:
+  explicit host runtime files.
+- `NEXODE_TB_MODEL` / `--model`: provider/model, default `openai/gpt-5.4`, or
+  `anthropic-api/claude-opus-4-8` with the Claude entrypoint.
+- `NEXODE_OPENAI_REASONING_EFFORT` and `NEXODE_ANTHROPIC_REASONING_EFFORT`: default high.
+- `NEXODE_OPENAI_SERVICE_TIER`: default priority.
+- `NEXODE_TASK_WORKDIR`: agent working directory override.
 
-Example:
+The optional extra preamble and opt-in legacy preamble remain available through
+`NEXODE_HARBOR_EXTRA_PREAMBLE` and `NEXODE_HARBOR_LEGACY_PREAMBLE`. Retry hints require
+`NEXODE_HARBOR_ENABLE_HINTS` plus `NEXODE_HARBOR_TASK_HINTS_FILE` (JSON keyed by task).
+The normal task instruction remains unmodified unless these options are enabled.
+
+## Datasets and campaigns
+
+`--path` selects an installed task or directory of tasks. `--dataset NAME@VERSION`
+resolves the legacy Harbor JSON registry directly, checks out each exact Git
+commit and caches the tasks with their registry record. HTTPS repository URLs and
+full commit IDs are required. Installed `terminal-bench@2.0` and `@2.1` directories
+under `NEXODE_TB_DATASETS_DIR` (default `/tmp`) take precedence. Default local paths
+remain `/tmp/terminal-bench-2` and `/tmp/terminal-bench-2.1`; `NEXODE_TB_PATH` overrides
+them. Registry retrieval uses `NEXODE_TB_REGISTRY_URL` when explicitly supplied.
 
 ```bash
-python scripts/run_terminal_bench_campaign.py \
-  --campaign-dir ~/tb2-nexode-campaign \
-  --task regex-log \
-  --task largest-eigenval \
-  --task cancel-async-tasks
+scripts/orbit_dev.sh terminal-bench-campaign \
+  --campaign-dir ~/tb2-nexode-campaign --path /tmp/terminal-bench-2 \
+  --task regex-log --task largest-eigenval -k 2
 ```
 
-What it does:
+Campaigns deduplicate task lists, pin model/reasoning/service tier/binary SHA/auth
+path/dataset/attempts/timeouts, reject drift, and preserve records in `campaign.json`
+and `results.jsonl`. Completed recorded jobs and unrecorded existing jobs are
+adopted only with the required number of finite numeric trial rewards for the
+correct task. `--max-parallel-tasks` allows independent jobs to run concurrently;
+each task job remains sequential. `--continue-on-failure` records incomplete tasks
+and continues, matching the former campaign behavior.
 
-- runs tasks sequentially with `--n-concurrent 1`
-- preserves Harbor jobs under `campaign-dir/harbor-jobs/`
-- writes a pinned `campaign.json`
-- refuses to mix runs if key settings drift
-- appends per-task outcomes to `results.jsonl`
+## Validation
 
-This is the recommended path when you want to batch tasks gradually and stitch them together later.
+The Rust tests cover strict rewards, final NDJSON payload selection, campaign drift
+and incomplete results. `terminal_bench_native` additionally validates an actual
+Docker agent/verifier lifecycle with two concurrent attempts, synthetic credentials,
+literal shell metacharacters, usage totals and campaign adoption/resume. Run it with
+`ORBIT_TEST_DOCKER_IMAGE` set to a locally available Linux image containing sh/bash.
+These tests make no paid model requests. Historical Python Harbor pilot scores are
+not evidence of a new native runner leaderboard score.
 
-## Quick start
-
-Assuming Terminal-Bench is already available at `/tmp/terminal-bench-2`:
-
-```bash
-scripts/run_terminal_bench_harbor.sh \
-  --include-task-name regex-log \
-  --n-tasks 1 \
-  --n-concurrent 1 \
-  --jobs-dir /tmp/nexode-tb2 \
-  --job-name regex-log-pilot \
-  --yes
-```
-
-Or point Harbor directly at the remote dataset:
-
-```bash
-scripts/run_terminal_bench_harbor.sh \
-  --dataset terminal-bench@2.0 \
-  --include-task-name regex-log \
-  --n-tasks 1 \
-  --n-concurrent 1 \
-  --jobs-dir /tmp/nexode-tb2 \
-  --job-name regex-log-pilot \
-  --yes
-```
-
-## Useful environment variables
-
-- `NEXODE_HARBOR_BINARY`
-  - path to the Linux-compatible nexode binary to upload into the task container
-- `NEXODE_HARBOR_BINARY_DIR`
-  - output directory used when auto-building the compat binary
-- `NEXODE_HARBOR_OPENAI_AUTH`
-  - path to the OpenAI OAuth file
-- `NEXODE_HARBOR_CA_BUNDLE`
-  - optional host CA bundle path to upload into the task container
-- `NEXODE_TB_MODEL`
-  - Harbor model string, default `openai/gpt-5.4`
-- `NEXODE_TB_PATH`
-  - default local Terminal-Bench path, default `/tmp/terminal-bench-2`
-- `NEXODE_OPENAI_REASONING_EFFORT`
-  - default `high`
-- `NEXODE_OPENAI_SERVICE_TIER`
-  - default `priority`
-
-## Notes on fairness and state isolation
-
-The adapter gives each trial a fresh in-container nexode home directory under `/tmp/nexode-home`, so memories and auth state are isolated per trial container.
-
-## Current validation status
-
-This path has already been validated with real Harbor task runs using:
-
-- `regex-log`
-- `largest-eigenval`
-- `cancel-async-tasks`
-
-All three passed in-container with verifier reward `1.0` during the initial pilot.
+Task configuration and reward precedence follow the official
+[Harbor task schema](https://github.com/harbor-framework/harbor/blob/main/src/harbor/models/task/config.py)
+and [verifier contract](https://github.com/harbor-framework/harbor/blob/main/src/harbor/verifier/verifier.py).

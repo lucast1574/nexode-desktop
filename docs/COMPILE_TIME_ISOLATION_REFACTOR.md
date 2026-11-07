@@ -209,7 +209,7 @@ Before committing a phase:
 ```bash
 scripts/compile_time_probe.sh --skip-build
 cargo xtask compile-isolation
-scripts/check_dependency_boundaries.py
+cargo xtask check-boundaries
 cargo check --profile selfdev -p nexode --bin nexode
 ```
 

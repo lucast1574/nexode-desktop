@@ -189,7 +189,7 @@ and any blocked provider-backed acceptance.
 
 ### Real CLI acceptance
 
-`tests/test_native_ssh_cli.py` is opt-in and uses actual OpenSSH, a built CLI, and
+`cargo xtask test-native-ssh-cli` is opt-in and uses actual OpenSSH, a built CLI, and
 a real PTY. Set `NEXODE_NATIVE_SSH_BINARY`, `NEXODE_NATIVE_SSH_HOST`,
 `NEXODE_NATIVE_SSH_REMOTE_BINARY`, and `NEXODE_NATIVE_SSH_CWD`. The remote wrapper
 should select an isolated daemon runtime. With no configuration it skips without
@@ -209,7 +209,7 @@ not claimed as passed by the context-only SSH acceptance.
 
 ### Remote login acceptance
 
-`tests/test_native_ssh_login.py` requires the separate explicit opt-in
+`cargo xtask test-native-ssh-login` requires the separate explicit opt-in
 `NEXODE_NATIVE_SSH_LOGIN=1`, plus the local binary, SSH host, workspace, and
 `NEXODE_NATIVE_SSH_LOGIN_REMOTE_EXECUTABLE` (the actual remote ELF, not a wrapper).
 It creates a private remote home/runtime and never uses the user's credentials.
@@ -248,7 +248,7 @@ offline harness checks and the expanded live acceptance passed.
 
 ### Local credential import acceptance
 
-`tests/test_native_ssh_import.py` requires `NEXODE_NATIVE_SSH_IMPORT=1`,
+`cargo xtask test-native-ssh-import` requires `NEXODE_NATIVE_SSH_IMPORT=1`,
 `NEXODE_NATIVE_SSH_BINARY`, `NEXODE_NATIVE_SSH_HOST`, `NEXODE_NATIVE_SSH_CWD`, and
 `NEXODE_NATIVE_SSH_IMPORT_REMOTE_EXECUTABLE` (the actual remote ELF). It creates
 fresh local and remote homes with unmistakably synthetic credentials. Its safety
@@ -259,7 +259,7 @@ selection, each followed by cancellation at the destination warning, for both
 providers. It checks that no import subprocess started, no account labels were
 displayed, and the synthetic local/remote stores remained unchanged. It retains
 the direct-command cancel, confirmed import, and repeat/refusal scenarios. Run
-`python3 tests/test_native_ssh_import.py --self-test` for offline harness safety
+`cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml native_ssh` for offline harness safety
 checks. Real PTY/SSH acceptance still requires the explicit opt-in above.
 
 On 2026-09-06 at 11:07 UTC, the real local TUI, OpenSSH, remote CLI and daemon
@@ -333,3 +333,52 @@ the task: the managed Claude source became current before the successful retry.
 The final result is therefore **Claude imported, OpenAI authorization blocked**,
 not “neither account copied.” The broader unit-suite failures recorded above
 remain unresolved and are not counted as passing acceptance evidence.
+
+### Native Rust acceptance tooling
+
+The three acceptance entrypoints and their remote guards now live in
+`tools/orbit-dev/src/native_ssh`. Authentication suites additionally require
+`NEXODE_NATIVE_SSH_REMOTE_HELPER=/absolute/path/to/orbit-dev`, an existing ELF on
+the selected remote host. They do not install binaries automatically. Their
+private shell launcher only executes this native helper; no remote Python is
+required. Requests and sensitive callback/import input use stdin, never argv.
+
+Login and import create short private roots below `/tmp/nexode-login-acceptance`
+and `/tmp/nexode-import-acceptance`. Every control operation validates the unique
+owner marker. The suites retain the private daemon/artifacts and report the
+socket's kernel-observed PID and start time for scoped cleanup. Login cleanup
+removes pending files only inside its own marked root. Existing host keys must
+be verified; all previous strict SSH options and explicit opt-ins are preserved.
+
+Offline checks:
+
+```sh
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml native_ssh
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test native_ssh
+```
+
+Reproducible isolated OpenSSH integration (Linux, no personal credentials):
+
+```sh
+ORBIT_NATIVE_SSH_BINARY=/absolute/path/to/nexode \
+ORBIT_NATIVE_SSH_SSHD=/usr/sbin/sshd \
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml \
+  --test native_ssh real_cli_login_and_import_over_isolated_openssh \
+  -- --ignored --nocapture
+```
+
+This fixture generates temporary host/client keys, verifies its known host key,
+starts a private localhost sshd and exercises all three suites. It never alters
+the user's SSH configuration or a shared daemon. The test stops only daemon PIDs
+identified through its private sockets. External host scenarios remain opt-in.
+The dated deployment observations above describe their original runs; native
+harness tests are separate evidence and do not imply successful OAuth approval or
+provider-backed inference.
+The migration was validated on 2026-11-07 with the real runtime and a private
+localhost OpenSSH server: CLI persistence and both exit modes, the complete
+OpenAI/Claude begin/cancel login suite, and twelve import scenarios (six per
+provider) passed. Fourteen Rust unit checks plus process-level guard tests cover
+secret handling, invalid-state rejection, strict opt-in and exact-root ownership.
+The guard also permits the native directory panel's `__remote-inventory` command
+only for the configured working directory and a bounded session identifier;
+arbitrary commands and inventory requests outside that directory remain refused.

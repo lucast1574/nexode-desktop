@@ -197,7 +197,7 @@ a score is only ever compared against a run with the same model and route.
 **5.1 Empty catalog is not a failure.** The runner must accept a zero-result
 browse as `elicited`. It records the listing size for context but never gates on
 it. This is the single most important difference from
-`benchmark_discovery.py`.
+`cargo xtask benchmark-discovery`.
 
 **5.2 Benchmark marking.** The runner sets `NEXODE_DISCOVERY_BENCHMARK=1`, so
 requests carry `x-nexode-discovery-benchmark: 1` and land in D1 with
@@ -217,7 +217,7 @@ per-attempt timeout. The eval never lets the agent act on setup instructions.
 **5.5 No retry-until-hit on the headline.** Negatives are never retried, and the
 headline elicitation rate is first-attempt only. Repeated trials are for
 variance estimation and must be reported as a distribution, not as
-best-of-`n`. `benchmark_discovery.py`'s retry-until-hit mode is appropriate for
+best-of-`n`. `cargo xtask benchmark-discovery`'s retry-until-hit mode is appropriate for
 "can this ever work"; it is wrong for "how often does this happen".
 
 ## 6. Interpreting a result

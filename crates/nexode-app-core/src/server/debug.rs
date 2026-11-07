@@ -402,206 +402,221 @@ pub(super) async fn handle_debug_client(
                 // Parse namespaced command
                 let (namespace, cmd) = parse_namespaced_command(&command);
 
-                let result = match namespace {
-                    "client" => {
-                        // Forward to TUI client
-                        let mut response_rx = client_debug_response_tx.subscribe();
-                        let mut attempts = 0usize;
+                // Keep command failures inside the response boundary: ? in a
+                // handler must not tear down the debug transport without a reply.
+                let mut subscription_finished = false;
+                let result = async {
+                    match namespace {
+                        "client" => {
+                            // Forward to TUI client
+                            let mut response_rx = client_debug_response_tx.subscribe();
+                            let mut attempts = 0usize;
 
-                        loop {
-                            let (client_id, tx) = match resolve_client_debug_sender(
-                                requested_session.as_deref(),
-                                &client_connections,
-                                &client_debug_state,
+                            loop {
+                                let (client_id, tx) = match resolve_client_debug_sender(
+                                    requested_session.as_deref(),
+                                    &client_connections,
+                                    &client_debug_state,
+                                )
+                                .await
+                                {
+                                    Ok(target) => target,
+                                    Err(err) => break Err(err),
+                                };
+
+                                if tx.send((id, cmd.to_string())).is_ok() {
+                                    // Wait for response with timeout
+                                    let timeout = tokio::time::Duration::from_secs(30);
+                                    match tokio::time::timeout(timeout, async {
+                                        loop {
+                                            if let Ok((resp_id, output)) = response_rx.recv().await
+                                                && resp_id == id
+                                            {
+                                                return Ok(output);
+                                            }
+                                        }
+                                    })
+                                    .await
+                                    {
+                                        Ok(result) => break result,
+                                        Err(_) => {
+                                            break Err(anyhow::anyhow!(
+                                                "Timeout waiting for client response"
+                                            ));
+                                        }
+                                    }
+                                } else {
+                                    let mut debug_state = client_debug_state.write().await;
+                                    debug_state.unregister(&client_id);
+                                    attempts += 1;
+                                    if requested_session.is_some()
+                                        || debug_state.clients.is_empty()
+                                        || attempts > 8
+                                    {
+                                        break Err(anyhow::anyhow!("No TUI client connected"));
+                                    }
+                                }
+                            }
+                        }
+                        "tester" => {
+                            // Handle tester commands
+                            execute_tester_command(cmd).await
+                        }
+                        _ => {
+                            // Server commands (default)
+                            match super::group_transfer::handle(
+                                cmd,
+                                &sessions,
+                                &super::SwarmState {
+                                    members: Arc::clone(&swarm_members),
+                                    swarms_by_id: Arc::clone(&swarms_by_id),
+                                    plans: Arc::clone(&swarm_plans),
+                                    coordinators: Arc::clone(&swarm_coordinators),
+                                },
                             )
                             .await
                             {
-                                Ok(target) => target,
-                                Err(err) => break Err(err),
-                            };
-
-                            if tx.send((id, cmd.to_string())).is_ok() {
-                                // Wait for response with timeout
-                                let timeout = tokio::time::Duration::from_secs(30);
-                                match tokio::time::timeout(timeout, async {
-                                    loop {
-                                        if let Ok((resp_id, output)) = response_rx.recv().await
-                                            && resp_id == id
-                                        {
-                                            return Ok(output);
-                                        }
-                                    }
-                                })
-                                .await
-                                {
-                                    Ok(result) => break result,
-                                    Err(_) => {
-                                        break Err(anyhow::anyhow!(
-                                            "Timeout waiting for client response"
-                                        ));
-                                    }
-                                }
-                            } else {
-                                let mut debug_state = client_debug_state.write().await;
-                                debug_state.unregister(&client_id);
-                                attempts += 1;
-                                if requested_session.is_some()
-                                    || debug_state.clients.is_empty()
-                                    || attempts > 8
-                                {
-                                    break Err(anyhow::anyhow!("No TUI client connected"));
-                                }
-                            }
-                        }
-                    }
-                    "tester" => {
-                        // Handle tester commands
-                        execute_tester_command(cmd).await
-                    }
-                    _ => {
-                        // Server commands (default)
-                        match super::group_transfer::handle(
-                            cmd,
-                            &sessions,
-                            &super::SwarmState {
-                                members: Arc::clone(&swarm_members),
-                                swarms_by_id: Arc::clone(&swarms_by_id),
-                                plans: Arc::clone(&swarm_plans),
-                                coordinators: Arc::clone(&swarm_coordinators),
-                            },
-                        )
-                        .await
-                        {
-                            Err(error) => Err(error),
-                            Ok(Some(output)) => Ok(output),
-                            Ok(None) => {
-                                if let Some(output) =
-                                    maybe_handle_job_command(cmd, &debug_jobs).await?
-                                {
-                                    Ok(output)
-                                } else if let Some(output) = maybe_handle_session_admin_command(
-                                    cmd,
-                                    &sessions,
-                                    &session_id,
-                                    &provider,
-                                    &swarm_members,
-                                    &swarms_by_id,
-                                    &swarm_coordinators,
-                                    &swarm_plans,
-                                    &event_history,
-                                    &event_counter,
-                                    &swarm_event_tx,
-                                    &soft_interrupt_queues,
-                                    mcp_pool.clone(),
-                                )
-                                .await?
-                                {
-                                    Ok(output)
-                                } else if let Some(output) = maybe_handle_server_state_command(
-                                    cmd,
-                                    &sessions,
-                                    &client_connections,
-                                    &swarm_members,
-                                    &client_debug_state,
-                                    &server_identity,
-                                    server_start_time,
-                                    &swarms_by_id,
-                                    &shared_context,
-                                    &swarm_plans,
-                                    &swarm_coordinators,
-                                    &file_touch,
-                                    &channel_subscriptions,
-                                    &channel_subscriptions_by_session,
-                                    &debug_jobs,
-                                    &event_history,
-                                    &shutdown_signals,
-                                    &soft_interrupt_queues,
-                                )
-                                .await?
-                                {
-                                    Ok(output)
-                                } else if let Some(output) = maybe_handle_swarm_read_command(
-                                    cmd,
-                                    &sessions,
-                                    &swarm_members,
-                                    &swarms_by_id,
-                                    &shared_context,
-                                    &swarm_plans,
-                                    &swarm_coordinators,
-                                    &file_touch,
-                                    &channel_subscriptions,
-                                    &server_identity,
-                                )
-                                .await?
-                                {
-                                    Ok(output)
-                                } else if let Some(output) = maybe_handle_swarm_write_command(
-                                    cmd,
-                                    &DebugSwarmWriteContext {
-                                        session_id: &session_id,
-                                        swarm_members: &swarm_members,
-                                        swarms_by_id: &swarms_by_id,
-                                        shared_context: &shared_context,
-                                        swarm_plans: &swarm_plans,
-                                        swarm_coordinators: &swarm_coordinators,
-                                    },
-                                )
-                                .await?
-                                {
-                                    Ok(output)
-                                } else if let Some(output) =
-                                    maybe_handle_ambient_command(cmd, &ambient_runner, &provider)
-                                        .await?
-                                {
-                                    Ok(output)
-                                } else if maybe_handle_event_subscription_command(
-                                    id,
-                                    cmd,
-                                    &swarm_event_tx,
-                                    &mut writer,
-                                )
-                                .await?
-                                {
-                                    return Ok(());
-                                } else if let Some(output) =
-                                    maybe_handle_event_query_command(cmd, &event_history).await
-                                {
-                                    Ok(output)
-                                } else if cmd == "swarm:help" {
-                                    Ok(swarm_debug_help_text())
-                                } else if cmd == "help" {
-                                    Ok(debug_help_text())
-                                } else {
-                                    match resolve_debug_session(
+                                Err(error) => Err(error),
+                                Ok(Some(output)) => Ok(output),
+                                Ok(None) => {
+                                    if let Some(output) =
+                                        maybe_handle_job_command(cmd, &debug_jobs).await?
+                                    {
+                                        Ok(output)
+                                    } else if let Some(output) = maybe_handle_session_admin_command(
+                                        cmd,
                                         &sessions,
                                         &session_id,
-                                        requested_session,
+                                        &provider,
+                                        &swarm_members,
+                                        &swarms_by_id,
+                                        &swarm_coordinators,
+                                        &swarm_plans,
+                                        &event_history,
+                                        &event_counter,
+                                        &swarm_event_tx,
+                                        &soft_interrupt_queues,
+                                        mcp_pool.clone(),
                                     )
-                                    .await
+                                    .await?
                                     {
-                                        Ok((_session, agent)) => {
-                                            execute_debug_command(
-                                                agent,
-                                                cmd,
-                                                Arc::clone(&debug_jobs),
-                                                Some(&server_identity),
-                                                Some(DebugInterruptContext {
-                                                    session_id: _session,
-                                                    shutdown_signals: Arc::clone(&shutdown_signals),
-                                                    soft_interrupt_queues: Arc::clone(
-                                                        &soft_interrupt_queues,
-                                                    ),
-                                                }),
-                                            )
-                                            .await
+                                        Ok(output)
+                                    } else if let Some(output) = maybe_handle_server_state_command(
+                                        cmd,
+                                        &sessions,
+                                        &client_connections,
+                                        &swarm_members,
+                                        &client_debug_state,
+                                        &server_identity,
+                                        server_start_time,
+                                        &swarms_by_id,
+                                        &shared_context,
+                                        &swarm_plans,
+                                        &swarm_coordinators,
+                                        &file_touch,
+                                        &channel_subscriptions,
+                                        &channel_subscriptions_by_session,
+                                        &debug_jobs,
+                                        &event_history,
+                                        &shutdown_signals,
+                                        &soft_interrupt_queues,
+                                    )
+                                    .await?
+                                    {
+                                        Ok(output)
+                                    } else if let Some(output) = maybe_handle_swarm_read_command(
+                                        cmd,
+                                        &sessions,
+                                        &swarm_members,
+                                        &swarms_by_id,
+                                        &shared_context,
+                                        &swarm_plans,
+                                        &swarm_coordinators,
+                                        &file_touch,
+                                        &channel_subscriptions,
+                                        &server_identity,
+                                    )
+                                    .await?
+                                    {
+                                        Ok(output)
+                                    } else if let Some(output) = maybe_handle_swarm_write_command(
+                                        cmd,
+                                        &DebugSwarmWriteContext {
+                                            session_id: &session_id,
+                                            swarm_members: &swarm_members,
+                                            swarms_by_id: &swarms_by_id,
+                                            shared_context: &shared_context,
+                                            swarm_plans: &swarm_plans,
+                                            swarm_coordinators: &swarm_coordinators,
+                                        },
+                                    )
+                                    .await?
+                                    {
+                                        Ok(output)
+                                    } else if let Some(output) = maybe_handle_ambient_command(
+                                        cmd,
+                                        &ambient_runner,
+                                        &provider,
+                                    )
+                                    .await?
+                                    {
+                                        Ok(output)
+                                    } else if maybe_handle_event_subscription_command(
+                                        id,
+                                        cmd,
+                                        &swarm_event_tx,
+                                        &mut writer,
+                                    )
+                                    .await?
+                                    {
+                                        subscription_finished = true;
+                                        Ok(String::new())
+                                    } else if let Some(output) =
+                                        maybe_handle_event_query_command(cmd, &event_history).await
+                                    {
+                                        Ok(output)
+                                    } else if cmd == "swarm:help" {
+                                        Ok(swarm_debug_help_text())
+                                    } else if cmd == "help" {
+                                        Ok(debug_help_text())
+                                    } else {
+                                        match resolve_debug_session(
+                                            &sessions,
+                                            &session_id,
+                                            requested_session,
+                                        )
+                                        .await
+                                        {
+                                            Ok((_session, agent)) => {
+                                                execute_debug_command(
+                                                    agent,
+                                                    cmd,
+                                                    Arc::clone(&debug_jobs),
+                                                    Some(&server_identity),
+                                                    Some(DebugInterruptContext {
+                                                        session_id: _session,
+                                                        shutdown_signals: Arc::clone(
+                                                            &shutdown_signals,
+                                                        ),
+                                                        soft_interrupt_queues: Arc::clone(
+                                                            &soft_interrupt_queues,
+                                                        ),
+                                                    }),
+                                                )
+                                                .await
+                                            }
+                                            Err(e) => Err(e),
                                         }
-                                        Err(e) => Err(e),
                                     }
                                 }
                             }
                         }
                     }
-                };
+                }
+                .await;
+                if subscription_finished {
+                    return Ok(());
+                }
 
                 let (ok, output) = match result {
                     Ok(output) => (true, output),

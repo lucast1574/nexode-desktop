@@ -35,10 +35,14 @@ mod key_capture;
 mod login_qr;
 #[cfg(unix)]
 mod mcp_acceptance;
+#[cfg(target_os = "linux")]
+mod memory_bench;
 mod memory_log;
 mod memory_snapshot;
 mod mermaid_probe;
 mod monitor;
+#[cfg(target_os = "linux")]
+mod native_ssh;
 mod niri_fuzz;
 mod oauth;
 mod pair_service;
@@ -64,6 +68,8 @@ mod shell_helpers;
 mod size_budget;
 mod startup_bench;
 mod structure;
+#[cfg(target_os = "linux")]
+mod terminal_bench;
 mod testflight;
 mod token_compare;
 mod tui_probe;
@@ -226,6 +232,28 @@ fn main() -> Result<()> {
         Some("json-field") => json_field::run(args)?,
         Some("reload-recovery-audit") => reload_audit::run(args)?,
         Some("reddit-dashboard") => reddit_dashboard::run(args)?,
+        Some("benchmark-browser-handoff") => {
+            std::process::exit(browser_fixture::benchmark::run(args)?)
+        }
+        #[cfg(target_os = "linux")]
+        Some("bench-memory-cli") => std::process::exit(memory_bench::interactive(args)?),
+        #[cfg(target_os = "linux")]
+        Some("bench-headless-memory") => std::process::exit(memory_bench::headless(args)?),
+        #[cfg(target_os = "linux")]
+        Some(
+            command @ ("test-native-ssh-cli"
+            | "test-native-ssh-import"
+            | "test-native-ssh-login"
+            | "native-ssh-control"
+            | "native-ssh-guard"),
+        ) => native_ssh::run(command, args)?,
+        #[cfg(target_os = "linux")]
+        Some("terminal-bench") => std::process::exit(terminal_bench::run(args)?),
+        #[cfg(target_os = "linux")]
+        Some("terminal-bench-campaign") => std::process::exit(terminal_bench::campaign(args)?),
+        Some("benchmark-discovery") => std::process::exit(discovery::benchmark::run(args)?),
+        Some("benchmark-discovery-rate") => std::process::exit(discovery::benchmark::rate(args)?),
+        Some("compare-discovery-rate") => std::process::exit(discovery::benchmark::compare(args)?),
         Some("package-version") => {
             use std::io::Read;
             let mut input = String::new();
@@ -281,6 +309,14 @@ fn main() -> Result<()> {
             | "repro-input-lag"
             | "repro-live-duplicate"
             | "test-reload"
+            | "startup-acceptance-matrix"
+            | "benchmark-swarm"
+            | "benchmark-takehome"
+            | "test-swarm"
+            | "test-swarm-debug"
+            | "test-soft-interrupt"
+            | "test-injection-fix"
+            | "test-injection-thorough"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

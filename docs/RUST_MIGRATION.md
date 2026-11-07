@@ -1,6 +1,6 @@
 # Migración de herramientas a Rust
 
-La migración está en curso. Este documento no declara al repositorio libre de Python.
+La migración del código Python propio se completó el 7 de noviembre de 2026. No quedan archivos `.py` versionados ni bloques Python ejecutables en los lanzadores o workflows de Orbit.
 
 ## Implementado
 
@@ -26,16 +26,27 @@ disponible/obsoleto; no instala Python ni lo usa como fallback. El comando no
 inicializa proveedores, sesiones de agente ni el daemon. No se conecta a un
 backend de Nexode Cloud.
 
-## Trabajo pendiente
+## Cierre y validación
 
-Quedan scripts Python de benchmarks, diagnóstico y pruebas SSH/TUI, además de fragmentos incrustados en wrappers. El inventario detallado está en `MIGRACION_PENDIENTE.md`. La integración heredada `nexode cloud sessions`, dependiente del helper privado `jade_sessions.py`, se retiró por indicación del mantenedor. Sus archivos locales de configuración no se borran automáticamente. Los comandos actuales `cloud move`, `return`, `env`, `replace` y `ephemeral` se conservan.
+Las herramientas de releases, diagnóstico, memoria, SSH, TUI, Discovery, swarm,
+Harbor, Lambda y TestFlight tienen implementaciones Rust en `tools/orbit-dev`.
+Los lanzadores shell usan `scripts/orbit_dev.sh`. La integración heredada
+`nexode cloud sessions`, dependiente de `jade_sessions.py`, se retiró por indicación
+del mantenedor; se conservan `cloud move`, `return`, `env`, `replace` y `ephemeral`.
 
-Continúa la migración de releases, diagnóstico y suites SSH/TUI/benchmarks. Cada reemplazo debe mantener sus contratos y comprobarse
-antes de retirar el original.
+El registro y los límites de validación están en [MIGRACION_PENDIENTE.md](../MIGRACION_PENDIENTE.md).
+La suite completa de herramientas pasó 332 pruebas; Clippy de todos sus targets
+pasó sin warnings. La aceptación adicional usó runtime, OpenSSH y Docker reales
+con servicios locales y credenciales sintéticas. No se hicieron despliegues ni
+llamadas pagadas a modelos. Los diagnósticos de arranque/input lag conservan y
+reportan sus incumplimientos de presupuesto: no son pruebas declaradas aprobadas.
 
-La aceptación final requiere cero scripts/intérpretes Python necesarios en
-los flujos soportados de build, pruebas, instalación y ejecución, verificados
-en entornos sin Python. La capacidad del agente para trabajar con proyectos
-Python de los usuarios se conserva.
+La capacidad del agente para trabajar con proyectos Python se conserva. Algunos
+datasets externos evalúan programas Python y requieren su propio intérprete;
+esto es distinto del orquestador nativo. El runner Terminal-Bench implementa el
+contrato de tareas Linux de un contenedor y documenta los contratos no soportados.
 
-El ensayo conserva el requisito del updater de compilar con `NEXODE_RELEASE_REPO` configurado para probar una actualización real. Las pruebas locales del servidor, archivo, sandbox y lanzamiento no publican releases.
+El ensayo conserva el requisito del updater de compilar con `NEXODE_RELEASE_REPO`
+configurado para probar una actualización real. Las pruebas locales del servidor,
+archivo, sandbox y lanzamiento no publican releases. Se mantiene el SDK TypeScript
+y el JavaScript necesario de la extensión del navegador.

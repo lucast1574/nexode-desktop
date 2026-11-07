@@ -8,7 +8,7 @@
 // landed behind one of those frames, so a freshly spawned session felt laggy,
 // and a notice that kept re-arming held the client there indefinitely.
 //
-// `scripts/repro_input_lag.py --live` measures the same thing end to end against
+// `cargo xtask repro-input-lag --live` measures the same thing end to end against
 // a real binary; these tests are the cheap gate that runs in CI.
 
 /// A state whose only "live" element is a piece of static text chrome.

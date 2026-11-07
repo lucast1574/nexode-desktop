@@ -1,16 +1,16 @@
-# Migración pendiente de Python a Rust
+# Registro de migración de Python a Rust
 
-Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migración reanudada por petición del mantenedor. Este documento registra pendientes; no afirma que el repositorio esté libre de Python.
+Migración completada el 7 de noviembre de 2026 sobre la base `485f1b1`. Se conserva este nombre de archivo para no romper enlaces al inventario histórico.
 
 ## Alcance y estado
 
-- Quedan **20 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **0 archivos Python versionados**. Los bloques Python de shell y sus consumidores de CI se sustituyeron por comandos Rust. Las rutas marcadas abajo son el registro de los originales retirados.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
 - Los avisos y atribuciones de terceros de `NOTICE` deben conservarse.
 
-## Inventario de archivos Python pendientes
+## Inventario histórico de archivos migrados
 
 Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumidores y eliminar el archivo antiguo después de verificar equivalencia. La clasificación agrupa rutas; no equivale a una auditoría completa de su comportamiento.
 
@@ -24,26 +24,26 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [x] `scripts/update_cloud_runtime.py` — migrado a Rust en `tools/orbit-dev`.
 - [x] `tests/test_cloud_acceptance_harness.py` — gate nativo `test-cloud-acceptance` y helpers Rust.
 - [x] `tests/test_cloud_credentials.py` — `test-cloud-credentials`; 14 escenarios con binario real y credenciales sintéticas.
-- [ ] `tests/test_native_ssh_cli.py`
-- [ ] `tests/test_native_ssh_import.py`
-- [ ] `tests/test_native_ssh_login.py`
+- [x] `tests/test_native_ssh_cli.py`
+- [x] `tests/test_native_ssh_import.py`
+- [x] `tests/test_native_ssh_login.py`
 
 ### Benchmarks, Discovery, Harbor y swarm
 
-- [ ] `scripts/bench_headless_memory.py`
-- [ ] `scripts/bench_memory_cli.py`
-- [ ] `scripts/benchmark_browser_handoff.py`
-- [ ] `scripts/benchmark_discovery.py`
-- [ ] `scripts/benchmark_discovery_rate.py`
-- [ ] `scripts/benchmark_swarm.py`
-- [ ] `scripts/benchmark_takehome.py`
-- [ ] `scripts/nexode_harbor_agent.py`
-- [ ] `scripts/nexode_harbor_claude_agent.py`
-- [ ] `scripts/run_terminal_bench_campaign.py`
-- [ ] `scripts/test_benchmark_discovery.py`
-- [ ] `scripts/test_benchmark_discovery_rate.py`
-- [ ] `scripts/test_swarm.py`
-- [ ] `scripts/test_swarm_debug.py`
+- [x] `scripts/bench_headless_memory.py`
+- [x] `scripts/bench_memory_cli.py`
+- [x] `scripts/benchmark_browser_handoff.py`
+- [x] `scripts/benchmark_discovery.py`
+- [x] `scripts/benchmark_discovery_rate.py`
+- [x] `scripts/benchmark_swarm.py`
+- [x] `scripts/benchmark_takehome.py`
+- [x] `scripts/nexode_harbor_agent.py`
+- [x] `scripts/nexode_harbor_claude_agent.py`
+- [x] `scripts/run_terminal_bench_campaign.py`
+- [x] `scripts/test_benchmark_discovery.py`
+- [x] `scripts/test_benchmark_discovery_rate.py`
+- [x] `scripts/test_swarm.py`
+- [x] `scripts/test_swarm_debug.py`
 
 ### Memoria, perfiles y estrés
 
@@ -63,12 +63,12 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [x] `scripts/repro_live_duplicate.py` — seis snapshots reales por cliente y control positivo de duplicación, con recarga/reconexión.
 - [x] `scripts/test_desktop_selfdev.py` — migrado a `cargo xtask test-desktop-selfdev`.
 - [x] `scripts/test_reload.py` — `test-reload`: 12 grupos contra runtime real y 34 tests Rust de señales, contexto y marcadores.
-- [ ] `scripts/test_soft_interrupt.py`
+- [x] `scripts/test_soft_interrupt.py` — suite nativa de ocho escenarios, validada con runtime y herramientas reales.
 - [x] `scripts/tests/mcp_cli_acceptance.py` — `mcp-cli-acceptance`; diez casos contra CLI real, OAuth/PKCE/callback/SSE locales.
 - [x] `tests/e2e/expand_badge_headed_wtype.py` — Rust; protocolo/foco/limpieza probados con dobles. Compositor Wayland real no disponible en este entorno.
 - [x] `tests/e2e/expand_badge_headless.py` — `expand-badge-headless`; probado con PTY y runtime reales, en un daemon aislado.
-- [ ] `tests/test_injection_fix.py`
-- [ ] `tests/test_injection_thorough.py`
+- [x] `tests/test_injection_fix.py` — suite nativa de ocho escenarios, validada con runtime y herramientas reales.
+- [x] `tests/test_injection_thorough.py` — suite nativa de ocho escenarios, validada con runtime y herramientas reales.
 - [x] `tests/test_selfdev_reload.py` — migrado a `orbit-dev`, verificado con runtime real.
 
 ### Servicios del teléfono y TestFlight
@@ -84,23 +84,23 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [x] `scripts/test_caching_detailed.py` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/test_oauth_usage.py` — migrado a Rust en `tools/orbit-dev`.
 
-## Python incrustado y lanzadores pendientes
+## Python incrustado y lanzadores migrados
 
-Estas rutas de shell contienen invocaciones de Python, bloques incrustados o configuración de PYTHONPATH. Migrar también estos puntos: borrar únicamente archivos `.py` no elimina la dependencia.
+Se revisaron también invocaciones de Python, bloques incrustados y configuración de PYTHONPATH. Los lanzadores siguientes delegan a Rust; webfetch conserva una URL legítima de documentación externa.
 
 - [x] `scripts/antigravity_multiturn_coverage.sh` — parser JSON Rust; cuatro turnos y fallo JSON probados con CLI sintética.
 - [x] `scripts/bench_compile.sh` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/bench_selfdev_build.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/bench_selfdev_checkpoints.sh` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/benchmark_tools.sh` — benchmark Rust; 54 ejecuciones reales de herramientas, CSV y contrato con fixture.
-- [ ] `scripts/compare_discovery_rate.sh`
+- [x] `scripts/compare_discovery_rate.sh`
 - [x] `scripts/compile_time_probe.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/generate_release_notes.sh` — lanzador de `generate-release-notes` nativo.
 - [x] `scripts/record_demo.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/replay_recording.sh` — Python sustituido por comandos nativos de orbit-dev.
-- [ ] `scripts/run_terminal_bench_claude.sh`
-- [ ] `scripts/run_terminal_bench_harbor.sh`
-- [ ] `scripts/startup_acceptance_matrix.sh`
+- [x] `scripts/run_terminal_bench_claude.sh`
+- [x] `scripts/run_terminal_bench_harbor.sh`
+- [x] `scripts/startup_acceptance_matrix.sh` — matriz nativa aislada, once escenarios reales; R7 pasó, conserva fallos visuales diagnosticados.
 - [x] `scripts/stress_test_40.sh` — helpers Rust de socket/JSON; sintaxis shell y protocolo probados.
 - [x] `scripts/test_cloud_environment_e2e.sh` — assertions Rust; aceptación con runtime real.
 - [x] `scripts/test_cloud_group_e2e.sh` — gate nativo `test-cloud-acceptance` y helpers Rust.
@@ -110,30 +110,26 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - [x] `scripts/test_cloud_replace_e2e.sh` — assertions Rust; aceptación con runtime real.
 - [x] `scripts/test_ssh_slash_workflows.sh` — migrado a `orbit-dev`, verificado con runtime real.
 - [x] `scripts/verify_alt_shift_e_reaches_terminal.sh` — capturador de terminal Rust y selección de ventanas nativa; captura verificada con PTY.
-- [ ] `scripts/webfetch_corpus.sh`
+- [x] `scripts/webfetch_corpus.sh` — auditado: python.org es una URL de prueba, no una invocación de Python.
 
 ## Integraciones que requieren atención especial
 
-- [ ] `.github/workflows/cloud-acceptance.yml`: instala Python y ejecuta el harness y las pruebas de aceptación cloud. Actualizar junto con sus reemplazos nativos; no habilitar ni ejecutar infraestructura real como parte de una comprobación local.
+- [x] `.github/workflows/cloud-acceptance.yml`: usa harness y pruebas Rust; ya no instala Python.
 - [x] Integración heredada `cloud sessions` y helper privado `jade_sessions.py` retirados por indicación del mantenedor; 424 pruebas CLI y rechazo del comando eliminado verificados.
-- [ ] Adaptadores Harbor: dependen de interfaces del framework Python externo. Evaluar un runner/contrato compatible en Rust; envolver o invocar Python no completa la migración. Actualizar también los lanzadores de Terminal Bench.
-- [ ] Lambdas de encendido/apagado y emparejamiento: portar el protocolo y clientes AWS a Rust, externalizar configuración heredada y probar con fixtures. No sustituir boto3 por AWS CLI si el objetivo es eliminar Python.
-- [ ] TestFlight: portar autenticación JWT y llamadas de API, con pruebas locales; no enviar builds ni modificar cuentas durante la validación.
-- [ ] Revisar documentación, comandos de ejemplo y consumidores indirectos para corregir referencias a scripts migrados. Distinguir ejemplos legítimos de lenguaje Python de dependencias ejecutadas por Orbit.
+- [x] Adaptadores Harbor sustituidos por runner Docker y campañas Rust, con contratos soportados y rechazos explícitos documentados en `docs/TERMINAL_BENCH.md`.
+- [x] Lambdas de encendido/apagado y emparejamiento: protocolos y cliente AWS firmados en Rust, configuración externa y pruebas locales; sin boto3 ni AWS CLI.
+- [x] TestFlight: JWT y API en Rust, probados localmente sin enviar builds ni modificar cuentas.
+- [x] Documentación y consumidores actualizados; se conservan ejemplos legítimos del lenguaje y contratos de datasets externos.
 
 ### Referencia externa que no debe borrarse a ciegas
 
 `scripts/install_justrust_hosted_ci.sh` conserva el archivo externo `scripts/sign-release.py` de justrust porque su fuente fijada lo incluye como datos durante la compilación. La firma de Orbit ya usa Rust y ese flujo no invoca un intérprete Python. Eliminar el archivo sin adaptar primero esa dependencia rompe el bootstrap; verificar el uso real antes de cambiarlo.
 
-## Orden sugerido para retomar
+## Validación reproducible
 
-1. Terminar herramientas de diagnóstico, memoria, TUI y recarga, reutilizando PTY, protocolo de debug y métricas nativas existentes.
-2. Migrar suites de aceptación y sus fixtures (escritorio, MCP, SSH y cloud), junto con lanzadores y CI.
-3. Portar benchmarks y análisis de resultados; conservar esquemas JSON, argumentos, códigos de salida y límites de tiempo. Resolver Harbor de forma explícita.
-4. Migrar servicios externos y empaquetado de runtime con configuraciones explícitas y pruebas de APIs simuladas.
-5. Auditar shell, workflows y documentación para cerrar dependencias residuales.
+Los comandos y opciones están en `tools/orbit-dev/README.md`, `docs/NATIVE_SSH.md`, `docs/NATIVE_DISCOVERY_SWARM_BENCHMARKS.md`, `docs/TERMINAL_BENCH.md` y `docs/MEMORY_BENCHMARKS.md`.
 
-## Criterios para cerrar cada bloque
+## Criterios aplicados
 
 - Conservar comportamiento útil y cobertura; no borrar pruebas solamente para reducir el conteo de Python.
 - Probar errores, timeouts y limpieza de procesos cuando corresponda. Usar hogares temporales, credenciales sintéticas, sockets propios y servidores locales.
@@ -142,9 +138,14 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - Revisar compatibilidad de plataforma: varias herramientas son Unix/Linux; una prueba local en Linux no acredita Windows ni macOS.
 - Confirmar que no quedan consumidores del script antiguo antes de eliminarlo.
 
-## Límites de la validación actual
+## Validación y límites
 
-La suite completa de `tools/orbit-dev` pasó en Linux/WSL: **223 pruebas, 0 fallos**; Clippy de todos los targets pasó con `-D warnings`. Se compiló también el cliente real de aceptación del SDK de Desktop y se compararon las notas de versión antiguas/nativas en tres escenarios con salida idéntica. Los flujos cloud, heap y consumo se verificaron con fixtures locales; no se ejecutaron despliegues cloud, inferencia real ni aceptación completa contra daemons de producción. Esto no certifica los 46 scripts Python pendientes ni Windows/macOS. El Clippy del workspace raíz mantiene errores previos fuera de esta migración; no debe presentarse como aprobado. Las pruebas locales de RSS verificaron funcionamiento, no demostraron ausencia de fugas a largo plazo.
+- Suite completa de `tools/orbit-dev`: **332 pruebas aprobadas**, 0 fallos, 1 aceptación SSH ignorada por defecto. Esa aceptación se ejecutó explícitamente y pasó junto con CLI/login/importación contra OpenSSH real aislado. Clippy de todos los targets pasó con `-D warnings`.
+- Runtime real: recarga, duplicación de transcript, herramientas, memoria, sesiones concurrentes, interrupciones y SSH. Docker real: intentos concurrentes, verificador, reward, tokens, timeout/limpieza y reanudación de campaña. Los proveedores fueron locales y las credenciales sintéticas; no se hizo inferencia pagada ni despliegues.
+- Los benchmarks conservan la capacidad de devolver fallos: la matriz de arranque pasó R7 (6 ms de catálogo, límite 40 ms), pero reprodujo fallos visuales de primer frame. La prueba inmediata de input lag mantuvo baja latencia de escritura y detectó actividad idle superior al presupuesto. No se presentan estos diagnósticos como aprobados.
+- Los benchmarks live de proveedores y navegador requieren sus servicios configurados. La ejecución de un desafío externo Python (por ejemplo `original_performance_takehome`) puede requerir el intérprete del propio desafío; el orquestador de Orbit es Rust. El runner Terminal-Bench soporta tareas Linux de un contenedor y rechaza contratos avanzados no implementados; consultar sus límites en la documentación.
+- Los checks de módulos y límites de dependencias pasaron. El guardrail global de tamaño detecta 20 excesos respecto a su baseline en archivos no modificados por el bloque final; no se elevaron los límites para ocultarlos.
+- La validación descrita fue en Linux/WSL. No certifica Windows/macOS, ausencia de fugas a largo plazo ni el Clippy completo del workspace raíz, que tiene errores previos fuera de este trabajo.
 
 ## Cómo actualizar el inventario
 

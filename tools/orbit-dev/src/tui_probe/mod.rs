@@ -26,7 +26,9 @@ mod input_lag;
 #[cfg(unix)]
 mod inspect;
 #[cfg(unix)]
-mod io;
+mod interrupt_probe;
+#[cfg(unix)]
+pub(crate) mod io;
 #[cfg(unix)]
 mod isolated;
 #[cfg(unix)]
@@ -48,7 +50,7 @@ mod reload_probe;
 #[cfg(target_os = "linux")]
 mod resume_burst;
 #[cfg(unix)]
-mod screen;
+pub(crate) mod screen;
 #[cfg(unix)]
 mod selfdev_status;
 #[cfg(unix)]
@@ -60,7 +62,13 @@ mod socket_cli;
 #[cfg(target_os = "linux")]
 mod spawn_profile;
 #[cfg(target_os = "linux")]
+mod startup_matrix;
+#[cfg(target_os = "linux")]
 mod stress;
+#[cfg(unix)]
+mod swarm_benchmark;
+#[cfg(unix)]
+mod swarm_checks;
 #[cfg(unix)]
 mod theme;
 #[cfg(unix)]
@@ -74,7 +82,25 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "test-reload" {
+        let result = if command == "startup-acceptance-matrix" {
+            #[cfg(target_os = "linux")]
+            {
+                startup_matrix::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("startup matrix requires Linux")
+            }
+        } else if matches!(command, "benchmark-swarm" | "benchmark-takehome") {
+            swarm_benchmark::run(args)
+        } else if matches!(command, "test-swarm" | "test-swarm-debug") {
+            swarm_checks::run(args)
+        } else if matches!(
+            command,
+            "test-soft-interrupt" | "test-injection-fix" | "test-injection-thorough"
+        ) {
+            interrupt_probe::run(args)
+        } else if command == "test-reload" {
             reload_probe::run(args)
         } else if command == "repro-live-duplicate" {
             live_duplicate::run(args)

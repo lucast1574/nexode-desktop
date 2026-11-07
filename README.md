@@ -45,12 +45,12 @@ El comando es `nexode`, la configuración se guarda en `~/.nexode` y las variabl
 
 El núcleo, la CLI y la TUI están en Rust. El repositorio también conserva:
 
-- **Python:** pruebas, benchmarks, auditorías y herramientas heredadas aún pendientes de migrar. El inventario de directorios remotos ya está implementado en Rust.
+- **Rust auxiliar:** pruebas, benchmarks, auditorías, inventario remoto y servicios de mantenimiento migrados a `tools/orbit-dev`; no quedan archivos Python propios versionados.
 - **Bash/Shell:** instalación, compilación, empaquetado y pruebas. La herramienta de comandos ejecuta Bash en Unix y `cmd.exe` en Windows.
 - **PowerShell:** instalación, desinstalación y comprobaciones específicas de Windows.
 - **JavaScript/TypeScript:** SDK para integrar el agente en otras aplicaciones y pruebas. El worker de telemetría heredado fue eliminado. El puente externo del navegador también usa una extensión JavaScript.
 
-El proyecto tiene un núcleo Rust. La [migración de herramientas a Rust](docs/RUST_MIGRATION.md) está en curso; aún quedan scripts Python. Las herramientas portadas se ejecutan con `cargo xtask`.
+La [migración de herramientas a Rust](docs/RUST_MIGRATION.md) está completa. Las herramientas se ejecutan con `cargo xtask`. Orbit mantiene la capacidad de trabajar con proyectos Python; los evaluadores de datasets externos pueden requerir el intérprete de su propio proyecto.
 
 ## Estado de esta distribución
 

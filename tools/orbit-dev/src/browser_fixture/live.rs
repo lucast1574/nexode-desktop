@@ -71,7 +71,7 @@ fn disposable(tab: &Value) -> bool {
         )
 }
 #[cfg(unix)]
-fn tab_lock(id: u64) -> Result<File> {
+pub(super) fn tab_lock(id: u64) -> Result<File> {
     use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
     let runtime = std::env::var_os("XDG_RUNTIME_DIR")
         .map(PathBuf::from)
@@ -91,7 +91,7 @@ fn tab_lock(id: u64) -> Result<File> {
     Ok(file)
 }
 #[cfg(not(unix))]
-fn tab_lock(_id: u64) -> Result<File> {
+pub(super) fn tab_lock(_id: u64) -> Result<File> {
     anyhow::bail!("live browser acceptance currently requires Unix")
 }
 struct Bridge {

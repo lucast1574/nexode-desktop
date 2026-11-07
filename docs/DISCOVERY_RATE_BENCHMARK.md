@@ -1,6 +1,6 @@
 # Discovery call-rate benchmark
 
-`scripts/benchmark_discovery_rate.py` measures the policy we actually want to
+`cargo xtask benchmark-discovery-rate` measures the policy we actually want to
 hold: **the agent calls `integration_tools` whenever it reaches for an external
 product, service, API, or data source, and it commits to a specific vendor
 through `action=select` rather than around the integration directory.**
@@ -13,18 +13,18 @@ broad suite, including tasks where triggering would be wrong.
 ## Run it
 
 ```bash
-python scripts/benchmark_discovery_rate.py --provider nexode --model claude-haiku-4-5-20251001
-python scripts/benchmark_discovery_rate.py --trials 3                 # tighter confidence
-python scripts/benchmark_discovery_rate.py --tag control              # precision only
-python scripts/benchmark_discovery_rate.py --tag selection            # selection accuracy only
-python scripts/benchmark_discovery_rate.py --case storage-user-uploads
-python scripts/benchmark_discovery_rate.py --list                     # inspect the suite
+bash scripts/orbit_dev.sh benchmark-discovery-rate --provider nexode --model claude-haiku-4-5-20251001
+bash scripts/orbit_dev.sh benchmark-discovery-rate --trials 3                 # tighter confidence
+bash scripts/orbit_dev.sh benchmark-discovery-rate --tag control              # precision only
+bash scripts/orbit_dev.sh benchmark-discovery-rate --tag selection            # selection accuracy only
+bash scripts/orbit_dev.sh benchmark-discovery-rate --case storage-user-uploads
+bash scripts/orbit_dev.sh benchmark-discovery-rate --list                     # inspect the suite
 ```
 
 Offline tests for the scoring and detection logic, no model credits needed:
 
 ```bash
-python scripts/test_benchmark_discovery_rate.py
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml discovery::benchmark
 ```
 
 Reports land in `target/discovery-rate/latest.json`; use `--output` to keep
@@ -102,7 +102,7 @@ Bypasses are matched against the agent's **tool input only**, never tool output.
 Scanning output produced false positives: probing a workspace echoes vendor names
 the agent never chose. Vendor CLI patterns are anchored to a command position, so
 a vendor name inside a heredoc, a file path, or a `command -v` probe list does not
-count. `scripts/test_benchmark_discovery_rate.py` pins both directions with
+count. `tools/orbit-dev/src/discovery/benchmark/tests.rs` pins both directions with
 positive and negative fixtures; extend it whenever a pattern changes.
 
 ## Trial validity
@@ -135,9 +135,9 @@ bypass is high, the fix belongs in that description, and this benchmark is the
 feedback loop for it. Record a baseline before changing wording:
 
 ```bash
-python scripts/benchmark_discovery_rate.py --output target/discovery-rate/before.json
+bash scripts/orbit_dev.sh benchmark-discovery-rate --output target/discovery-rate/before.json
 # edit the discover_tools description
-python scripts/benchmark_discovery_rate.py --output target/discovery-rate/after.json
+bash scripts/orbit_dev.sh benchmark-discovery-rate --output target/discovery-rate/after.json
 ```
 
 Prompts are held fixed across such experiments. Change a case only when its user
@@ -258,7 +258,7 @@ finishing the comparison only needs the post-change arm, which halves the quota
 cost:
 
 ```bash
-NEXODE_BIN=<after-bin> python scripts/benchmark_discovery_rate.py \
+NEXODE_BIN=<after-bin> bash scripts/orbit_dev.sh benchmark-discovery-rate \
   --provider gemini-api --model gemini-2.5-flash-lite --trials 3 \
   --case storage-user-uploads --case authentication-signin \
   --case observability-traces --case analytics-product-funnel \

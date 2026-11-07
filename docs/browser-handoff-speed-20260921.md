@@ -15,7 +15,7 @@ exhausted). A failed handoff is not a fast completion. No purchase was made.
 
 Source: local `browser-handoff-benchmark-byok-v2` artifacts in Nexode's scratch
 folder. The six original NDJSON transcripts were reparsed using the current
-`benchmark_browser_handoff.py` extractor on 2026-09-21. Assertions confirmed:
+native `benchmark-browser-handoff` extractor (original Python implementation) on 2026-09-21. Assertions confirmed:
 
 - All six recorded independent final-DOM, fixture and returned-receipt checks passed.
 - No direct-arm transcript executed handoff. Neither arm executed non-browser tools.

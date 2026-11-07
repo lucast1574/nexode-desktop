@@ -142,7 +142,8 @@ A blocked command must not silently execute against the laptop.
 ## Workflow acceptance
 
 Run `NEXODE_BIN=/path/to/rebuilt/nexode scripts/test_ssh_slash_workflows.sh` on Linux
-with OpenSSH server/client, tmux and Python 3.11 or newer. It uses a private,
+with OpenSSH server/client, tmux and native `orbit-dev` tooling (built by the launcher
+when needed, or selected with `ORBIT_DEV_BIN`). It uses a private,
 loopback-only SSH server, generated host/client keys, separate client and daemon
 homes, and a temporary workspace. The actual native `--ssh` transport, TUI,
 daemon and persistence are exercised. Only model responses are deterministic

@@ -518,3 +518,32 @@ exports preserve inputs and add normalized metrics. Font discovery checks DejaVu
 Arial and Liberation Sans; `--font` selects an explicit font. Pure Rust font
 rendering needs no fontconfig development libraries. PNG/SVG exports and numeric
 checks pass with an empty PATH; the PNG was visually inspected.
+
+`test-soft-interrupt --binary PATH` (aliases `test-injection-fix` and
+`test-injection-thorough`) runs eight cases against a disposable real daemon and
+loopback provider: basic messages, in-flight requests, file-reading tools, multiple
+tools, urgent skipping, response ordering, long-response interruption and queued
+input. Gates replace timing guesses. The test uses the production streaming socket;
+`message:` debug commands use a separate non-streaming path. Every provider request
+is checked by actual tool IDs: no missing results or intervening user text. Urgent
+cases require stub results and prove the remaining commands did not execute. All
+eight cases and the debug queue regression passed. `ORBIT_TEST_NEXODE_BINARY=PATH
+cargo test --manifest-path tools/orbit-dev/Cargo.toml --test interrupt_native`
+repeats the real-runtime check. `--keep` retains successful provider artifacts.
+
+`--live --socket DEBUG [--native-socket SOCKET] [--providers claude,openai]` retains
+external-provider acceptance and requires configured credentials; it was not run
+against paid services. Missing interrupts, provider errors and unanswered follow-up
+messages fail explicitly, unlike the former permissive Python checks.
+
+`startup-acceptance-matrix BINARY LABEL [--repo PATH] [--output NEW_DIRECTORY]`
+replaces the embedded Python matrix. Eleven scenarios cover priming/warm/narrow
+clients, non-Git cwd, modified hints, a four-message synthetic resume and automatic
+daemon startup. Real PTYs capture distinct frames, idle/typed screens and the model
+picker. Header hints, homes, sockets and process cleanup are isolated. R1-R6 retain
+the historical visual budgets; R7 parses native server timing. The real matrix
+completed with R7 passing (catalog maximum 6 ms; budget 40 ms), but reproduced
+header/branch first-frame failures and one non-Git overview/catalog failure. It
+correctly returns 1 for those diagnostics; these are not claimed as passing tests.
+Numeric parsing/hint-mutation unit tests and shell syntax checks passed. Artifacts
+include each scenario's captures, server logs and report.json.

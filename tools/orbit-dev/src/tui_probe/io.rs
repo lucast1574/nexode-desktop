@@ -7,10 +7,10 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-pub(super) fn debug(socket: &Path, command: &str, timeout: Duration) -> Result<String> {
+pub(crate) fn debug(socket: &Path, command: &str, timeout: Duration) -> Result<String> {
     debug_session(socket, command, None, timeout)
 }
-pub(super) fn debug_session(
+pub(crate) fn debug_session(
     socket: &Path,
     command: &str,
     session: Option<&str>,
@@ -19,11 +19,15 @@ pub(super) fn debug_session(
     let v = debug_response(socket, command, session, timeout)?;
     ensure!(
         v["type"] != "error" && v["ok"] != false,
-        "debug command rejected"
+        "debug command rejected: {}",
+        v["output"]
+            .as_str()
+            .or(v["error"].as_str())
+            .unwrap_or("no diagnostic")
     );
     Ok(v["output"].as_str().unwrap_or("").to_owned())
 }
-pub(super) fn debug_response(
+pub(crate) fn debug_response(
     socket: &Path,
     command: &str,
     session: Option<&str>,

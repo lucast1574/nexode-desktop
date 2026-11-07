@@ -26,7 +26,7 @@ CASES=(
 run() {
   local binary="$1" out="$2"
   echo "=== $out ($binary)"
-  NEXODE_BIN="$binary" python scripts/benchmark_discovery_rate.py \
+  NEXODE_BIN="$binary" bash scripts/orbit_dev.sh benchmark-discovery-rate \
     --provider "${PROVIDER:-nexode}" --model "$MODEL" --timeout 150 --trials "$TRIALS" \
     "${CASES[@]}" --output "target/discovery-rate/$out.json" || true
 }
@@ -34,34 +34,4 @@ run() {
 run "$BEFORE" before
 run "$AFTER" after
 
-python - <<'PY'
-import json
-from pathlib import Path
-
-rows = []
-for name in ("before", "after"):
-    data = json.loads(Path(f"target/discovery-rate/{name}.json").read_text())
-    rows.append((name, data["summary"]))
-
-keys = [
-    ("recall_browse_rate", "browse recall"),
-    ("recall_any_call_rate", "any call"),
-    ("bypass_rate", "bypassed"),
-    ("select_rate", "reached select"),
-    ("control_clean_rate", "controls clean"),
-    ("scored_trial_count", "scored trials"),
-    ("invalid_trial_count", "invalid trials"),
-]
-print(f"\n{'metric':18} {'before':>10} {'after':>10}")
-for key, label in keys:
-    values = []
-    for _, summary in rows:
-        value = summary.get(key)
-        if value is None:
-            values.append("n/a")
-        elif key.endswith("count"):
-            values.append(str(value))
-        else:
-            values.append(f"{value:.0%}")
-    print(f"{label:18} {values[0]:>10} {values[1]:>10}")
-PY
+bash scripts/orbit_dev.sh compare-discovery-rate target/discovery-rate/before.json target/discovery-rate/after.json

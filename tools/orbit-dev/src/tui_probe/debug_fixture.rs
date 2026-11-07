@@ -42,6 +42,9 @@ impl Fixture {
         self._root.keep()
     }
     pub fn new(binary: &Path) -> Result<Self> {
+        Self::with_provider(binary, None)
+    }
+    pub fn with_provider(binary: &Path, loopback_port: Option<u16>) -> Result<Self> {
         let root = tempfile::Builder::new()
             .prefix("orbit-debug-fixture-")
             .tempdir()?;
@@ -70,11 +73,23 @@ impl Fixture {
             .env("OPENAI_API_KEY", "sk-local-ui-fixture")
             .args(["--no-update", "--no-selfdev", "--socket"])
             .arg(&socket)
-            .args(["serve", "--debug-socket"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .process_group(0);
+        if let Some(port) = loopback_port {
+            fs::write(
+                home.join("config.toml"),
+                "[provider]\ndefault_provider = 'openai-compatible'\ndefault_model = 'fake-model'\n",
+            )?;
+            c.env(
+                "NEXODE_OPENAI_COMPAT_API_BASE",
+                format!("http://127.0.0.1:{port}/v1"),
+            )
+            .env("OPENAI_COMPAT_API_KEY", "synthetic-interrupt-fixture")
+            .env("NEXODE_OPENAI_COMPAT_DEFAULT_MODEL", "fake-model");
+        }
+        c.args(["serve", "--debug-socket"]);
         let mut server = Server(c.spawn()?);
         wait_socket(&debug, &mut server, Duration::from_secs(15))?;
         Ok(Self {

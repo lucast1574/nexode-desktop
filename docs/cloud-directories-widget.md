@@ -15,7 +15,7 @@ The per-session active PID registry is shared across daemons using the same VM N
 
 Fresh idle sessions may not have persisted metadata yet. The attached session uses its authoritative current-directory hint. Other live sessions without metadata appear in a `(directory pending)` row until their directory is saved, rather than making the inventory unavailable or guessing their directory.
 
-The collector requires Python 3 on the remote host and uses only its standard library. Large session transcripts are not deserialized: current journal metadata is preferred, otherwise the snapshot is memory-mapped and top-level scalar metadata extracted. Nested tool/transcript fields cannot supply the working directory or debug flags.
+The collector runs inside the native Rust binary on the remote host. Current journal metadata is preferred; otherwise a bounded, deadline-aware reader extracts only top-level metadata fields from the snapshot and skips transcript/tool payloads. Nested tool/transcript fields cannot supply the working directory or debug flags.
 
 ## Refresh and failure behavior
 
