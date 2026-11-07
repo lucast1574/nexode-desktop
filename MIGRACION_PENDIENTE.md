@@ -4,7 +4,7 @@ Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migraci
 
 ## Alcance y estado
 
-- Quedan **35 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **33 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -58,7 +58,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 ### TUI, recarga, escritorio y aceptación
 
 - [ ] `scripts/reload_recovery_audit.py`
-- [ ] `scripts/repro_expand_edit_shortcut.py`
+- [x] `scripts/repro_expand_edit_shortcut.py` — migrado a `orbit-dev`, verificado con runtime real.
 - [ ] `scripts/repro_input_lag.py`
 - [ ] `scripts/repro_live_duplicate.py`
 - [x] `scripts/test_desktop_selfdev.py` — migrado a `cargo xtask test-desktop-selfdev`.
@@ -69,7 +69,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [x] `tests/e2e/expand_badge_headless.py` — `expand-badge-headless`; probado con PTY y runtime reales, en un daemon aislado.
 - [ ] `tests/test_injection_fix.py`
 - [ ] `tests/test_injection_thorough.py`
-- [ ] `tests/test_selfdev_reload.py`
+- [x] `tests/test_selfdev_reload.py` — migrado a `orbit-dev`, verificado con runtime real.
 
 ### Servicios del teléfono y TestFlight
 
@@ -108,7 +108,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - [x] `scripts/test_cloud_move_e2e.sh` — gate nativo `test-cloud-acceptance` y helpers Rust.
 - [x] `scripts/test_cloud_move_tui_e2e.sh` — gate nativo `test-cloud-acceptance` y helpers Rust.
 - [x] `scripts/test_cloud_replace_e2e.sh` — assertions Rust; aceptación con runtime real.
-- [ ] `scripts/test_ssh_slash_workflows.sh`
+- [x] `scripts/test_ssh_slash_workflows.sh` — migrado a `orbit-dev`, verificado con runtime real.
 - [x] `scripts/verify_alt_shift_e_reaches_terminal.sh` — capturador de terminal Rust y selección de ventanas nativa; captura verificada con PTY.
 - [ ] `scripts/webfetch_corpus.sh`
 

@@ -150,9 +150,11 @@ fn main() -> Result<()> {
             #[cfg(not(unix))]
             bail!("cloud credential acceptance requires Unix pipes");
         }
-        Some(command @ "expand-badge-headless") => {
-            std::process::exit(tui_probe::run(command, args)?)
-        }
+        Some(
+            command @ ("expand-badge-headless"
+            | "test-selfdev-reload"
+            | "repro-expand-edit-shortcut"),
+        ) => std::process::exit(tui_probe::run(command, args)?),
         Some("test-cloud-session-cli") => {
             #[cfg(unix)]
             cloud_session_acceptance::run(args)?;

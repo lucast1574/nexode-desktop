@@ -390,3 +390,9 @@ The compositor verifier now launches `capture-alt-shift-e OUTPUT` (native raw te
 
 
 The Linux command `test-cloud-acceptance --binary PATH [--repeat 2] [--layers cli agent credentials group tui] [--scenario NAME] [--artifacts NEWDIR]` runs the complete isolated cloud gate with JSON/JUnit reports, retained timeout output, real loopback SSH and tmux TUI scenarios. See [cloud acceptance](../../docs/cloud-acceptance.md) for prerequisites and coverage.
+
+`orbit-dev repro-expand-edit-shortcut --binary PATH [--keep] [-v]` checks a collapsed baseline, a plain-key negative control, four actual terminal encodings and a synthetic positive control in an isolated real PTY. Exit codes: 0 at least one raw encoding works; 2 only synthetic input works; 3 setup/control/handler failure. Evidence is retained on failure or with `--keep`.
+
+`orbit-dev test-selfdev-reload --socket DEBUG_SOCKET --repo CHECKOUT --nexode-home HOME` is an explicit status/socket-info and existing-context diagnostic against a debug-enabled daemon. It creates and destroys its own sessions and emits JSON results with explicit skips when self-dev or an existing reload context is unavailable. It does not build, trigger a reload or claim to prove continuation after restart.
+
+`scripts/test_ssh_slash_workflows.sh` uses native fixture helpers for ports, session lookup, process argv and host-state assertions. It requires Linux, tmux, local OpenSSH, and `NEXODE_BIN`; all homes and provider responses are isolated. The shell intentionally verifies actual UI commands, remote persistence and client re-exec.

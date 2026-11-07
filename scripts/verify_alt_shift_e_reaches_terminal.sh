@@ -2,7 +2,7 @@
 # Compositor-level verification that Alt+Shift+E is NO LONGER grabbed by niri
 # and is delivered to the focused terminal.
 #
-# This is the other half of the proof: scripts/repro_expand_edit_shortcut.py
+# This is the other half of the proof: orbit-dev repro-expand-edit-shortcut
 # proves nexode's handler reacts to the real Alt+Shift+E bytes; this script
 # proves the compositor actually lets those bytes reach the terminal.
 #

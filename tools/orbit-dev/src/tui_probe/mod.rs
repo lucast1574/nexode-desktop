@@ -34,6 +34,8 @@ mod profile;
 #[cfg(unix)]
 mod screen;
 #[cfg(unix)]
+mod selfdev_status;
+#[cfg(unix)]
 mod single;
 #[cfg(unix)]
 mod slash;
@@ -48,8 +50,12 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "expand-badge-headless" {
+        let result = if command == "test-selfdev-reload" {
+            selfdev_status::run(args)
+        } else if command == "expand-badge-headless" {
             expand_badge::run(args)
+        } else if command == "repro-expand-edit-shortcut" {
+            expand_badge::repro(args)
         } else if command == "test-oauth-usage" {
             usage_probe::oauth(args)
         } else if command == "test-caching-detailed" {

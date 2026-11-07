@@ -16,6 +16,19 @@ pub(super) fn debug_session(
     session: Option<&str>,
     timeout: Duration,
 ) -> Result<String> {
+    let v = debug_response(socket, command, session, timeout)?;
+    ensure!(
+        v["type"] != "error" && v["ok"] != false,
+        "debug command rejected"
+    );
+    Ok(v["output"].as_str().unwrap_or("").to_owned())
+}
+pub(super) fn debug_response(
+    socket: &Path,
+    command: &str,
+    session: Option<&str>,
+    timeout: Duration,
+) -> Result<Value> {
     let mut stream = UnixStream::connect(socket)?;
     stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;
@@ -54,11 +67,7 @@ pub(super) fn debug_session(
             if matches!(v["type"].as_str(), Some("ack" | "pong")) {
                 continue;
             }
-            ensure!(
-                v["type"] != "error" && v["ok"] != false,
-                "debug command rejected"
-            );
-            return Ok(v["output"].as_str().unwrap_or("").to_owned());
+            return Ok(v);
         }
     }
 }

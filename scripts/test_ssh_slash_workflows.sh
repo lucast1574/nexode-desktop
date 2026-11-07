@@ -9,18 +9,12 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # Viewer intentionally refuses all paths beneath .nexode, including agent scratch.
 # These small, short-lived fixtures therefore live in the private runtime directory.
 W=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/ssh-slash-workflows.XXXXXX")
-for prerequisite in ssh sshd ssh-keygen tmux python3; do
+for prerequisite in ssh sshd ssh-keygen tmux; do
     command -v "$prerequisite" >/dev/null || { echo "Missing $prerequisite" >&2; exit 1; }
 done
 mkdir -p "$W"/{local-home,remote-home,local-run,remote-run,ssh,bin,project,local-project,frames,control}
 # Avoid fixed ports, including collisions with other concurrent acceptance tests.
-read -r SSH_PORT MODEL_PORT < <(python3 - <<'PY'
-import socket
-sockets = [socket.socket(), socket.socket()]
-for s in sockets: s.bind(('127.0.0.1', 0))
-print(*(s.getsockname()[1] for s in sockets))
-PY
-)
+read -r SSH_PORT MODEL_PORT < <("$ORBIT_DEV_BIN" cloud-fixture free-ports)
 TMUX_SOCK=$W/tmux.sock
 cleanup() {
     tmux -S "$TMUX_SOCK" kill-server 2>/dev/null || true
@@ -73,7 +67,7 @@ StrictModes no
 ForceCommand $W/remote-shell
 LogLevel ERROR
 EOF
-/usr/bin/sshd -f "$W/ssh/sshd_config" -E "$W/ssh/log"
+sshd -f "$W/ssh/sshd_config" -E "$W/ssh/log"
 FAKE_LOG="$W/model.log" FAKE_LABEL=workflow FAKE_CONTROL_DIR="$W/control" \
     "$ORBIT_DEV_BIN" fake-openai-server "$MODEL_PORT" > "$W/model-output.log" 2>&1 &
 MODEL_PID=$!
@@ -120,25 +114,12 @@ command_ui '/fast default off' 'Host fast default: off' host-fast
 command_ui '/log mark isolated-log-marker' 'Host log marker written' host-log
 command_ui '/save ssh-workflow-bookmark' 'ssh-workflow-bookmark' bookmark
 command_ui '/sessions saved' 'Remote sessions' sessions
-PARENT=$(python3 - "$W" <<'PY'
-import json, pathlib, sys
-for p in (pathlib.Path(sys.argv[1])/'remote-home/.nexode/sessions').glob('*.json'):
-    s=json.loads(p.read_text())
-    if s.get('saved'): print(s['id']); break
-else: raise AssertionError('bookmark was not persisted on the host')
-PY
-)
+PARENT=$("$ORBIT_DEV_BIN" cloud-fixture ssh-saved-session "$W")
 tmux -S "$TMUX_SOCK" send-keys -t workflows -l '/fork'
 tmux -S "$TMUX_SOCK" send-keys -t workflows Enter
 CHILD=''
 for ((i=0; i<120; i++)); do
-    CHILD=$(python3 - "$W" "$PARENT" <<'PY'
-import json, pathlib, sys
-for p in (pathlib.Path(sys.argv[1])/'remote-home/.nexode/sessions').glob('*.json'):
-    s=json.loads(p.read_text())
-    if s.get('parent_id') == sys.argv[2]: print(s['id']); break
-PY
-)
+    CHILD=$("$ORBIT_DEV_BIN" cloud-fixture ssh-child-session "$W" "$PARENT")
     [[ -z $CHILD ]] || break
     sleep 0.25
 done
@@ -147,7 +128,7 @@ done
 command_ui '/session' "$CHILD" fork
 command_ui '/back' "$PARENT" back
 command_ui '/session' "$PARENT" back-identity
-command_ui '/poke on' 'Remote poke enabled' poke-on
+command_ui '/poke on' 'Remote auto-poke enabled' poke-on
 command_ui '/poke off' 'Stopped /poke at the next turn boundary' poke-off
 command_ui '/fix' 'Recovered remote runtime context' recovery
 command_ui '/improve plan isolated-workflow-marker [e2e:hold:slashloop]' 'Started remote /improve planning workflow' workflow-start
@@ -170,11 +151,7 @@ tmux -S "$TMUX_SOCK" send-keys -t workflows Enter
 CLIENT_PID=$(tmux -S "$TMUX_SOCK" list-panes -F '#{pane_pid}')
 RELOADED=false
 for ((i=0; i<120; i++)); do
-    if python3 - "$CLIENT_PID" "$PARENT" <<'PY'
-import pathlib, sys
-args=pathlib.Path('/proc',sys.argv[1],'cmdline').read_bytes().split(b'\0')
-sys.exit(0 if b'--resume' in args and sys.argv[2].encode() in args else 1)
-PY
+    if "$ORBIT_DEV_BIN" cloud-fixture ssh-client-resumed "$CLIENT_PID" "$PARENT" 2>/dev/null
     then RELOADED=true; break; fi
     sleep 0.25
 done
@@ -193,25 +170,5 @@ wait_for '[workflow] ack.'
 command_ui '/file host.txt' 'host-file-sentinel' after-reload
 command_ui '/session' "$PARENT" reload-identity
 cmp "$W/local-config-before" "$W/local-home/.nexode/config.toml" || fail 'client config mutated'
-python3 - "$W" <<'PY'
-import json, pathlib, sys, tomllib
-w = pathlib.Path(sys.argv[1])
-config = tomllib.loads((w/'remote-home/.nexode/config.toml').read_text())
-assert config['display']['centered'] is True, config
-assert config['provider']['default_model'] == 'fake-model', config
-assert config['provider']['openai_service_tier'] == 'off', config
-assert (w/'project/.nexode/swarm-prompt.md').read_text() == 'isolated-prompt-marker'
-loop_files = list((w/'remote-home/.nexode/remote-loops').glob('*.json'))
-assert loop_files, 'workflow state was not persisted'
-assert all(not json.loads(p.read_text()).get('workflow', {}).get('active', False) for p in loop_files)
-assert any('isolated-log-marker' in p.read_text() for p in (w/'remote-home/.nexode/logs').glob('*.log'))
-sessions = [json.loads(p.read_text()) for p in (w/'remote-home/.nexode/sessions').glob('*.json')]
-assert any(s.get('parent_id') for s in sessions), 'fork did not persist a remote child'
-assert (w/'model.log').exists(), 'workflow never reached the model'
-rows = [json.loads(line) for line in (w/'model.log').read_text().splitlines()]
-assert any('isolated-workflow-marker' in json.dumps(row) for row in rows), rows
-assert sum(row['agent'] for row in rows) == 1, 'control commands accidentally started another model turn'
-assert (w/'local-project/host.txt').read_text() == 'client-file-sentinel\n'
-assert not list((w/'local-home/.nexode/sessions').glob('*.json')), 'remote sessions saved locally'
-PY
+"$ORBIT_DEV_BIN" cloud-fixture assert-ssh-workflows "$W"
 printf 'PASS: native SSH account, host config/file, session navigation/bookmark, loop/recovery and client reload workflows\n'

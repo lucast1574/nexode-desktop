@@ -2,6 +2,7 @@ use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 mod group;
+mod ssh;
 fn read(path: &str) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
@@ -19,6 +20,11 @@ pub fn run(args: impl Iterator<Item = String>) -> Result<()> {
     let args: Vec<_> = args.collect();
     let command = args.first().context("cloud-fixture command required")?;
     match command.as_str() {
+        "free-ports"
+        | "ssh-saved-session"
+        | "ssh-child-session"
+        | "ssh-client-resumed"
+        | "assert-ssh-workflows" => ssh::run(command, &args[1..])?,
         "assert-environment-status" => {
             ensure!(args.len() == 3, "assert-environment-status PATH BOOL");
             let value = read(&args[1])?;
