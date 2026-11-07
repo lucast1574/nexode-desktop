@@ -48,12 +48,14 @@ The equivalent by hand:
 ## Setup on the client
 
 ```sh
-python3 scripts/remote/remote_check.py --host <host-ip> --code 123456 \
+cargo xtask remote-check --host <host-ip> --code 123456 \
     --working-dir '/path/on/remote'
 ```
 
 The token is cached in `~/.nexode/remote-tokens/<host>_<port>.json` (mode 600),
-so later runs omit `--code`.
+so later runs omit `--code`. IPv6 and other non-filename hosts use a SHA-256
+cache name. `--token-dir` selects an isolated cache. This diagnostic explicitly
+submits the requested remote agent turn; offline tests use a loopback fixture.
 
 ## Gotchas found in practice
 
@@ -83,7 +85,7 @@ so later runs omit `--code`.
   send `get_history` explicitly.
 
 - **The server pings.** A client that never sends a pong frame will appear to
-  hang with zero events. `gateway_client.py` answers pings for you.
+  hang with zero events. The native Rust gateway client answers pings and validates the WebSocket handshake.
 
 - **`nexode server reload` can fail** with "Client must Subscribe with a
   working_dir" on older builds. Fall back to `stop --force` + `start`.

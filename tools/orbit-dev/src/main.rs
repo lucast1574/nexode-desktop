@@ -11,6 +11,7 @@ mod diagnostics;
 mod discord_release;
 mod discovery;
 mod fake_openai;
+mod gateway;
 mod handoff;
 mod memory_snapshot;
 mod monitor;
@@ -30,6 +31,7 @@ mod sdk_version;
 mod size_budget;
 mod startup_bench;
 mod structure;
+mod token_compare;
 mod waybar;
 mod ws_cache;
 use anyhow::{Context, Result, bail};
@@ -112,6 +114,11 @@ fn main() -> Result<()> {
             std::process::exit(code);
         }
         Some("waybar-status") => waybar::run(args)?,
+        Some("remote-check") => gateway::run(args)?,
+        Some("compare-token-usage") => {
+            let code = token_compare::run(&root()?, args)?;
+            std::process::exit(code);
+        }
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,

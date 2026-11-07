@@ -140,3 +140,14 @@ It subscribes to local debug events and refreshes cloud counts independently.
 Remote checks require a matching native `orbit-dev` on already-running hosts;
 `--remote-binary PATH` selects it. `--cloud-probe [--home PATH]` counts presence
 markers locally, including shared-daemon sessions. No remote Python is invoked.
+
+`cargo xtask remote-check --host HOST --working-dir PATH [--code CODE]` replaces
+the HTTP pairing/WebSocket diagnostic, preserving private token caching and
+subscribe/history/agent-turn checks. It answers pings and correlates completion IDs.
+It performs a live remote turn only when explicitly run; tests use loopback.
+
+`cargo xtask compare-token-usage [--runs N] [--json] [--verbose]` performs the
+existing three-prompt live Nexode/Claude CLI comparison. Binary and model flags
+allow explicit matching installations. Both output modes now fail for missing
+usage, partial runs or more than 50% total-token overhead; no live providers are
+used by unit tests. Undefined percentage differences serialize as JSON null.

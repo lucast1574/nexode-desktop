@@ -20,7 +20,7 @@ fn random<const N: usize>() -> Result<[u8; N]> {
     getrandom::fill(&mut bytes).map_err(|_| anyhow::anyhow!("OS randomness unavailable"))?;
     Ok(bytes)
 }
-fn private_write(path: &Path, value: &Value) -> Result<()> {
+pub(crate) fn private_write(path: &Path, value: &Value) -> Result<()> {
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
