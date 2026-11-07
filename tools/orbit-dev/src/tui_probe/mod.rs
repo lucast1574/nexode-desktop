@@ -7,6 +7,8 @@ mod animation_verify;
 mod draws;
 #[cfg(unix)]
 mod expand_badge;
+#[cfg(unix)]
+mod expand_headed;
 #[cfg(target_os = "linux")]
 mod heap_diff;
 #[cfg(unix)]
@@ -56,6 +58,8 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
             expand_badge::run(args)
         } else if command == "repro-expand-edit-shortcut" {
             expand_badge::repro(args)
+        } else if command == "expand-badge-headed-wtype" {
+            expand_headed::run(args)
         } else if command == "test-oauth-usage" {
             usage_probe::oauth(args)
         } else if command == "test-caching-detailed" {

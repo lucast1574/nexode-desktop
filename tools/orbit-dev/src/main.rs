@@ -161,7 +161,8 @@ fn main() -> Result<()> {
         Some(
             command @ ("expand-badge-headless"
             | "test-selfdev-reload"
-            | "repro-expand-edit-shortcut"),
+            | "repro-expand-edit-shortcut"
+            | "expand-badge-headed-wtype"),
         ) => std::process::exit(tui_probe::run(command, args)?),
         Some("test-cloud-session-cli") => {
             #[cfg(unix)]
