@@ -4,7 +4,7 @@ Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migraci
 
 ## Alcance y estado
 
-- Quedan **29 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **28 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -49,7 +49,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 
 - [x] `scripts/analyze_runtime_memory_log.py` — analizador Rust; 16 escenarios de equivalencia y CLI sin intérprete.
 - [x] `scripts/heap_diff_idle_sessions.py` — migrado a Rust en `tools/orbit-dev`.
-- [ ] `scripts/profile_remote_resume_burst.py`
+- [x] `scripts/profile_remote_resume_burst.py` → `orbit-dev profile-remote-resume-burst` (PTY real, CPU/RSS y timeout explícito).
 - [ ] `scripts/profile_spawn.py`
 - [ ] `scripts/stress_test.py`
 - [x] `scripts/test_analyze_runtime_memory_log.py` — analizador Rust; 16 escenarios de equivalencia y CLI sin intérprete.

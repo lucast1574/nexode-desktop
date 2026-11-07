@@ -265,6 +265,7 @@ fn main() -> Result<()> {
         Some("verify-discovery-select") => discovery::select_acceptance::run(args)?,
         Some(
             command @ ("measure-key-echo"
+            | "profile-remote-resume-burst"
             | "profile-real-spawn"
             | "bench-startup-visible-ready"
             | "profile-single-spawn"

@@ -33,6 +33,8 @@ mod maki;
 mod process_metrics;
 #[cfg(unix)]
 mod profile;
+#[cfg(target_os = "linux")]
+mod resume_burst;
 #[cfg(unix)]
 mod screen;
 #[cfg(unix)]
@@ -52,7 +54,16 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "test-selfdev-reload" {
+        let result = if command == "profile-remote-resume-burst" {
+            #[cfg(target_os = "linux")]
+            {
+                resume_burst::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("resume burst profiling requires Linux /proc")
+            }
+        } else if command == "test-selfdev-reload" {
             selfdev_status::run(args)
         } else if command == "expand-badge-headless" {
             expand_badge::run(args)

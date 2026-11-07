@@ -402,3 +402,14 @@ The Linux command `test-cloud-acceptance --binary PATH [--repeat 2] [--layers cl
 `orbit-dev expand-badge-headed-wtype --binary PATH --debug-socket PATH --repo CHECKOUT [--kitty-socket PATH]` runs the explicit Wayland smoke with Kitty remote control, niri and wtype. It fixes the new OS-window title using Kitty's documented `--os-window-title` option, verifies the exact window is focused, and cleans up its window/session and restores prior focus. Missing compositor tools fail rather than claiming a pass. Contract tests use compositor doubles; a real niri/Kitty desktop is required for the actual smoke. See [Kitty launch options](https://sw.kovidgoyal.net/kitty/generated/launch/).
 
 `orbit-dev analyze-runtime-memory-log [FILES_OR_DIRECTORIES...] [--log-dir DIR] [--days N] [--top N] [--json] [--all-instances | --instance ID | --list-instances] [--min-spike-mb 8]` reads runtime JSONL without an interpreter. It defaults to the latest process instance per target, retaining the historical all-instance forensic option. JSON fields, PSS/allocator coverage, session/client peaks, incident priorities and recommendations are checked against 16 frozen Python-reference scenarios. Human output prints all report fields with byte/ratio/time formatting. Partial malformed JSONL lines are ignored; missing files, samples or requested instances fail.
+
+`profile-remote-resume-burst --binary PATH --burst 20 --timeout 15 --stagger-ms 0
+--json-out /tmp/resume-burst.json` profiles resumed clients through real PTYs on
+Linux, using a disposable daemon and synthetic local credentials (no model
+requests). Reports first-output latency, per-process CPU delta and peak RSS,
+aggregate client RSS, and observed concurrency. Output byte counts now include
+terminal queries, explicitly marked in the report. `complete=false` and exit 1
+identify a deadline that prevented launching or observing every client; early
+process failures are errors. Owned clients, daemon and temporary home are cleaned
+up on success or failure. Validated with four real simultaneous/staggered clients
+and a deliberately incomplete two-client run.
