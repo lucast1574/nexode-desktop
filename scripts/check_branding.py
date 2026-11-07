@@ -56,7 +56,7 @@ for path in (ROOT / 'sdk').rglob('package.json'):
         errors.append(f'SDK package must remain private until configured: {path}')
 
 for asset in ['assets/brand/nexode-mark.svg', 'assets/brand/nexode-wordmark.svg',
-              'assets/brand/nexode-harness-banner.svg']:
+              'assets/brand/nexode-orbit-banner.svg']:
     ET.parse(ROOT / asset)
 for asset, magic in [('assets/app-icons/Nexode.icns', b'icns'),
                      ('assets/app-icons/Nexode.ico', b'\0\0\1\0'),

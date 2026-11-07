@@ -1,6 +1,6 @@
-# Nexode Harness: alcance de la distribución
+# Nexode Orbit: alcance de la distribución
 
-Esta copia local conserva el código del snapshot de `NOTICE`, sin el historial Git original. Se inicia un historial nuevo por componentes en `lucast1574/nexode-harness`. El rebranding cambia identificadores de producto, crates `nexode-*`, imports `nexode_*`, binarios, SDKs `@nexode/agent-*`, variables `NEXODE_*`, rutas `.nexode`, documentación y activos de marca.
+Esta copia local conserva el código del snapshot de `NOTICE`, sin el historial Git original. Se inicia un historial nuevo por componentes en `lucast1574/nexode-orbit`. El rebranding cambia identificadores de producto, crates `nexode-*`, imports `nexode_*`, binarios, SDKs `@nexode/agent-*`, variables `NEXODE_*`, rutas `.nexode`, documentación y activos de marca.
 
 ## Distribución e integración pendientes
 
@@ -28,4 +28,4 @@ El núcleo está en Rust, pero se conservan SDK TypeScript, scripts auxiliares y
 
 ## Repositorio GitHub
 
-Repositorio nuevo: `lucast1574/nexode-harness`, privado, rama `main`. El código se importa por componentes con un historial nuevo; no representa la cronología del desarrollo original. GitHub Actions permanece desactivado hasta configurar y revisar los workflows heredados.
+Repositorio nuevo: `lucast1574/nexode-orbit`, privado, rama `main`. El código se importa por componentes con un historial nuevo; no representa la cronología del desarrollo original. GitHub Actions permanece desactivado hasta configurar y revisar los workflows heredados.

@@ -1,6 +1,6 @@
 # Nexode — voz del agente
 
-Nombre visible: **Nexode** o **Nexode Harness** para distinguirlo de Nexode Cloud. Comando: `nexode`.
+Nombre visible: **Nexode** o **Nexode Orbit** para distinguirlo de Nexode Cloud. Comando: `nexode`.
 
 Mensajes breves y concretos: qué pasó, qué falta y cuál es el siguiente paso. Mantener el idioma existente en las interfaces técnicas; esta tarea no introduce una traducción general.
 

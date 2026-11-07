@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="assets/brand/nexode-harness-banner.svg" alt="Nexode Harness — Rust coding agent" width="960">
+  <img src="assets/brand/nexode-orbit-banner.svg" alt="Nexode Orbit — Rust coding agent" width="960">
 </p>
 
-# Nexode Harness
+# Nexode Orbit
 
 Agente de programación en Rust con interfaz de terminal, herramientas, sesiones persistentes, múltiples proveedores y coordinación de agentes.
 
-Repositorio: [lucast1574/nexode-harness](https://github.com/lucast1574/nexode-harness).
+Repositorio: [lucast1574/nexode-orbit](https://github.com/lucast1574/nexode-orbit).
 
-Esta es la distribución de **Nexode Harness**. Es independiente del monorepo de [Nexode Cloud](https://github.com/ronnaldrangel/nexode): comparte su identidad visual, pero las APIs de cuenta, suscripciones y despliegue todavía no están integradas con ese backend.
+Esta es la distribución de **Nexode Orbit**. Es independiente del monorepo de [Nexode Cloud](https://github.com/ronnaldrangel/nexode): comparte su identidad visual, pero las APIs de cuenta, suscripciones y despliegue todavía no están integradas con ese backend.
 
 ## Compilar y ejecutar
 

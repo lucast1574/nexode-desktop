@@ -9,7 +9,7 @@ Fuente visual: monorepo `ronnaldrangel/nexode`, commit `f913b50`.
 - `nexode-mark.svg`: icono orbital original de `frontend/public/favicon.svg`.
 - `nexode-mark-inverse.svg`: mismo icono, apto sobre fondos oscuros y claros.
 - `../app-icons/Nexode.png`, `.ico`, `.icns`: exportaciones del SVG orbital.
-- `nexode-harness-banner.svg`: composición del logo y el icono, no una captura de la aplicación.
+- `nexode-orbit-banner.svg`: composición del logo y el icono, no una captura de la aplicación.
 
 ## Colores y tipografía
 
