@@ -32,6 +32,8 @@ mod handoff;
 #[cfg(unix)]
 mod key_capture;
 mod login_qr;
+#[cfg(unix)]
+mod mcp_acceptance;
 mod memory_snapshot;
 mod mermaid_probe;
 mod monitor;
@@ -125,6 +127,12 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("mcp-cli-acceptance") => {
+            #[cfg(unix)]
+            std::process::exit(mcp_acceptance::run(args)?);
+            #[cfg(not(unix))]
+            bail!("MCP CLI acceptance requires Unix permissions");
+        }
         Some("cloud-fixture") => {
             #[cfg(target_os = "linux")]
             cloud_checks::run(args)?;

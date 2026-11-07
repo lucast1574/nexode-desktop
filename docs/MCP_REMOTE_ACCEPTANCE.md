@@ -144,20 +144,20 @@ Suite counts overlap. They should not be summed into a count of distinct tests.
 
 ## Reproducing the public CLI acceptance
 
-Requires Python 3.9+ and an explicitly selected freshly built Nexode binary.
-The fixture uses only Python's standard library. No real Apple/Expo account,
+Requires Rust tooling, Unix file permissions and an explicitly selected freshly built Nexode binary.
+The fixture is implemented natively in `tools/orbit-dev/src/mcp_acceptance`. No real Apple/Expo account,
 credentials, browser login, paid model or deployment is needed.
 
 ```bash
 justrust build --remote --profile selfdev --bin nexode
 scratch="${NEXODE_SCRATCH_DIR:-$HOME/.nexode/scratch}"
-python3 scripts/tests/mcp_cli_acceptance.py \
+scripts/orbit_dev.sh mcp-cli-acceptance \
   --binary target/selfdev/nexode \
   --scratch-root "$scratch" \
   --output "$scratch/mcp-acceptance-replay/results.json"
 ```
 
-The report contains only request-boundary metadata and fixed assertion errors.
+The report contains only request-boundary metadata and fixed failure labels.
 It does not persist token material, authorization URLs or raw CLI output.
 Fixture state is temporary and removed on completion.
 
