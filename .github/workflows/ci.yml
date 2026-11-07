@@ -137,13 +137,12 @@ jobs:
 
       - name: Test justrust release installation and routing
         run: |
-          python3 tests/test_ci_workflow_guards.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test workflow_guards
           python3 tests/test_install_justrust_ci.py
           python3 tests/test_install_justrust_hosted_ci.py
-          python3 tests/test_public_release_builds.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test public_release
           python3 tests/test_release_ci.py
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml safety_
-          python3 tests/test_bash_platform_guards.py
           python3 scripts/test_quick_release.py
           python3 scripts/test_preview_release.py
           python3 scripts/test_reconcile_preview_release.py
