@@ -1,6 +1,7 @@
 mod badges;
 mod bench_audit;
 mod branding;
+mod browser_cold;
 mod browser_fixture;
 mod browser_package;
 mod ci_suites;
@@ -121,6 +122,10 @@ fn main() -> Result<()> {
             std::process::exit(code);
         }
         Some("fuzz-niri-insert-point") => niri_fuzz::run(args)?,
+        Some("verify-browser-cold-start") => {
+            let code = browser_cold::run(args)?;
+            std::process::exit(code);
+        }
         Some("monitor") => monitor::run(args)?,
         Some("memory-snapshot") => memory_snapshot::run(args)?,
         Some("post-discord-release") => discord_release::run(args)?,

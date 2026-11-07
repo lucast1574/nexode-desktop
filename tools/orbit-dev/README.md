@@ -158,3 +158,10 @@ the same KDL stress constructs and keeps only configurations accepted by the rea
 The default corpus remains `~/.nexode/scratch/fuzz719/valid_inputs.json`; validation
 timeouts fail instead of silently treating tool failures as valid inputs. This
 command generates a corpus; the setup-hints Rust tests verify insertion behavior.
+
+`verify-browser-cold-start` replaces the real Firefox acceptance script. It
+requires PID 1 in a private Linux PID/network namespace, copies only bridge and
+extension assets into a fresh profile, establishes the zombie precondition in
+Rust and writes the same readiness/tab evidence. SIGINT/SIGTERM explicitly exit
+namespace PID 1 to clean up browser descendants. Migration tests use fixtures;
+a real Firefox acceptance run remains a separate opt-in check.

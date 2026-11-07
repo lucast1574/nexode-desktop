@@ -31,7 +31,7 @@ browser implementation was also inspected in that executable before testing.
 ## Reproduce safely on Linux
 
 Requirements: installed Firefox, an already-installed Nexode browser bridge and
-extension package, Python 3, `ip`, and permission to create unprivileged user,
+extension package, the native `orbit-dev` maintenance binary, `ip`, and permission to create unprivileged user,
 PID, mount, and network namespaces. The runner refuses to proceed without the
 private PID and network namespaces. It must not be run against the user's live
 profile.
@@ -39,8 +39,9 @@ profile.
 From the repository root:
 
 ```sh
+cargo build --release --locked --manifest-path tools/orbit-dev/Cargo.toml
 unshare --user --map-root-user --pid --fork --mount-proc --net \
-  --kill-child=SIGTERM /usr/bin/python3 scripts/verify_browser_cold_start.py \
+  --kill-child=SIGTERM "$PWD/tools/orbit-dev/target/release/orbit-dev" verify-browser-cold-start \
   --host-netns "$(readlink /proc/self/ns/net)" \
   --output-dir "$NEXODE_SCRATCH_DIR/browser-cold-acceptance"
 ```
@@ -78,3 +79,7 @@ after the runs.
   It does not establish macOS/Windows GUI behavior or a fresh interactive XPI
   installation. Those launch branches share the existing platform launcher.
 - No compile-time or browser-startup speedup is claimed by this functional test.
+
+The runner is now Rust. Its migration tests cover namespace guards, isolated
+profile construction and acceptance predicates with fixtures. The historical
+Firefox results above do not establish a fresh real-browser run of the Rust port.
