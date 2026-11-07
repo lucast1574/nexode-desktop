@@ -258,3 +258,21 @@ rendered row motion. They reject inactive/missing rectangles or absent partial
 repaints. The latter also checks slash-palette persistence and resume-overlay
 cadence. Both passed with the local Nexode binary; the palette had no
 disappearances and the overlay had no animation rectangle or moving rows.
+
+`repro-slash-flicker` and `repro-input-flicker` now use native terminal history
+and the shared screen/menu observers. Isolated typing uses a disposable
+returning-user fixture so first-run onboarding cannot consume the test keys.
+Each repeated input run gets a fresh server/client; `--live` creates a new session
+on an explicitly selected existing daemon. `--keep` retains only artifacts,
+never processes. Missing characters now fail rather than silently passing.
+The local binary passed `/model` typing with all six characters visible and no
+erasures; its slash palette stayed visible in every sample.
+
+`repro-startup-lag` and `repro-real-spawn-lag` preserve startup-phase comparison
+and resumed-session render-duty measurements. Both accept explicit socket and
+working-directory selection. Startup comparison returns 3 when either phase
+lacks samples, instead of inventing a conclusion. Real-spawn typing is still
+first-output latency, explicitly labelled, and incomplete typing or saturated
+sample buffers fail. Isolated daemon validation observed all 11 typed keys; the
+short startup run was correctly inconclusive. The shared Python helper modules
+and both of their remaining consumers have been removed.

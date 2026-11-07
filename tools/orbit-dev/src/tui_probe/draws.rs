@@ -56,7 +56,12 @@ fn fresh(value: &Value, last: Option<f64>) -> Result<Vec<&Value>> {
 fn count(v: &Value, key: &str) -> u64 {
     v[key].as_u64().unwrap_or(0)
 }
-fn report(before: &Value, after: &Value, elapsed: f64, cpu_delta: Option<f64>) -> Result<Value> {
+pub(super) fn report(
+    before: &Value,
+    after: &Value,
+    elapsed: f64,
+    cpu_delta: Option<f64>,
+) -> Result<Value> {
     ensure!(
         elapsed.is_finite() && elapsed > 0.0,
         "invalid sample interval"

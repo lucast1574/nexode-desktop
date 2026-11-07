@@ -150,7 +150,11 @@ fn main() -> Result<()> {
             | "probe-idle-state"
             | "profile-idle-donut"
             | "check-donut-animates-live"
-            | "verify-donut-still-animates"),
+            | "verify-donut-still-animates"
+            | "repro-slash-flicker"
+            | "repro-input-flicker"
+            | "repro-startup-lag"
+            | "repro-real-spawn-lag"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

@@ -29,7 +29,7 @@ pub(super) struct Client {
     stop: Arc<AtomicBool>,
     worker: Option<std::thread::JoinHandle<()>>,
 }
-fn composer(rows: &[String]) -> Option<String> {
+pub(super) fn composer(rows: &[String]) -> Option<String> {
     static PROMPT: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     static STATUS: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     let prompt = PROMPT.get_or_init(|| Regex::new(r"^\s*\d+>\s?(.*)$").unwrap());

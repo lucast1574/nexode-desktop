@@ -10,17 +10,23 @@ mod idle;
 #[cfg(unix)]
 mod idle_perf;
 #[cfg(unix)]
+mod input_flicker;
+#[cfg(unix)]
 mod inspect;
 #[cfg(unix)]
 mod io;
 #[cfg(unix)]
 mod isolated;
 #[cfg(unix)]
+mod lag;
+#[cfg(unix)]
 mod profile;
 #[cfg(unix)]
 mod screen;
 #[cfg(unix)]
 mod single;
+#[cfg(unix)]
+mod slash;
 #[cfg(unix)]
 mod theme;
 #[cfg(unix)]
@@ -30,7 +36,13 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if matches!(
+        let result = if matches!(command, "repro-startup-lag" | "repro-real-spawn-lag") {
+            lag::run(command, args)
+        } else if command == "repro-input-flicker" {
+            input_flicker::run(args)
+        } else if command == "repro-slash-flicker" {
+            slash::run(args)
+        } else if matches!(
             command,
             "check-donut-animates-live" | "verify-donut-still-animates"
         ) {

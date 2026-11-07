@@ -14,8 +14,10 @@ use std::{
 };
 pub(super) struct Session {
     pub client: Client,
-    _server: Server,
-    _root: tempfile::TempDir,
+    pub launched: Instant,
+    _server: Option<Server>,
+    _root: Option<tempfile::TempDir>,
+    pub session_id: Option<String>,
     cmd: PathBuf,
     resp: PathBuf,
 }
@@ -43,10 +45,18 @@ impl Session {
         fresh: bool,
         environment: &[(&str, &str)],
     ) -> Result<Self> {
-        Self::configured(binary, rows, cols, fresh, environment, None)
+        Self::configured(binary, rows, cols, fresh, environment, None, false)
     }
     pub fn with_palette(binary: &Path, light: bool) -> Result<Self> {
-        Self::configured(binary, 24, 80, false, &[], Some(light))
+        Self::configured(binary, 24, 80, false, &[], Some(light), false)
+    }
+    pub fn returning(
+        binary: &Path,
+        rows: u16,
+        cols: u16,
+        environment: &[(&str, &str)],
+    ) -> Result<Self> {
+        Self::configured(binary, rows, cols, false, environment, None, true)
     }
     fn configured(
         binary: &Path,
@@ -55,6 +65,7 @@ impl Session {
         fresh: bool,
         environment: &[(&str, &str)],
         light: Option<bool>,
+        returning: bool,
     ) -> Result<Self> {
         ensure!(
             rows > 0 && cols > 0 && rows <= 512 && cols <= 1024,
@@ -68,6 +79,12 @@ impl Session {
         let work = root.path().join("workspace");
         for p in [&home, &runtime, &work] {
             fs::create_dir(p)?;
+        }
+        if returning {
+            fs::write(
+                home.join("setup_hints.json"),
+                br#"{"launch_count":10,"onboarding_start_choice_shown":true}"#,
+            )?;
         }
         let socket = runtime.join("nexode.sock");
         let debug = runtime.join("nexode-debug.sock");
@@ -111,17 +128,25 @@ impl Session {
         wait_socket(&socket, &mut server, Duration::from_secs(15))?;
         wait_socket(&debug, &mut server, Duration::from_secs(15))?;
         let mut launch = command();
-        if !fresh {
-            launch.args(["--resume", &io::create_session(&debug, &work)?]);
+        let session_id = if fresh {
+            None
+        } else {
+            Some(io::create_session(&debug, &work)?)
+        };
+        if let Some(id) = &session_id {
+            launch.args(["--resume", id]);
         }
         launch
             .env("NEXODE_DEBUG_CMD_PATH", &cmd)
             .env("NEXODE_DEBUG_RESPONSE_PATH", &resp);
+        let launched = Instant::now();
         let client = Client::spawn_palette(&mut launch, rows, cols, light)?;
         let session = Self {
             client,
-            _server: server,
-            _root: root,
+            launched,
+            _server: Some(server),
+            _root: Some(root),
+            session_id,
             cmd,
             resp,
         };
@@ -137,6 +162,65 @@ impl Session {
             pause(0.1)?;
         }
         pause(3.0)?;
+        Ok(session)
+    }
+    pub fn retain_artifacts(&mut self) -> Option<PathBuf> {
+        self._root.take().map(|root| root.keep())
+    }
+    pub fn live(binary: &Path, work: &Path, socket: &Path, debug: &Path) -> Result<Self> {
+        let session_id = io::create_session(debug, work)?;
+        Self::resume(binary, work, socket, &session_id, 48, 160)
+    }
+    pub fn resume(
+        binary: &Path,
+        work: &Path,
+        socket: &Path,
+        session_id: &str,
+        rows: u16,
+        cols: u16,
+    ) -> Result<Self> {
+        ensure!(
+            rows > 0 && cols > 0 && rows <= 512 && cols <= 1024,
+            "invalid terminal size"
+        );
+        let root = tempfile::Builder::new()
+            .prefix("orbit-live-probe-")
+            .tempdir()?;
+        let cmd = root.path().join("cmd");
+        let resp = root.path().join("resp");
+        let mut launch = Command::new(binary);
+        launch
+            .current_dir(work)
+            .args(["--no-update", "--no-selfdev", "--socket"])
+            .arg(socket)
+            .args(["--resume", session_id])
+            .env("NEXODE_DEBUG_CONTROL", "1")
+            .env("NEXODE_DEBUG_CMD_PATH", &cmd)
+            .env("NEXODE_DEBUG_RESPONSE_PATH", &resp)
+            .env("NEXODE_THEME", "dark")
+            .env("TERM", "xterm-256color");
+        let launched = Instant::now();
+        let client = Client::spawn(&mut launch, rows, cols)?;
+        let session = Self {
+            client,
+            launched,
+            _server: None,
+            _root: Some(root),
+            session_id: Some(session_id.to_owned()),
+            cmd,
+            resp,
+        };
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            if session.command("input").is_ok() {
+                break;
+            }
+            ensure!(
+                Instant::now() < deadline && !session.client.snapshot()?.eof,
+                "live client never became ready"
+            );
+            pause(0.1)?;
+        }
         Ok(session)
     }
     pub fn command(&self, command: &str) -> Result<String> {
