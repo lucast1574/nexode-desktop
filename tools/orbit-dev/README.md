@@ -73,3 +73,5 @@ Discovery and attribution fixtures are native Rust:
 `cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test discovery_services` runs the public CLI/HTTP round trips with an empty PATH. It creates no real sponsor accounts or external model calls.
 
 `cargo xtask demo-shop` replaces the offline storefront simulator. It preserves search, cart, budget checks and the intentionally paused checkout (exit 3), with integer-cent totals and atomic state writes. The demo launcher exposes the built native binary as `nexode-demo-shop`; `demo-session` selects its new session without an embedded interpreter.
+
+`cargo xtask bench-reload-storm --socket /path/to/server.sock -n 40 [--home PATH] [--chunk BYTES]` concurrently resumes selected sessions and measures arrival of history. The Rust async client preserves target-session subscriptions and fixed-size chunk experiments, handles JSON spacing, and reports failures as a nonzero exit instead of silently passing an empty or failed run.

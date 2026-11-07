@@ -12,6 +12,7 @@ mod process;
 #[cfg(unix)]
 mod pty;
 mod rehearsal;
+mod reload_storm;
 mod resume_bench;
 mod root_report;
 mod safety_budget;
@@ -37,7 +38,7 @@ Checks: check-branding, check-modules, check-boundaries
 Budgets: check-code-size, check-test-size, check-panics, check-swallowed-errors, check-wildcards [--update]
 SDK: version-sdk <runtime-tag>
 Browser: browser-fixture [--port N], test-browser-handoff-live --tab-id ID, package-browser <extension-source> <output>
-Benchmarks: benchmark-attribution [--help], bench-startup [binary] [--check], bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
+Benchmarks: bench-reload-storm --socket PATH [-n N], benchmark-attribution [--help], bench-startup [binary] [--check], bench-resume-picker <binary> [--runs N], bench-resume-suite [--samples N]
 Fixtures: demo-shop [--help], demo-session <before> <after> <directory>, mock-sponsor [--help], openrelay-discovery-server [--help], openrelay-check [endpoint|rpc|trace], test-cloud-detached-turn --binary PATH, fake-openai-server <port> (FAKE_LOG required)
 Processes: timeout <seconds> <command> [args...], log-build <log-path> [args...]
 Diagnostics: analyze-root-crate [--json] [--full], compile-isolation [--json] [--strict-target-state], analyze-ws-cache [logs...] [--json], score-plans <input> <output>, find-unlocked-env-tests [directory], tb-compare <jobs> [baseline]
@@ -64,6 +65,7 @@ fn main() -> Result<()> {
         Some("demo-session") => demo_shop::session(args)?,
         Some("mock-sponsor") => discovery::sponsor::run(args)?,
         Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,
+        Some("bench-reload-storm") => reload_storm::run(args)?,
         Some("bench-startup") => startup_bench::run(args)?,
         Some("bench-resume-picker") => resume_bench::run_picker(args)?,
         Some("bench-resume-suite") => resume_bench::run_suite(&root()?, args)?,
