@@ -194,42 +194,43 @@ pub(super) async fn execute_debug_command(
         return Ok(output);
     }
 
-    if trimmed.starts_with("queue_interrupt:") {
-        let content = trimmed
-            .strip_prefix("queue_interrupt:")
-            .unwrap_or("")
-            .trim();
-        if content.is_empty() {
-            return Err(anyhow::anyhow!("queue_interrupt: requires content"));
-        }
-        let agent = agent.lock().await;
-        agent.queue_soft_interrupt(
-            content.to_string(),
-            Vec::new(),
-            false,
-            SoftInterruptSource::User,
+    if let Some((content, urgent)) = trimmed
+        .strip_prefix("queue_interrupt:")
+        .map(|s| (s.trim(), false))
+        .or_else(|| {
+            trimmed
+                .strip_prefix("queue_interrupt_urgent:")
+                .map(|s| (s.trim(), true))
+        })
+    {
+        anyhow::ensure!(!content.is_empty(), "queue_interrupt requires content");
+        // A running turn owns the agent mutex. The registered control-plane queue
+        // must remain reachable while streaming or executing tools.
+        let queue = match &interrupt_context {
+            Some(context) => context
+                .soft_interrupt_queues
+                .read()
+                .await
+                .get(&context.session_id)
+                .cloned(),
+            None => None,
+        };
+        let queue = match queue {
+            Some(queue) => queue,
+            None => agent.lock().await.soft_interrupt_queue(),
+        };
+        anyhow::ensure!(
+            super::state::enqueue_soft_interrupt(
+                &queue,
+                content.to_owned(),
+                Vec::new(),
+                urgent,
+                SoftInterruptSource::User
+            ),
+            "soft interrupt queue unavailable"
         );
-        return Ok("queued".to_string());
+        return Ok(if urgent { "queued (urgent)" } else { "queued" }.to_owned());
     }
-
-    if trimmed.starts_with("queue_interrupt_urgent:") {
-        let content = trimmed
-            .strip_prefix("queue_interrupt_urgent:")
-            .unwrap_or("")
-            .trim();
-        if content.is_empty() {
-            return Err(anyhow::anyhow!("queue_interrupt_urgent: requires content"));
-        }
-        let agent = agent.lock().await;
-        agent.queue_soft_interrupt(
-            content.to_string(),
-            Vec::new(),
-            true,
-            SoftInterruptSource::User,
-        );
-        return Ok("queued (urgent)".to_string());
-    }
-
     if trimmed.starts_with("tool:") {
         let raw = trimmed.strip_prefix("tool:").unwrap_or("").trim();
         if raw.is_empty() {
@@ -927,6 +928,42 @@ mod tests {
             "expected reload acknowledgement output, got: {}",
             output
         );
+    }
+
+    #[tokio::test]
+    async fn debug_soft_interrupt_does_not_wait_for_busy_agent_lock() {
+        let provider: Arc<dyn Provider> = Arc::new(TestProvider);
+        let registry = Registry::new(provider.clone()).await;
+        let agent = Arc::new(AsyncMutex::new(Agent::new(provider, registry)));
+        let busy = agent.lock().await;
+        let id = busy.session_id().to_string();
+        let queue = busy.soft_interrupt_queue();
+        let context = DebugInterruptContext {
+            session_id: id.clone(),
+            shutdown_signals: Arc::new(RwLock::new(HashMap::new())),
+            soft_interrupt_queues: Arc::new(RwLock::new(HashMap::from([(id, queue.clone())]))),
+        };
+        for command in ["queue_interrupt:normal", "queue_interrupt_urgent:urgent"] {
+            tokio::time::timeout(
+                Duration::from_millis(200),
+                execute_debug_command(
+                    agent.clone(),
+                    command,
+                    Arc::new(RwLock::new(HashMap::new())),
+                    None,
+                    Some(context.clone()),
+                ),
+            )
+            .await
+            .expect("interrupt must not wait on active turn")
+            .unwrap();
+        }
+        let pending = queue.lock().unwrap();
+        assert_eq!(pending.len(), 2);
+        assert_eq!(pending[0].content, "normal");
+        assert!(!pending[0].urgent);
+        assert_eq!(pending[1].content, "urgent");
+        assert!(pending[1].urgent);
     }
 
     #[tokio::test]
