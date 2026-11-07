@@ -226,3 +226,12 @@ elapsed time and process CPU, and flags a saturated 240-sample buffer.
 current overlay/activity state. Both use the same isolated native UI fixture.
 Malformed sample timestamps fail the measurement; an empty sample window is
 reported as zero draws.
+
+`measure-animation-cpu-cost` and `sweep-animation-fps` preserve the live-session
+A/B and frame-rate comparisons. They explicitly enable the animation in the ON
+case, reject absent animation/CPU/typing evidence, and expose `--socket`,
+`--debug-socket`, `--working-dir` and `--session` for explicit selection.
+Typing latency retains the original first-output definition: an animation frame
+can satisfy it, so it is not a key-to-paint measurement. Load and missing samples
+are reported. Native PTY/command-channel fixtures verify both ON/OFF paths;
+validation does not attach to a user daemon or claim a CPU improvement.

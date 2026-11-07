@@ -142,7 +142,9 @@ fn main() -> Result<()> {
             | "why-no-animation-area"
             | "which-overlay-blocks-donut"
             | "count-idle-draws"
-            | "pin-no-area-state"),
+            | "pin-no-area-state"
+            | "measure-animation-cpu-cost"
+            | "sweep-animation-fps"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

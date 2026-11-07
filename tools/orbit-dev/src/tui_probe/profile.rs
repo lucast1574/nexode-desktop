@@ -7,7 +7,7 @@ use std::{
     process::Command,
     time::{Duration, Instant},
 };
-fn recent(value: &Value, work: &str) -> Option<String> {
+pub(super) fn recent(value: &Value, work: &str) -> Option<String> {
     let rows = value.as_array().or_else(|| value["sessions"].as_array())?;
     rows.iter()
         .filter(|v| v["working_dir"].is_null() || v["working_dir"] == work)

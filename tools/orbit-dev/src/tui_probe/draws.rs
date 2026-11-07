@@ -21,7 +21,7 @@ fn cpu_stat(text: &str, ticks: f64) -> Result<f64> {
         .parse::<u64>()?;
     Ok((user as f64 + system as f64) / ticks)
 }
-fn cpu(pid: u32) -> Option<f64> {
+pub(super) fn cpu(pid: u32) -> Option<f64> {
     let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
     cpu_stat(
         &fs::read_to_string(format!("/proc/{pid}/stat")).ok()?,

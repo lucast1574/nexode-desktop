@@ -1,5 +1,7 @@
 //! Shared real PTY + native terminal-emulation diagnostics.
 #[cfg(unix)]
+mod animation;
+#[cfg(unix)]
 mod draws;
 #[cfg(unix)]
 mod inspect;
@@ -20,7 +22,12 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if matches!(command, "count-idle-draws" | "pin-no-area-state") {
+        let result = if matches!(
+            command,
+            "measure-animation-cpu-cost" | "sweep-animation-fps"
+        ) {
+            animation::run(command, args)
+        } else if matches!(command, "count-idle-draws" | "pin-no-area-state") {
             draws::run(command, args)
         } else if matches!(
             command,
