@@ -4,7 +4,15 @@
 # Measures startup time, memory usage, CPU, fd count, socket health
 #
 set -euo pipefail
+ORBIT_DEV=$(bash "$(dirname "${BASH_SOURCE[0]}")/orbit_dev.sh" --build-only)
 
+PIDS=()
+MONITOR_PID=""
+cleanup_owned() {
+    [[ -z "$MONITOR_PID" ]] || kill "$MONITOR_PID" 2>/dev/null || true
+    for pid in "${PIDS[@]}"; do kill -- "-$pid" 2>/dev/null || true; done
+}
+trap cleanup_owned EXIT
 NUM_INSTANCES=${1:-40}
 NEXODE_BIN="${NEXODE_BIN:-$(which nexode)}"
 LOG_DIR="/tmp/nexode-stress-test-$(date +%s)"
@@ -79,19 +87,7 @@ check_socket_health() {
     local label="$1"
     # Try a quick connect-and-disconnect on the main socket
     local start_ns=$(date +%s%N)
-    if python3 -c "
-import socket, json, sys, time
-sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-try:
-    sock.settimeout(5)
-    sock.connect('$MAIN_SOCK')
-    # just connect and close - test socket responsiveness
-    sock.close()
-    sys.exit(0)
-except Exception as e:
-    print(f'Socket error: {e}', file=sys.stderr)
-    sys.exit(1)
-" 2>>"$LOG_DIR/socket_errors.log"; then
+    if "$ORBIT_DEV" socket-connect --socket "$MAIN_SOCK" --timeout 5 2>>"$LOG_DIR/socket_errors.log"; then
         local end_ns=$(date +%s%N)
         local dur_ms=$(( (end_ns - start_ns) / 1000000 ))
         echo "[$label] Socket connect: ${dur_ms}ms" | tee -a "$LOG_DIR/socket_latency.log"
@@ -103,20 +99,7 @@ except Exception as e:
 debug_cmd() {
     local cmd="$1"
     local timeout="${2:-5}"
-    python3 -c "
-import socket, json, sys
-sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-try:
-    sock.settimeout($timeout)
-    sock.connect('$DEBUG_SOCK')
-    req = {'type': 'debug_command', 'id': 1, 'command': '$cmd'}
-    sock.send((json.dumps(req) + '\n').encode())
-    data = sock.recv(65536).decode()
-    print(data)
-    sock.close()
-except Exception as e:
-    print(json.dumps({'error': str(e)}))
-" 2>/dev/null
+    "$ORBIT_DEV" debug-call --socket "$DEBUG_SOCK" --timeout "$timeout" "$cmd"
 }
 
 # --- Pre-flight ---
@@ -184,7 +167,7 @@ for i in $(seq 1 $NUM_INSTANCES); do
 
     # Each instance gets its own pseudo-terminal via script(1)
     # We connect to the existing server, which creates sessions
-    script -q -c "$NEXODE_BIN --no-update --no-selfdev" /dev/null \
+    setsid script -q -c "$NEXODE_BIN --no-update --no-selfdev" /dev/null \
         > "$LOG_DIR/instance_${i}_stdout.log" \
         2> "$LOG_DIR/instance_${i}_stderr.log" &
     pid=$!
@@ -237,29 +220,20 @@ start_ns=$(date +%s%N)
 sessions_result=$(debug_cmd "sessions" 15)
 end_ns=$(date +%s%N)
 dur_ms=$(( (end_ns - start_ns) / 1000000 ))
-session_count=$(echo "$sessions_result" | python3 -c "
-import json, sys
-try:
-    data = json.loads(sys.stdin.read())
-    output = data.get('output', '')
-    sessions = json.loads(output) if output else []
-    print(len(sessions))
-except:
-    print('?')
-" 2>/dev/null)
+session_count=$("$ORBIT_DEV" json-field /output --decode "" --length <<<"$sessions_result")
 echo "  Sessions: $session_count, query time: ${dur_ms}ms"
 echo ""
 
 # --- Kill all spawned instances ---
 echo "=== Killing all spawned instances ==="
 for pid in "${PIDS[@]}"; do
-    kill "$pid" 2>/dev/null || true
+    kill -- "-$pid" 2>/dev/null || true
 done
 # Wait for them to die
 sleep 3
 # Force kill stragglers
 for pid in "${PIDS[@]}"; do
-    kill -9 "$pid" 2>/dev/null || true
+    kill -9 -- "-$pid" 2>/dev/null || true
 done
 sleep 2
 

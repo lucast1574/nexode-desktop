@@ -63,12 +63,14 @@ impl Fixture {
 pub(super) struct OwnedSession {
     pub socket: PathBuf,
     pub id: String,
+    closed: bool,
 }
 impl OwnedSession {
     pub fn new(socket: &Path, cwd: &Path) -> Result<Self> {
         Ok(Self {
             socket: socket.into(),
             id: io::create_session(socket, cwd)?,
+            closed: false,
         })
     }
     pub fn command(&self, command: &str) -> Result<String> {
@@ -79,14 +81,21 @@ impl OwnedSession {
             Duration::from_secs(120),
         )
     }
+    pub fn close(&mut self) -> Result<()> {
+        if !self.closed {
+            io::debug(
+                &self.socket,
+                &format!("destroy_session:{}", self.id),
+                Duration::from_secs(10),
+            )?;
+            self.closed = true;
+        }
+        Ok(())
+    }
 }
 impl Drop for OwnedSession {
     fn drop(&mut self) {
-        if let Err(e) = io::debug(
-            &self.socket,
-            &format!("destroy_session:{}", self.id),
-            Duration::from_secs(10),
-        ) {
+        if let Err(e) = self.close() {
             eprintln!("session cleanup failed: {e:#}");
         }
     }

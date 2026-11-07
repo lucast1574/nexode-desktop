@@ -49,8 +49,12 @@ mod selfdev_status;
 mod single;
 #[cfg(unix)]
 mod slash;
+#[cfg(unix)]
+mod socket_cli;
 #[cfg(target_os = "linux")]
 mod spawn_profile;
+#[cfg(target_os = "linux")]
+mod stress;
 #[cfg(unix)]
 mod theme;
 #[cfg(unix)]
@@ -62,7 +66,18 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "test-memory" {
+        let result = if matches!(command, "socket-connect" | "debug-call") {
+            socket_cli::run(command, args)
+        } else if command == "stress-test" {
+            #[cfg(target_os = "linux")]
+            {
+                stress::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("stress resource accounting requires Linux /proc")
+            }
+        } else if command == "test-memory" {
             memory_probe::run(args)
         } else if command == "profile-spawn" {
             #[cfg(target_os = "linux")]

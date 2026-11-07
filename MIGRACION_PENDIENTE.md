@@ -4,7 +4,7 @@ Estado al 7 de noviembre de 2026, tomando como base el commit `485f1b1`. Migraci
 
 ## Alcance y estado
 
-- Quedan **26 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
+- Quedan **25 archivos Python versionados**, enumerados abajo, además de Python incrustado en scripts de shell y referencias de CI.
 - Las herramientas ya migradas están principalmente en `tools/orbit-dev`; sus comandos y opciones están documentados en [su README](tools/orbit-dev/README.md). Revisar esos comandos antes de duplicar implementaciones.
 - El SDK TypeScript y el JavaScript necesario para la extensión de Chrome se conservan por decisión del mantenedor. No forman parte de este pendiente de Python.
 - El worker de telemetría se retiró anteriormente. El catálogo/carrito ficticio de las pruebas de Discovery se conserva: es una simulación local, sin pagos reales.
@@ -51,7 +51,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 - [x] `scripts/heap_diff_idle_sessions.py` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/profile_remote_resume_burst.py` → `orbit-dev profile-remote-resume-burst` (PTY real, CPU/RSS y timeout explícito).
 - [x] `scripts/profile_spawn.py` → `orbit-dev profile-spawn` (dos ejecuciones reales cliente/daemon, métricas completas de /proc).
-- [ ] `scripts/stress_test.py`
+- [x] `scripts/stress_test.py` → `orbit-dev stress-test` (40 sesiones reales; CPU/recursos y comprobaciones de limpieza).
 - [x] `scripts/test_analyze_runtime_memory_log.py` — analizador Rust; 16 escenarios de equivalencia y CLI sin intérprete.
 - [x] `scripts/test_memory.py` → `orbit-dev test-memory` (pruebas locales reales y contrato live con fixture; Jev/extracción live opt-in).
 
@@ -88,7 +88,7 @@ Cada casilla implica portar la funcionalidad y sus pruebas, actualizar consumido
 
 Estas rutas de shell contienen invocaciones de Python, bloques incrustados o configuración de PYTHONPATH. Migrar también estos puntos: borrar únicamente archivos `.py` no elimina la dependencia.
 
-- [ ] `scripts/antigravity_multiturn_coverage.sh`
+- [x] `scripts/antigravity_multiturn_coverage.sh` — parser JSON Rust; cuatro turnos y fallo JSON probados con CLI sintética.
 - [x] `scripts/bench_compile.sh` — migrado a Rust en `tools/orbit-dev`.
 - [x] `scripts/bench_selfdev_build.sh` — Python sustituido por comandos nativos de orbit-dev.
 - [x] `scripts/bench_selfdev_checkpoints.sh` — migrado a Rust en `tools/orbit-dev`.
@@ -101,7 +101,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - [ ] `scripts/run_terminal_bench_claude.sh`
 - [ ] `scripts/run_terminal_bench_harbor.sh`
 - [ ] `scripts/startup_acceptance_matrix.sh`
-- [ ] `scripts/stress_test_40.sh`
+- [x] `scripts/stress_test_40.sh` — helpers Rust de socket/JSON; sintaxis shell y protocolo probados.
 - [x] `scripts/test_cloud_environment_e2e.sh` — assertions Rust; aceptación con runtime real.
 - [x] `scripts/test_cloud_group_e2e.sh` — gate nativo `test-cloud-acceptance` y helpers Rust.
 - [x] `scripts/test_cloud_move_agent_e2e.sh` — gate nativo `test-cloud-acceptance` y helpers Rust.

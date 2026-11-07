@@ -438,3 +438,19 @@ daemon, live extraction can persist newly extracted test memories in its home.
 RFC 6901 pointers. Missing fields, malformed input, nulls and oversized input fail.
 Antigravity multi-turn shell coverage uses this native parser; success and invalid
 JSON cases are tested with a synthetic CLI without invoking the provider.
+
+`stress-test [COUNT=40] --fresh --binary PATH [--json FILE]` or
+`stress-test [COUNT] --socket DEBUG` creates, probes and destroys owned sessions,
+then checks resource recovery after `--settle-seconds 10`. Linux SO_PEERCRED
+identifies the actual daemon; unrelated processes are not counted or killed.
+It checks each session explicitly, distinguishes connected from live headless
+sessions, and executes tools in the selected sessions. Resource growth is a
+reported warning, not proof of a leak; `--strict-resources` makes its thresholds
+fail the command. A real 40-session run passed creation/tool/cleanup checks.
+
+`socket-connect --socket PATH --timeout 5` probes a Unix socket with a bounded
+asynchronous connect. `debug-call --socket PATH [--session ID] --timeout 5 COMMAND`
+returns the debug response JSON, handles ACKs and fragmented responses, and fails
+on server rejection. `stress_test_40.sh` now uses these helpers and `json-field`;
+its shell syntax and helper protocols were verified, while the complete external
+TUI shell workload remains opt-in.
