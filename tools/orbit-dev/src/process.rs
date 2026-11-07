@@ -155,12 +155,26 @@ pub fn capture_interruptible(
     timeout: Duration,
     interrupted: impl Fn() -> bool,
 ) -> Result<std::process::Output> {
+    capture_configured(command, timeout, interrupted, std::process::Stdio::null())
+}
+pub fn capture_with_stdin(
+    command: &mut Command,
+    stdin: std::process::Stdio,
+    timeout: Duration,
+) -> Result<std::process::Output> {
+    capture_configured(command, timeout, || false, stdin)
+}
+fn capture_configured(
+    command: &mut Command,
+    timeout: Duration,
+    interrupted: impl Fn() -> bool,
+    stdin: std::process::Stdio,
+) -> Result<std::process::Output> {
     use std::io::{Read, Seek, SeekFrom};
-    use std::process::Stdio;
     let mut stdout = tempfile::tempfile()?;
     let mut stderr = tempfile::tempfile()?;
     command
-        .stdin(Stdio::null())
+        .stdin(stdin)
         .stdout(stdout.try_clone()?)
         .stderr(stderr.try_clone()?);
     #[cfg(unix)]

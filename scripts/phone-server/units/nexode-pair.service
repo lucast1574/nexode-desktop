@@ -3,7 +3,8 @@ Description=nexode pairing code service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/nexode-pair-service.py
+EnvironmentFile=/etc/nexode-pair.env
+ExecStart=/usr/local/bin/orbit-dev pair-service --host ${NEXODE_GATEWAY_HOST} --bind ${NEXODE_PAIR_BIND} --run-as ${NEXODE_PAIR_USER}
 Restart=always
 RestartSec=3
 

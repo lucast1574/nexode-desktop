@@ -1001,6 +1001,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "shlex",
+ "subtle",
  "tar",
  "tempfile",
  "tiny_http",

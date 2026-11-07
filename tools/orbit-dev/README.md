@@ -276,3 +276,15 @@ first-output latency, explicitly labelled, and incomplete typing or saturated
 sample buffers fail. Isolated daemon validation observed all 11 typed keys; the
 short startup run was correctly inconclusive. The shared Python helper modules
 and both of their remaining consumers have been removed.
+
+`pair-service --host HOST [--bind 127.0.0.1:7644] [--run-as USER]` replaces the
+legacy Python HTTP pairing fallback. It uses a private token file, constant-time
+authentication, bounded native process execution and uncached JSON responses.
+Bearer auth is supported alongside the legacy token query. Tests use real
+loopback HTTP and a fixture CLI; no machine or cloud service is contacted.
+
+`verify-login-qr /absolute/path/to/nexode` replaces the Python browserless
+login acceptance matrix. It uses private temporary homes, piped/PTY stdin and
+separate output streams; no browser or OAuth exchange is completed. The native
+local CLI passed all eight cases, including headless auto-detection and JSON
+output with QR opt-in set.

@@ -14,11 +14,13 @@ mod discovery;
 mod fake_openai;
 mod gateway;
 mod handoff;
+mod login_qr;
 mod memory_snapshot;
 mod mermaid_probe;
 mod monitor;
 mod niri_fuzz;
 mod oauth;
+mod pair_service;
 mod process;
 #[cfg(unix)]
 mod pty;
@@ -73,6 +75,8 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("verify-login-qr") => login_qr::run(args)?,
+        Some("pair-service") => pair_service::run(args)?,
         Some("--help" | "-h" | "help") => println!("{USAGE}"),
         Some("benchmark-attribution") => discovery::attribution::run(&root()?, args)?,
         Some("openrelay-check") => discovery::openrelay_check::run(args)?,

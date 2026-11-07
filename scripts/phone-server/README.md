@@ -31,7 +31,7 @@ AWS Budget $10 ──▶ SNS nexode-guard-stop ──▶ breaker lambda ──�
 | `units/nexode-pair.service` | `/etc/systemd/system/` | Legacy local pairing HTTP service, now disabled after migration to SSM |
 | `units/idle-autostop.{service,timer}` | `/etc/systemd/system/` | 5-min check, poweroff after 30 min idle |
 | `idle-autostop.sh` | `/usr/local/bin/` | idle = no gateway/SSH clients AND nexode has no outbound :443 (not streaming) |
-| `nexode-pair-service.py` | `/usr/local/bin/` | Legacy tailnet-only fallback; normal pairing now uses SSM |
+| `orbit-dev pair-service` | `/usr/local/bin/orbit-dev` | Native Rust legacy fallback; normal pairing uses SSM |
 | `wake-lambda.py` | Lambda `nexode-phone-wake` (behind API Gateway `8c3wp4cbag`) | wake page: starts instance, polls SSM health, generates pair codes through SSM |
 | `breaker-lambda.py` | Lambda `nexode-guard-breaker` | stops the instance; subscribed to SNS `nexode-guard-stop` |
 | `IAM-LEAST-PRIVILEGE.md` | repository documentation | scoped runtime/deploy policies and lockout-safe `jade-deploy` rotation plan |
@@ -86,3 +86,24 @@ The legacy `AWS/Billing/EstimatedCharges` alarms were removed because the accoun
 5. Create the SNS topics/subscriptions and connect the $10 Budget's 100% actual notification to `nexode-guard-stop`.
 6. Enable CloudTrail, Access Analyzer, account-level S3 Block Public Access, EBS encryption by default, and bounded CloudWatch log retention.
 7. Test: breaker stops the host; wake link starts it; SSM reports online; tailnet `/health` works; pair button returns a code targeting the tailnet address.
+
+### Native pairing fallback
+
+The disabled legacy HTTP service now uses the native `orbit-dev pair-service`
+command. No service was enabled or deployed as part of this migration. Build the
+tools workspace for the host architecture and install the resulting binary at
+`/usr/local/bin/orbit-dev` if this fallback is needed.
+
+The service unit reads `/etc/nexode-pair.env` with explicit deployment values:
+
+```ini
+NEXODE_GATEWAY_HOST=your-advertised-host
+NEXODE_PAIR_BIND=127.0.0.1:7644
+NEXODE_PAIR_USER=your-nexode-service-user
+```
+
+Keep `/etc/nexode-pair-token` owner-readable only (0600). The CLI defaults to
+loopback and the current user; `--run-as` opts into noninteractive sudo. Both
+`Authorization: Bearer TOKEN` and the legacy `?t=TOKEN` are accepted. Responses
+remain uncached JSON with the code, host, port, pairing URI and expiry. No host,
+cloud account or remote connection is embedded in the implementation.
