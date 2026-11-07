@@ -179,7 +179,9 @@ fn main() -> Result<()> {
             | "repro-real-spawn-lag"
             | "bench-nexode-maki"
             | "repro-idle-session-rss"
-            | "heap-diff-idle-sessions"),
+            | "heap-diff-idle-sessions"
+            | "test-caching-detailed"
+            | "test-oauth-usage"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

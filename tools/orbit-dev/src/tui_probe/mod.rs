@@ -38,13 +38,19 @@ mod slash;
 #[cfg(unix)]
 mod theme;
 #[cfg(unix)]
+mod usage_probe;
+#[cfg(unix)]
 mod visible;
 use anyhow::Result;
 pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "heap-diff-idle-sessions" {
+        let result = if command == "test-oauth-usage" {
+            usage_probe::oauth(args)
+        } else if command == "test-caching-detailed" {
+            usage_probe::run(args)
+        } else if command == "heap-diff-idle-sessions" {
             #[cfg(target_os = "linux")]
             {
                 heap_diff::run(args)

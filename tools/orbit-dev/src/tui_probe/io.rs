@@ -8,19 +8,32 @@ use std::{
     time::{Duration, Instant},
 };
 pub(super) fn debug(socket: &Path, command: &str, timeout: Duration) -> Result<String> {
+    debug_session(socket, command, None, timeout)
+}
+pub(super) fn debug_session(
+    socket: &Path,
+    command: &str,
+    session: Option<&str>,
+    timeout: Duration,
+) -> Result<String> {
     let mut stream = UnixStream::connect(socket)?;
     stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;
-    writeln!(
-        stream,
-        "{}",
-        json!({"type":"debug_command","id":1,"command":command})
-    )?;
+    let mut request = json!({"type":"debug_command","id":1,"command":command});
+    if let Some(session) = session {
+        request["session_id"] = json!(session);
+    }
+    writeln!(stream, "{request}")?;
     let mut reader = BufReader::new(stream);
     let deadline = Instant::now() + timeout;
     let mut bytes = vec![];
     loop {
         ensure!(Instant::now() < deadline, "debug response timed out");
+        reader.get_ref().set_read_timeout(Some(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .max(Duration::from_millis(1)),
+        ))?;
         let chunk = reader.fill_buf()?;
         ensure!(!chunk.is_empty(), "debug socket closed without response");
         let n = chunk

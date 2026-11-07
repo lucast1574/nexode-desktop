@@ -339,3 +339,14 @@ The SDK build is offline, so its dependencies must already be cached. Artifacts
 must be outside both checkouts; all daemons use private homes and sockets with
 no inherited credentials. `--compile-only` starts no runtime. Fixture tests
 verify orchestration and cleanup separately from real runtime acceptance.
+
+`test-caching-detailed [--debug-socket PATH] [--working-dir PATH]` sends the four
+inherited caching prompts and emits per-turn usage, totals and cache diagnostics
+as JSON. `test-oauth-usage [--debug-socket PATH] [--credentials PATH] [--claude PATH]`
+`[--prompt TEXT] [--working-dir PATH]` compares Claude CLI and Nexode usage and
+captures quota before, between and after their calls. These are explicitly live
+commands and consume model quota when used against real services. Tests use
+private fake sockets, synthetic tokens and loopback HTTP. `--usage-endpoint`
+accepts only the default Anthropic endpoint or local HTTP fixtures. Missing usage
+fails instead of reporting zero; sessions are destroyed even after failed turns.
+The 10% cache-read weight is a diagnostic convention, not a pricing guarantee.
