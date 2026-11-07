@@ -1,0 +1,18 @@
+[package]
+name = "nexode"
+version = "0.0.1"
+edition = "2021"
+description = "Nexode coding agent. This crate reserves the name; install the real binary from https://nexode.app"
+license = "MIT"
+repository = "https://github.com/nexode-agent/unconfigured"
+homepage = "https://nexode.app"
+readme = "README.md"
+keywords = ["ai", "agent", "coding", "tui", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "nexode"
+path = "src/main.rs"
+
+# Standalone package, not part of the main nexode workspace.
+[workspace]

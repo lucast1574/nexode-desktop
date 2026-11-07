@@ -1,0 +1,16 @@
+[Unit]
+Description=nexode server with WebSocket gateway
+After=network.target
+
+[Service]
+Environment=PATH=/home/ec2-user/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NEXODE_BEDROCK_ENABLE=1
+Environment=AWS_REGION=us-east-1
+Environment=NEXODE_BEDROCK_MODEL=us.anthropic.claude-opus-4-6-v1
+ExecStartPre=/bin/rm -f /run/user/1000/nexode-daemon.lock /run/user/1000/nexode.sock /run/user/1000/nexode.sock.hash /run/user/1000/nexode-debug.sock
+ExecStart=/home/ec2-user/.local/bin/nexode --provider bedrock serve
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
