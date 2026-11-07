@@ -65,7 +65,7 @@ visible rather than describing unknown inference as free.
 6. Compare a known response's provider counters to its outbound report and stored
    rollup, including cached-only responses and partial/error streams that carry
    usage. Test both inclusive and disjoint cache conventions.
-7. Run `npm test --prefix telemetry-worker` and the focused Rust telemetry tests.
+7. Run the focused Rust accounting tests. The inherited telemetry backend has been removed.
    Unit tests are not evidence that the deployed worker or installed CLI changed.
 8. After deployment, verify real durable acknowledgments and recent rollup
    updates. Check database growth and pending-client backlog, not just HTTP 200s.

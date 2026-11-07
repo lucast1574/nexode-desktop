@@ -1,3 +1,5 @@
+> Historical architecture reference. The backend telemetry worker and its D1 store were removed from Nexode Orbit; the descriptions below are not deployed services of this distribution.
+
 # Account Flows: Observability, Privacy, and Support Diagnostics
 
 Security logging, audit events, metrics, traces, alerting, redaction,

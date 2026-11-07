@@ -1,13 +1,11 @@
 /target
 Cargo.lock
 __pycache__/
-/.wrangler/
 /tmp/
 # Local onboarding sandbox + auth fixtures. May contain REAL OAuth tokens copied
 # from $HOME (see scripts/onboarding_sandbox.sh seed-real-logins). Never commit.
 /.tmp/
 /.nexode/generated-images/
-/telemetry-worker/backups/
 target-ttest/
 target-ttest*/
 

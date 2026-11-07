@@ -8,7 +8,7 @@ Esta copia local conserva el código del snapshot de `NOTICE`, sin el historial 
 
 `NEXODE_SOURCE_REPO_URL` configura, al compilar, el repositorio de fuentes usado por self-dev si no encuentra un checkout local. Sin URL no clona un repositorio ajeno.
 
-La telemetría queda desactivada en builds normales. Los tests unitarios conservan sus capturas locales para comprobar contratos. El worker conserva su código como referencia, sin dominios ni IDs de bases de datos originales.
+La telemetría queda desactivada en builds normales. Los tests unitarios conservan sus capturas locales para comprobar contratos. El worker, sus migraciones, dashboards y herramientas de despliegue se eliminaron del repositorio.
 
 Las cuentas, gateways, sincronización y cloud gestionado heredados no están conectados al backend NestJS del monorepo. Sus URLs por defecto usan el dominio reservado `.invalid`; requieren una integración explícita. Los proveedores configurados directamente mantienen sus endpoints originales.
 
