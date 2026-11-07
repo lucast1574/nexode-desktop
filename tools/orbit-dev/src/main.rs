@@ -46,6 +46,7 @@ mod phone;
 mod process;
 #[cfg(unix)]
 mod pty;
+mod reddit_dashboard;
 mod rehearsal;
 mod release;
 mod release_notes;
@@ -224,6 +225,7 @@ fn main() -> Result<()> {
         ) => release::run(command, args)?,
         Some("json-field") => json_field::run(args)?,
         Some("reload-recovery-audit") => reload_audit::run(args)?,
+        Some("reddit-dashboard") => reddit_dashboard::run(args)?,
         Some("package-version") => {
             use std::io::Read;
             let mut input = String::new();

@@ -508,3 +508,13 @@ does not prove shutdown or signal delivery: those contracts are checked by
 filters `reload_tests`, `reload_context`, and `reload_marker_scope_tests` (34 tests
 passed). The legacy context regression verifies that a different session cannot
 consume the context. Missing canaries are observations; stale markers are warnings.
+
+`reddit-dashboard [--output /tmp/nexode_reddit_dashboard.png] [--json FILE]
+[--font FILE.ttf]` renders all eight archived charts with native Plotters to PNG
+or SVG. It preserves all 15 communities, hourly/day distributions, windows and
+strategy notes, and distinguishes original published planning scores from the
+computed formula. These are historical data, not current recommendations. JSON
+exports preserve inputs and add normalized metrics. Font discovery checks DejaVu,
+Arial and Liberation Sans; `--font` selects an explicit font. Pure Rust font
+rendering needs no fontconfig development libraries. PNG/SVG exports and numeric
+checks pass with an empty PATH; the PNG was visually inspected.

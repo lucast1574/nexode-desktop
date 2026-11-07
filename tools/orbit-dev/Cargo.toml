@@ -37,3 +37,4 @@ png = "0.17"
 vt100 = "0.18.1"
 subtle = "2.6"
 ring = "0.17"
+plotters = { version = "0.3.7", default-features = false, features = ["bitmap_backend", "bitmap_encoder", "svg_backend", "ab_glyph"] }
