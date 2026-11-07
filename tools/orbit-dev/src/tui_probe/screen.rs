@@ -63,6 +63,12 @@ fn replies(rows: u16, cols: u16) -> Vec<(Vec<u8>, Vec<u8>)> {
             ));
         }
     }
+    for end in ["\x1b\\", "\x07"] {
+        pairs.push((
+            format!("\x1b]4;0;?{end}").into_bytes(),
+            format!("\x1b]4;0;rgb:0000/0000/0000{end}").into_bytes(),
+        ));
+    }
     pairs
 }
 fn answers(pending: &mut Vec<u8>, chunk: &[u8], queries: &[(Vec<u8>, Vec<u8>)]) -> Vec<Vec<u8>> {

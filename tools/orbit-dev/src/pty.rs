@@ -46,6 +46,7 @@ impl Terminal {
         );
         let mut term = unsafe { term.assume_init() };
         term.c_lflag &= !(libc::ECHO | libc::ICANON);
+        term.c_iflag &= !(libc::ICRNL | libc::IXON);
         term.c_cc[libc::VMIN] = 1;
         term.c_cc[libc::VTIME] = 0;
         ensure!(

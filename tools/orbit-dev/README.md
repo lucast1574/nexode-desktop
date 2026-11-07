@@ -194,3 +194,10 @@ one, it creates a session on the selected existing daemon. `--socket`,
 Missing/failed perf evidence returns failure; cancellation kills the sampling
 process group and closes the owned terminal. Unit tests do not attach perf to
 any user process or claim a measured CPU improvement.
+
+`cargo xtask bench-startup-visible-ready --tools nexode --runs 10` compares
+visible startup and input readiness using native terminal emulation. It types
+a short probe without submitting a prompt; selected installed tools still run
+with their normal environment. Reports preserve missing runs and fail when
+readiness is absent. Timing includes process creation. Tests use isolated shell
+fixtures and do not launch third-party agents or use provider accounts.
