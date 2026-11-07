@@ -1,4 +1,7 @@
 //! Desktop-only development commands. Never invokes CLI selfdev or manipulates focus.
+#[path = "desktop_selfdev/visual.rs"]
+mod visual;
+
 use super::{Tool, ToolContext, ToolOutput};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
@@ -174,11 +177,11 @@ fn command_spec(
             let output = target.join(output);
             // Refuse existing symlink components, including target, before the script writes.
             reject_symlink_components(&output)?;
-            ("python3", vec!["scripts/screenshot.py".into(), output.display().to_string()], "Build current debug Desktop and capture a private Xvfb/offline fixture. Independent of the live host, not a capture of its window.".into())
+            ("native:desktop-screenshot", vec![output.display().to_string()], "Build current debug Desktop and capture a private Xvfb/offline fixture. Independent of the live host, not a capture of its window.".into())
         }
         "inspect" => {
             let pid = pid.context("No verified Desktop instance for inspection. Start Desktop with --hot-reload first.")?;
-            ("python3", vec!["scripts/preview-state.py".into(), "--list".into(), "--pid".into(), pid.to_string()],
+            ("native:desktop-preview", vec![pid.to_string()],
                 "Read-only UI preview catalog. Requires the host's self-development preview endpoint. Not full live application state.".into())
         }
         _ => bail!("Action does not route to a subprocess"),
@@ -445,6 +448,9 @@ impl Drop for ProcessGroup {
 }
 
 async fn run_command(root: &Path, spec: CommandSpec, timeout: u64) -> Result<ToolOutput> {
+    if spec.program.starts_with("native:desktop-") {
+        return visual::run(root, spec, timeout).await;
+    }
     let mut command = tokio::process::Command::new(&spec.program);
     command
         .args(&spec.args)

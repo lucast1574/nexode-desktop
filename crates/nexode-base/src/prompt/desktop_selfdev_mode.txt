@@ -15,4 +15,4 @@ You are working on Nexode Desktop itself. This mode is detected from the Desktop
 
 ## Visual verification
 
-Use `screenshot` and `inspect` to check the result, then iterate on observed behavior. For offline visual verification use the Desktop repository's `scripts/screenshot.py`. Do not depend on niri, compositor IPC, or a live Desktop session for offline screenshots. A successful build alone is not proof that the visible UI changed. Distinguish offline rendering checks from verification of the running host, and report any unavailable runtime checks honestly.
+Use `screenshot` and `inspect` to check the result, then iterate on observed behavior. For offline visual verification use the native `desktop_selfdev` screenshot action. Do not depend on niri, compositor IPC, or a live Desktop session for offline screenshots. A successful build alone is not proof that the visible UI changed. Distinguish offline rendering checks from verification of the running host, and report any unavailable runtime checks honestly.

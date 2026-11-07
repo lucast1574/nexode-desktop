@@ -737,7 +737,7 @@ fn desktop_prompt_documents_safe_product_specific_workflow() {
         "must not rebuild the CLI",
         "preserving the current application state",
         "require a safe restart, not UI hot reload",
-        "scripts/screenshot.py",
+        "native `desktop_selfdev` screenshot action",
         "Do not depend on niri",
     ] {
         assert!(

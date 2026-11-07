@@ -87,22 +87,18 @@ fn test_and_inspection_commands_are_scoped_and_read_only() {
     assert_eq!(spec.program, "bash");
     assert_eq!(spec.args, ["-c", "cargo test -p nexode-desktop-ui"]);
     let inspect = command_spec(root, &input("inspect"), "debug", Some(42)).unwrap();
-    assert_eq!(
-        inspect.args,
-        ["scripts/preview-state.py", "--list", "--pid", "42"]
-    );
+    assert_eq!(inspect.args, ["42"]);
     assert!(command_spec(root, &input("inspect"), "debug", None).is_err());
 }
 
 #[test]
-fn screenshot_uses_private_script_with_fresh_build_and_target_output() {
+fn screenshot_uses_native_private_capture_with_target_output() {
     let root = checkout();
     let spec = command_spec(root.path(), &input("screenshot"), "release", None).unwrap();
-    assert_eq!(spec.program, "python3");
+    assert_eq!(spec.program, "native:desktop-screenshot");
     assert_eq!(
         spec.args,
         vec![
-            "scripts/screenshot.py".to_string(),
             root.path()
                 .join("target/desktop-selfdev.png")
                 .display()
@@ -277,13 +273,9 @@ async fn unsafe_sockets_are_rejected_before_connecting() {
 #[tokio::test]
 async fn screenshot_execution_never_discovers_live_instances() {
     let root = checkout();
-    std::fs::create_dir(root.path().join("scripts")).unwrap();
-    std::fs::write(
-        root.path().join("scripts/screenshot.py"),
-        "import json,sys\nprint(json.dumps(sys.argv[1:]))\n",
-    )
-    .unwrap();
-    // An invalid instance would fail discovery. Offline screenshot must not consult it.
+    std::fs::create_dir(root.path().join("target")).unwrap();
+    // Refusing an existing output happens before building or opening a display.
+    std::fs::write(root.path().join("target/desktop-selfdev.png"), "preserve").unwrap();
     let output = DesktopSelfDevTool::new()
         .execute(
             json!({"action":"screenshot", "instance":"not-a-live-instance", "timeout_seconds":5}),
@@ -292,14 +284,11 @@ async fn screenshot_execution_never_discovers_live_instances() {
         .await
         .unwrap();
     let data: Value = serde_json::from_str(&output.output).unwrap();
-    assert_eq!(data["success"], true);
-    let argv: Vec<String> = serde_json::from_str(data["stdout"].as_str().unwrap()).unwrap();
+    assert_eq!(data["program"], "native:desktop-screenshot");
+    assert_eq!(data["success"], false);
+    assert!(!data["stderr"].as_str().unwrap().contains("instance"));
     assert_eq!(
-        argv,
-        [root
-            .path()
-            .join("target/desktop-selfdev.png")
-            .display()
-            .to_string()]
+        std::fs::read_to_string(root.path().join("target/desktop-selfdev.png")).unwrap(),
+        "preserve"
     );
 }
