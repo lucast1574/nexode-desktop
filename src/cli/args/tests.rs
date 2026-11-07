@@ -1224,3 +1224,35 @@ fn api_stdio_accepts_alias_and_daemon_socket_but_not_api_socket() {
         );
     }
 }
+#[test]
+fn cloud_credentials_preserves_provider_wire_flag_without_global_collision() {
+    for (name, expected) in [
+        ("openai", ProviderChoice::Openai),
+        ("claude", ProviderChoice::Claude),
+    ] {
+        let args = Args::try_parse_from([
+            "nexode",
+            "cloud",
+            "credentials",
+            "--provider",
+            name,
+            "--account",
+            "fixture",
+            "--export",
+        ])
+        .unwrap();
+        assert_eq!(args.provider, expected);
+        match args.command {
+            Some(Command::Cloud(super::CloudCommand::Credentials {
+                provider,
+                account,
+                export,
+            })) => {
+                assert_eq!(provider, expected);
+                assert_eq!(account, "fixture");
+                assert!(export);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+}

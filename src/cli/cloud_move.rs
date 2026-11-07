@@ -2264,7 +2264,7 @@ pub(crate) fn run_cli(command: super::args::CloudCommand) -> Result<()> {
             provider,
             account,
             export,
-        } => run_credentials(&provider, &account, export),
+        } => run_credentials(provider.as_arg_value(), &account, export),
         C::RouterCredentials => run_router_credentials(),
         C::Receive { .. } => run_receive(),
         C::Activate { session, epoch } => run_activate(&session, epoch),

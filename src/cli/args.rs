@@ -983,8 +983,10 @@ pub(crate) enum CloudCommand {
     /// Internal: transfer one named OAuth account over the private SSH channel.
     #[command(hide = true)]
     Credentials {
-        #[arg(long = "provider", id = "cloud_credential_provider")]
-        provider: String,
+        // Share the global argument's ID and value type. A distinct ID with
+        // the same long flag panics when Clap builds this subcommand.
+        #[arg(long, value_enum)]
+        provider: ProviderChoice,
         #[arg(long = "account", id = "cloud_credential_account")]
         account: String,
         /// Export to stdout instead of importing from stdin.
