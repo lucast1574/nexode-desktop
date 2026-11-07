@@ -93,7 +93,7 @@ jobs:
         run: python3 tests/test_cloud_acceptance_harness.py
 
       - name: Check module declarations resolve
-        run: python3 scripts/check_module_files.py
+        run: cargo xtask check-modules
 
       - name: Install pinned justrust
         run: bash scripts/install_justrust_ci.sh

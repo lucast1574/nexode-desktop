@@ -4,6 +4,11 @@ Rust replacements for repository maintenance scripts. From the repository root:
 
 ```sh
 cargo xtask check-branding
+cargo xtask check-modules
+cargo xtask check-boundaries
+cargo xtask check-code-size
+cargo xtask check-test-size
+cargo xtask score-plans plans.json scores.json
 cargo xtask version-sdk v1.0.0-preview.42
 cargo xtask timeout 900 cargo test --locked -p nexode-storage
 cargo xtask package-browser /path/to/browser-agent-bridge/extension /path/to/dist
@@ -34,3 +39,7 @@ does not contend with the agent's build directory. No Python is involved.
 
 The tool has its own Cargo workspace and lockfile to avoid compiling the agent's UI,
 providers and native integrations for maintenance commands.
+
+The size checks preserve the existing baselines, reject new oversized files and growth,
+and only rewrite a baseline with an explicit `--update`. They may expose existing
+size debt; migration does not silently relax those gates.

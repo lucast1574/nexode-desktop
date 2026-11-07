@@ -1,7 +1,10 @@
 mod branding;
 mod browser_package;
 mod process;
+mod score;
 mod sdk_version;
+mod size_budget;
+mod structure;
 use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
 fn root() -> Result<PathBuf> {
@@ -15,6 +18,21 @@ fn root() -> Result<PathBuf> {
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some(command @ ("check-code-size" | "check-test-size")) => {
+            let update = match args.next().as_deref() {
+                None => false,
+                Some("--update") => true,
+                _ => bail!("expected --update or no arguments"),
+            };
+            size_budget::run(&root()?, command == "check-test-size", update)?;
+        }
+        Some("check-modules") => structure::modules(&root()?)?,
+        Some("check-boundaries") => structure::boundaries(&root()?)?,
+        Some("score-plans") => {
+            let input = PathBuf::from(args.next().context("missing input JSON path")?);
+            let output = PathBuf::from(args.next().context("missing output JSON path")?);
+            score::run(&input, &output)?;
+        }
         Some("timeout") => {
             let seconds = args.next().context("missing timeout seconds")?.parse()?;
             std::process::exit(process::run_with_timeout(seconds, args.collect())?);

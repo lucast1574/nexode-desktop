@@ -50,6 +50,11 @@ run_gate() {
 # Ratchet scripts share a --update flag to accept intentional growth.
 run_ratchet() {
     local label=$1 script=$2
+    if [[ "$script" == check-code-size || "$script" == check-test-size ]]; then
+        if $FIX; then cargo xtask "$script" --update >/dev/null 2>&1; fi
+        run_gate "$label" cargo xtask "$script"
+        return $?
+    fi
     if $FIX; then
         python3 "scripts/$script" --update >/dev/null 2>&1
     fi
@@ -61,7 +66,7 @@ echo "=== Format ==="
 # files: failed to resolve mod", which reads like a formatting problem and hides
 # every gate behind it. Naming the real cause first turns a confusing Format
 # failure into an obvious one (221159294).
-run_gate "module declarations resolve" python3 scripts/check_module_files.py
+run_gate "module declarations resolve" cargo xtask check-modules
 if $FIX; then
     cargo fmt --all
 fi
@@ -82,11 +87,11 @@ fi
 # 8 of 9 jobs and fails Windows at "Build release binary".
 run_gate "Cargo.lock is up to date" cargo metadata --locked --format-version 1
 run_gate "warning budget" bash scripts/check_warning_budget.sh
-run_ratchet "oversized-file ratchet" check_code_size_budget.py
-run_ratchet "oversized-test ratchet" check_test_size_budget.py
+run_ratchet "oversized-file ratchet" check-code-size
+run_ratchet "oversized-test ratchet" check-test-size
 run_ratchet "panic-prone usage ratchet" check_panic_budget.py
 run_ratchet "swallowed-error usage ratchet" check_swallowed_error_budget.py
-run_gate "crate dependency boundaries" python3 scripts/check_dependency_boundaries.py
+run_gate "crate dependency boundaries" cargo xtask check-boundaries
 run_gate "wildcard re-export ratchet" python3 scripts/check_wildcard_reexport_budget.py
 
 # Onboarding state-space invariants. The onboarding flow is a graph, and the

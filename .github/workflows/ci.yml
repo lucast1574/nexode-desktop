@@ -44,7 +44,7 @@ jobs:
         # A `mod x;` with no file makes rustfmt fail with "Error writing files:
         # failed to resolve mod", which reads like a formatting problem and hides
         # every gate behind it. Naming the real cause first (221159294).
-        run: python3 scripts/check_module_files.py
+        run: cargo xtask check-modules
 
       - name: Check formatting
         # These gates are independent. Report every failure in one run instead
@@ -86,12 +86,12 @@ jobs:
       - name: Enforce oversized-file ratchet
         if: ${{ !cancelled() }}
         shell: bash
-        run: python3 scripts/check_code_size_budget.py
+        run: cargo xtask check-code-size
 
       - name: Enforce oversized-test ratchet
         if: ${{ !cancelled() }}
         shell: bash
-        run: python3 scripts/check_test_size_budget.py
+        run: cargo xtask check-test-size
 
       - name: Enforce panic-prone usage ratchet
         if: ${{ !cancelled() }}
@@ -106,7 +106,7 @@ jobs:
       - name: Enforce crate dependency boundaries
         if: ${{ !cancelled() }}
         shell: bash
-        run: python3 scripts/check_dependency_boundaries.py
+        run: cargo xtask check-boundaries
 
       - name: Enforce Rust and TypeScript SDK surface parity
         if: ${{ !cancelled() }}
@@ -638,7 +638,7 @@ jobs:
         # A `mod x;` with no file makes rustfmt fail with "Error writing files:
         # failed to resolve mod", which reads like a formatting problem and hides
         # every gate behind it. Naming the real cause first (221159294).
-        run: python3 scripts/check_module_files.py
+        run: cargo xtask check-modules
 
       - name: Check formatting
         run: cargo fmt --all -- --check
