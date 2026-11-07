@@ -2,7 +2,13 @@
 #[cfg(unix)]
 mod animation;
 #[cfg(unix)]
+mod animation_verify;
+#[cfg(unix)]
 mod draws;
+#[cfg(unix)]
+mod idle;
+#[cfg(unix)]
+mod idle_perf;
 #[cfg(unix)]
 mod inspect;
 #[cfg(unix)]
@@ -24,7 +30,16 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if command == "verify-light-theme" {
+        let result = if matches!(
+            command,
+            "check-donut-animates-live" | "verify-donut-still-animates"
+        ) {
+            animation_verify::run(command, args)
+        } else if matches!(command, "diagnose-idle-render-cost" | "probe-idle-state") {
+            idle::run(command, args)
+        } else if command == "profile-idle-donut" {
+            idle_perf::run(args)
+        } else if command == "verify-light-theme" {
             theme::run(args)
         } else if matches!(
             command,

@@ -242,3 +242,19 @@ SGR sequences natively, and enforces the existing dim-text/accent contrast
 checks. It isolates both daemons and homes. The local Nexode binary passed both
 palettes with 19 distinct foreground colors per run. Color collection is
 disabled in other probes so it does not alter their measurements.
+
+`diagnose-idle-render-cost`, `probe-idle-state` and `profile-idle-donut`
+replace the Python idle-state/CPU diagnostics. They use isolated native clients,
+preserve monotonic repaint counters and blocker deltas, and keep strict input
+preconditions. A missing composer makes the strict probe fail; it does not
+produce a false successful latency measurement. The perf command retains both
+flat and inclusive reports and its reported artifact directory, with bounded
+interruptible subprocesses. Validation used an actual isolated client plus a
+fake perf executable, not real CPU sampling.
+
+`check-donut-animates-live` and `verify-donut-still-animates` explicitly enable
+animations and establish an empty chat with local `/clear` before checking
+rendered row motion. They reject inactive/missing rectangles or absent partial
+repaints. The latter also checks slash-palette persistence and resume-overlay
+cadence. Both passed with the local Nexode binary; the palette had no
+disappearances and the overlay had no animation rectangle or moving rows.

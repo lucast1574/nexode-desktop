@@ -145,7 +145,12 @@ fn main() -> Result<()> {
             | "pin-no-area-state"
             | "measure-animation-cpu-cost"
             | "sweep-animation-fps"
-            | "verify-light-theme"),
+            | "verify-light-theme"
+            | "diagnose-idle-render-cost"
+            | "probe-idle-state"
+            | "profile-idle-donut"
+            | "check-donut-animates-live"
+            | "verify-donut-still-animates"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);
