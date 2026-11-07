@@ -133,7 +133,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Test Discord release announcements
-        run: python3 -m unittest -v scripts/test_post_discord_release.py
+        run: cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml discord_release
 
       - name: Test justrust release installation and routing
         run: |
@@ -151,9 +151,6 @@ jobs:
           python3 tests/test_verify_public_release.py
           cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test watch_release
           bash -n scripts/install_justrust_ci.sh scripts/build_linux_compat.sh scripts/quick-release.sh
-
-      - name: Compile release automation scripts
-        run: python3 -m py_compile scripts/post_discord_release.py scripts/test_post_discord_release.py
 
   build:
     name: Build & Test (${{ matrix.os }})

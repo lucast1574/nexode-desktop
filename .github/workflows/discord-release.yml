@@ -36,9 +36,11 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Post release notes to Discord if not already announced
         env:
           GH_TOKEN: ${{ github.token }}
           DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           TAG: ${{ inputs.tag || github.event.release.tag_name }}
-        run: python3 scripts/post_discord_release.py --tag "$TAG"
+        run: cargo xtask post-discord-release --tag "$TAG"

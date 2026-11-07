@@ -2,6 +2,11 @@
 
 Rust replacements for repository maintenance scripts. From the repository root:
 
+`cargo xtask post-discord-release --tag TAG --release-file release.json` previews
+release announcements offline. Omit `--release-file` only for an intended live
+announcement with `GH_TOKEN`, `GITHUB_REPOSITORY` and `DISCORD_RELEASE_WEBHOOK`.
+The release workflow remains guarded by the configured canonical repository.
+
 ```sh
 cargo xtask check-branding
 cargo xtask check-modules

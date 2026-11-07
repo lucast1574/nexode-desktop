@@ -6,6 +6,7 @@ mod compile_report;
 mod demo_shop;
 mod detached_acceptance;
 mod diagnostics;
+mod discord_release;
 mod discovery;
 mod fake_openai;
 mod process;
@@ -63,6 +64,7 @@ fn main() -> Result<()> {
         Some("openrelay-check") => discovery::openrelay_check::run(args)?,
         Some("demo-shop") => demo_shop::run(args)?,
         Some("demo-session") => demo_shop::session(args)?,
+        Some("post-discord-release") => discord_release::run(args)?,
         Some("mock-sponsor") => discovery::sponsor::run(args)?,
         Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,
         Some("bench-reload-storm") => reload_storm::run(args)?,
