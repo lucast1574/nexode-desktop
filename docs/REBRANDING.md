@@ -12,7 +12,7 @@ La telemetría queda desactivada en builds normales. Los tests unitarios conserv
 
 Las cuentas, gateways, sincronización y cloud gestionado heredados no están conectados al backend NestJS del monorepo. Sus URLs por defecto usan el dominio reservado `.invalid`; requieren una integración explícita. Los proveedores configurados directamente mantienen sus endpoints originales.
 
-Los workflows y scripts de publicación heredados son plantillas pendientes de configurar: repositorio, firmas, registries y credenciales propios. Los paquetes npm están marcados como privados. Su workflow exige `NEXODE_PUBLISH_ENABLED=true`; los workflows de releases exigen `vars.NEXODE_RELEASE_REPO`. Los taps de Homebrew deben configurarse con `NEXODE_HOMEBREW_REPO`. No se ha publicado, desplegado ni instalado globalmente esta copia.
+Los workflows y scripts de publicación heredados son plantillas pendientes de configurar: repositorio, firmas, registries y credenciales propios. Los paquetes npm están marcados como privados. Su workflow exige `NEXODE_PUBLISH_ENABLED=true`; los workflows de releases exigen `vars.NEXODE_RELEASE_REPO`. Los taps de Homebrew deben configurarse con `NEXODE_HOMEBREW_REPO`. El código fuente está publicado en GitHub; no se han publicado paquetes ni releases, desplegado servicios o instalado globalmente esta copia.
 
 ## Marca
 
@@ -28,4 +28,4 @@ El núcleo está en Rust, pero se conservan SDK TypeScript, scripts auxiliares y
 
 ## Repositorio GitHub
 
-Repositorio nuevo: `lucast1574/nexode-orbit`, privado, rama `main`. El código se importa por componentes con un historial nuevo; no representa la cronología del desarrollo original. GitHub Actions permanece desactivado hasta configurar y revisar los workflows heredados.
+Repositorio nuevo: `lucast1574/nexode-orbit`, público, rama `main`. El código se importa por componentes con un historial nuevo; no representa la cronología del desarrollo original. GitHub Actions permanece desactivado hasta configurar y revisar los workflows heredados.

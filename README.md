@@ -41,6 +41,17 @@ El comando es `nexode`, la configuración se guarda en `~/.nexode` y las variabl
 | `scripts/` | Compilación, instalación y validación |
 | `docs/` | Documentación técnica y guía de esta distribución |
 
+## Lenguajes y dependencias auxiliares
+
+El núcleo, la CLI y la TUI están en Rust. El repositorio también conserva:
+
+- **Python:** pruebas, benchmarks, auditorías y algunas funciones auxiliares, como la exploración de directorios remotos en la TUI. No todo su uso se limita al desarrollo.
+- **Bash/Shell:** instalación, compilación, empaquetado y pruebas. La herramienta de comandos ejecuta Bash en Unix y `cmd.exe` en Windows.
+- **PowerShell:** instalación, desinstalación y comprobaciones específicas de Windows.
+- **JavaScript/TypeScript:** SDK para integrar el agente en otras aplicaciones, pruebas y worker de telemetría heredado (desactivado en esta distribución). El puente externo del navegador también usa una extensión JavaScript.
+
+El proyecto tiene un núcleo Rust, pero no es un repositorio exclusivamente Rust. Los scripts de mantenimiento pueden migrarse gradualmente sin confundirlos con el runtime principal.
+
 ## Estado de esta distribución
 
 - Nombre, comando, namespaces, crates, SDKs y rutas adaptados a Nexode.
