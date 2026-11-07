@@ -10,6 +10,8 @@ mod desktop;
 mod mcp;
 #[path = "fixture/release.rs"]
 mod release;
+#[path = "fixture/signing.rs"]
+mod signing;
 #[path = "fixture/transport.rs"]
 mod transport;
 use std::io::{self, Read, Write};
@@ -22,6 +24,9 @@ fn main() {
                 .map(|s| s.to_string_lossy().into_owned())
         })
         .unwrap_or_default();
+    if ["uname", "security", "codesign", "ditto", "xcrun"].contains(&invoked.as_str()) {
+        std::process::exit(signing::run(&invoked).unwrap());
+    }
     if invoked == "gh" {
         std::process::exit(release::run().unwrap());
     }

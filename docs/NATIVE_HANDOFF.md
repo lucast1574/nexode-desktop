@@ -127,7 +127,7 @@ and `id-token: write` are not used here.
 With `gh` already authenticated for read access, run:
 
 ```bash
-python3 scripts/native_handoff_preflight.py
+cargo xtask native-handoff-preflight
 ```
 
 This issues only GET requests. It reports whether the hosted ARM repository
@@ -147,8 +147,14 @@ before opting in and reviews the actual environment approval prompt.
 
 ## Local validation and readiness
 
+The integrity checks and signing guards now run in Rust. Signing jobs build
+`ORBIT_DEV_BIN` before credentials enter the environment. The historical run
+records below concern the upstream implementation; they do not validate the
+new Rust port on native Apple or Windows runners.
+
 ```bash
-python3 -m unittest discover -s scripts -p 'test_native_handoff*.py'
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml handoff::
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test native_handoff
 actionlint .github/workflows/native-handoff.yml
 bash -n scripts/sign_native_handoff_macos.sh
 shellcheck scripts/sign_native_handoff_macos.sh

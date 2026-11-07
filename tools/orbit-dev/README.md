@@ -97,3 +97,11 @@ workflow commit. `verify-public-release TAG --sha SHA` checks complete metadata,
 downloaded hashes and unpatched provenance; `--allow-draft` is explicit. Release
 jobs build the maintenance tool from the workflow commit outside the tag checkout,
 so historical tags never need to contain the current tooling.
+
+Native handoff: `native-handoff seal|verify|smoke --lane linux-arm64|macos-arm64`
+binds binaries to the exact source, run, attempt, toolchain and build receipt.
+`native-handoff-preflight` reads only GitHub environment policies and secret names.
+`sign-release --help` replaces the external Python signer; it plans by default
+and only signs with explicit `--execute` on the target operating system.
+`signing-check` supplies shared identity, keychain, smoke and receipt guards.
+Signing workflows build `ORBIT_DEV_BIN` before exposing protected credentials.

@@ -17,28 +17,20 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: 1jehuang/justrust
-          ref: 17c344f2e83f836598b82715950497c0879aa713
-          path: signing-helper-source
-          persist-credentials: false
-          sparse-checkout: |
-            scripts/sign-release.py
-            tests/sign_release_test.py
-          sparse-checkout-cone-mode: false
-      - name: Validate pinned tests and build fixed native fixture before credentials
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate Rust helper and build fixed native fixture before credentials
         id: fixture
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git -C signing-helper-source rev-parse HEAD)" = 17c344f2e83f836598b82715950497c0879aa713
           test "$(uname -m)" = arm64
-          python3 signing-helper-source/tests/sign_release_test.py
-          python3 -m unittest discover -s scripts -p test_signing_helper_validation.py
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml handoff::
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test native_handoff
+          export ORBIT_DEV_BIN=$(bash scripts/orbit_dev.sh --build-only)
+          echo "ORBIT_DEV_BIN=$ORBIT_DEV_BIN" >> "$GITHUB_ENV"
           bash scripts/check_signing_helper_macos.sh prepare
-      - name: Execute real pinned helper with protected identity
+      - name: Execute native Rust helper with protected identity
         shell: bash
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}

@@ -1,77 +1,37 @@
 # Native signing-helper validation
 
-This dedicated, dispatch-only workflow validates the standalone
-`1jehuang/justrust` helper at `17c344f2e83f836598b82715950497c0879aa713`.
-The existing Nexode signing/notarization run `40628778548` passed, but is not
-proof that this standalone helper executed on macOS. This lane supplies that
-separate evidence only after its protected run succeeds.
+The dispatch-only workflow validates Nexode Orbit's Rust signing helper,
+`cargo xtask sign-release`. Its contract was ported from justrust revision
+`17c344f2e83f836598b82715950497c0879aa713`; the source and license attribution
+remain in NOTICE. The workflow no longer downloads or executes the Python helper.
 
-## Review and dispatch
+Before credentials, the native macOS ARM64 job tests the Rust helper, builds the
+maintenance binary from the exact workflow source, and compiles a fixed C fixture.
+The signing step checks its trusted SHA256, refuses wrong hashes and existing
+outputs, plans without signing, then invokes absolute `/usr/bin/codesign` with
+an installed certificate fingerprint. Verification requires the Apple Developer
+ID chain, `com.nexode.cli`, and the expected Team ID. Signing never edits the
+unsigned source. The temporary keychain search list is restored on exit.
 
-A coordinator must review the four new files and the committed master revision.
-Keep the existing `native-handoff-signing` environment's required reviewer and
-master-only deployment restriction. Do not change its credentials or protection
-rules. After review, the coordinator can dispatch exactly:
+The helper also supports Windows PE headers and installed certificate thumbprints
+through an explicit absolute SDK signtool path. Execution requires the target OS;
+the default is a read-only plan. Tests use synthetic files and mock signers.
 
-```bash
-gh workflow run signing-helper-validation.yml --repo nexode-agent/unconfigured --ref master
+The protected `native-handoff-signing` environment and canonical master guard
+remain. This migration does not enable workflows, install credentials, sign real
+binaries, publish releases or submit to Apple. Only the public receipt is uploaded
+by an authorized workflow run; it identifies the current Orbit source revision.
+
+Local checks:
+
+```sh
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml handoff::
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test native_handoff
+bash -n scripts/check_signing_helper_macos.sh scripts/sign_native_handoff_macos.sh
 ```
 
-There are no workflow inputs. No dispatch is part of implementation validation.
-The workflow runs only for canonical `nexode-agent/unconfigured` master, with `contents:
-read`, no publishing, releases, arbitrary artifact downloads, or notarization.
-It reuses only `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and
-`APPLE_SIGNING_IDENTITY`, scoped to the signing step. Environment approval gates
-the job. Earlier steps in that job have no signing credential environment.
-
-## Evidence and boundaries
-
-Before credentials, the ARM64 macOS runner checks out exact Nexode source and the
-sparse, pinned helper source, runs the helper's 17 Python tests and the local
-credential-free fixtures, and compiles fixed C source using `/usr/bin/clang`.
-The unsigned executable prints `nexode-signing-helper-native-ok`. Its trusted
-SHA256 is a same-job step output, not caller-controlled input.
-
-The signing step rechecks the source pin and unsigned hash. It uses the proven
-temporary keychain import, search-list, and ACL setup from
-`scripts/sign_native_handoff_macos.sh` without changing that script. The original
-search list is snapshotted before keychain creation and restored on exit before
-the temporary keychain and P12 file are removed. Forced runner termination is
-ultimately subject to ephemeral runner destruction, not an EXIT-trap guarantee.
-The exact full Developer ID identity must resolve uniquely to a SHA1 fingerprint
-inside the isolated keychain.
-
-The real pinned helper first plans without creating output, then executes with
-`--input`, a new `--output`, the trusted `--sha256`,
-`--target aarch64-apple-darwin`, `--identity` fingerprint, and `--execute`.
-It invokes absolute `/usr/bin/codesign`, not a test replacement. An additional
-strict verification uses inline requirements with leading `=` for the Apple
-Developer ID chain, `com.nexode.cli` identifier, and exact Team ID. The signed
-binary must execute the expected string. The unsigned hash must remain unchanged,
-and retrying into the existing destination must fail without changing it.
-A separate real `--execute` invocation with an intentionally wrong SHA256 must
-fail without creating its requested output or changing the unsigned fixture.
-
-Only `signing-helper-validation/receipt.json` is uploaded. This public,
-allowlisted receipt binds repository, source SHA/ref, run ID/attempt, workflow,
-pinned helper revision, original and signed hashes, Team ID, target, identifier,
-and completed checks. No P12, password, raw identity discovery files, keychain,
-helper plan, binary, or broad directory is uploaded. It is a workflow receipt,
-not a cryptographic artifact attestation or a notarization/Gatekeeper claim.
-
-## Credential-free checks
-
-```bash
-bash -n scripts/check_signing_helper_macos.sh
-shellcheck scripts/check_signing_helper_macos.sh
-actionlint .github/workflows/signing-helper-validation.yml
-python3 -m unittest discover -s scripts -p test_signing_helper_validation.py
-```
-
-The fixture tests exercise exact identity selection, ambiguity and malformed
-identity refusal, absolute native-tool plan validation, inline requirement
-selection, public receipt fields, dispatch guards, and workflow scope. They do
-not substitute for the coordinator-reviewed protected macOS execution.
+The Rust port still needs native Apple and Windows acceptance. The following
+records describe the historical upstream Python implementation only.
 
 ## Recorded native acceptance
 

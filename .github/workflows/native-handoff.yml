@@ -41,6 +41,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
       - name: Validate dispatch and exact source
         env:
           SIGN_MACOS: ${{ inputs.sign_macos }}
@@ -52,7 +53,8 @@ jobs:
             echo 'Signing is only valid for the macOS lane' >&2
             exit 1
           fi
-          python3 -m unittest discover -s scripts -p 'test_native_handoff*.py'
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml handoff::
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test native_handoff
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2026-10-08
@@ -108,7 +110,7 @@ jobs:
           LANE: ${{ inputs.lane }}
         run: |
           set -euo pipefail
-          digest=$(python3 scripts/native_handoff.py seal --lane "$LANE")
+          digest=$(cargo xtask native-handoff seal --lane "$LANE")
           echo "manifest_digest=$digest" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         id: upload
@@ -127,6 +129,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/download-artifact@v4
         with:
           artifact-ids: ${{ needs.producer.outputs.artifact_id }}
@@ -139,7 +142,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(uname -m)" = arm64 || test "$(uname -m)" = aarch64
-          python3 scripts/native_handoff.py smoke --lane "$LANE" --manifest-digest "$MANIFEST_DIGEST"
+          cargo xtask native-handoff smoke --lane "$LANE" --manifest-digest "$MANIFEST_DIGEST"
 
   sign-macos:
     needs: [producer, native-verify]
@@ -153,6 +156,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/download-artifact@v4
         with:
           artifact-ids: ${{ needs.producer.outputs.artifact_id }}
@@ -161,7 +165,10 @@ jobs:
       - name: Recheck unsigned artifact before exposing credentials
         env:
           MANIFEST_DIGEST: ${{ needs.producer.outputs.manifest_digest }}
-        run: python3 scripts/native_handoff.py verify --lane macos-arm64 --manifest-digest "$MANIFEST_DIGEST"
+        run: |
+          export ORBIT_DEV_BIN=$(bash scripts/orbit_dev.sh --build-only)
+          echo "ORBIT_DEV_BIN=$ORBIT_DEV_BIN" >> "$GITHUB_ENV"
+          "$ORBIT_DEV_BIN" native-handoff verify --lane macos-arm64 --manifest-digest "$MANIFEST_DIGEST"
       - name: Sign and notarize explicitly authorized binary
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}

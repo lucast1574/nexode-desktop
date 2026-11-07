@@ -9,6 +9,7 @@ mod diagnostics;
 mod discord_release;
 mod discovery;
 mod fake_openai;
+mod handoff;
 mod process;
 #[cfg(unix)]
 mod pty;
@@ -87,6 +88,12 @@ fn main() -> Result<()> {
                     .context("package version missing")?
             );
         }
+        Some(
+            command @ ("native-handoff"
+            | "native-handoff-preflight"
+            | "signing-check"
+            | "sign-release"),
+        ) => handoff::run(command, args)?,
         Some("post-discord-release") => discord_release::run(args)?,
         Some("mock-sponsor") => discovery::sponsor::run(args)?,
         Some("openrelay-discovery-server") => discovery::openrelay::run(args)?,

@@ -9,6 +9,8 @@ work=$(mktemp -d "${RUNNER_TEMP:-${NEXODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}}/justrus
 # compiler, server and any user configuration. No credentials are needed here.
 git init -q "$work/source"
 git -C "$work/source" remote add origin https://github.com/1jehuang/justrust.git
+# Upstream embeds this file with include_str! when compiling its client. Orbit's
+# signing uses its own Rust implementation; no Python interpreter is invoked.
 git -C "$work/source" sparse-checkout set --no-cone \
   '/Cargo.toml' '/Cargo.lock' '/src/' '/scripts/sign-release.py' '/docs/AGENTS-snippet.md' '/README.md' '/LICENSE*'
 git -C "$work/source" fetch --quiet --depth=1 --filter=blob:none origin "$revision"

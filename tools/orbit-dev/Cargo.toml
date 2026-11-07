@@ -30,3 +30,4 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 hmac = "0.12"
 base64 = "0.22"
 tokio = { version = "1", features = ["rt", "time", "net", "io-util", "macros"] }
+shlex = "2"
