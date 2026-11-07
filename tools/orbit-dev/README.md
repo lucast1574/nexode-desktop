@@ -185,3 +185,12 @@ prompt, and fails if any character never becomes visible. `--working-dir` and
 `--json` support isolated acceptance. Capability replies survive split reads;
 UTF-8 and composer history are recorded by the reader thread. Interruptions clean
 up the owned client. Tests reject driver echo and measure delayed application echo.
+
+`cargo xtask profile-real-spawn --binary PATH [--session ID] [--seconds 8]`
+profiles an owned resumed client with native terminal emulation and Linux `perf`.
+It prefers a recent session with content in the chosen working directory; absent
+one, it creates a session on the selected existing daemon. `--socket`,
+`--debug-socket`, `--working-dir` and `--perf` make that selection explicit.
+Missing/failed perf evidence returns failure; cancellation kills the sampling
+process group and closes the owned terminal. Unit tests do not attach perf to
+any user process or claim a measured CPU improvement.

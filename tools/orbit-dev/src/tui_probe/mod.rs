@@ -2,13 +2,19 @@
 #[cfg(unix)]
 mod io;
 #[cfg(unix)]
+mod profile;
+#[cfg(unix)]
 mod screen;
 use anyhow::Result;
-pub fn run(args: impl Iterator<Item = String>) -> Result<i32> {
+pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = echo(args);
+        let result = if command == "profile-real-spawn" {
+            profile::run(args)
+        } else {
+            echo(args)
+        };
         if let Some(signal) = crate::ci_suites::unix::interrupted() {
             return Ok(128 + signal);
         }
@@ -16,7 +22,7 @@ pub fn run(args: impl Iterator<Item = String>) -> Result<i32> {
     }
     #[cfg(not(unix))]
     {
-        let _ = args;
+        let _ = (command, args);
         anyhow::bail!("TUI probes require Unix PTYs");
     }
 }

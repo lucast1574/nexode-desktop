@@ -134,6 +134,9 @@ impl Terminal {
         self.master.write_all(bytes)?;
         Ok(())
     }
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
     pub fn status(&mut self) -> Result<Option<ExitStatus>> {
         Ok(self.child.try_wait()?)
     }

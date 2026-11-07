@@ -148,6 +148,13 @@ mod tests {
 /// Run a configured command without pipe deadlocks, preserving both output
 /// streams and bounding runtime. Temporary spool files never reach the repo.
 pub fn capture(command: &mut Command, timeout: Duration) -> Result<std::process::Output> {
+    capture_interruptible(command, timeout, || false)
+}
+pub fn capture_interruptible(
+    command: &mut Command,
+    timeout: Duration,
+    interrupted: impl Fn() -> bool,
+) -> Result<std::process::Output> {
     use std::io::{Read, Seek, SeekFrom};
     use std::process::Stdio;
     let mut stdout = tempfile::tempfile()?;
@@ -174,6 +181,11 @@ pub fn capture(command: &mut Command, timeout: Duration) -> Result<std::process:
                 let _ = child.wait();
                 return Err(error.into());
             }
+        }
+        if interrupted() {
+            kill_tree(&mut child);
+            let _ = child.wait();
+            anyhow::bail!("command interrupted");
         }
         if Instant::now() >= deadline {
             kill_tree(&mut child);
@@ -224,5 +236,22 @@ mod capture_tests {
                 .contains("timed out")
         );
         assert!(start.elapsed() < Duration::from_secs(3));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod interrupt_tests {
+    use super::*;
+    #[test]
+    fn cancellation_stops_a_running_child_before_its_timeout() {
+        let start = Instant::now();
+        let mut c = Command::new("sh");
+        c.args(["-c", "sleep 60 & wait"]);
+        let error = capture_interruptible(&mut c, Duration::from_secs(60), || {
+            start.elapsed() > Duration::from_millis(50)
+        })
+        .unwrap_err();
+        assert!(error.to_string().contains("interrupted"));
+        assert!(start.elapsed() < Duration::from_secs(2));
     }
 }

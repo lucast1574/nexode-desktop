@@ -133,8 +133,8 @@ fn main() -> Result<()> {
             std::process::exit(code);
         }
         Some("verify-discovery-select") => discovery::select_acceptance::run(args)?,
-        Some("measure-key-echo") => {
-            let code = tui_probe::run(args)?;
+        Some(command @ ("measure-key-echo" | "profile-real-spawn")) => {
+            let code = tui_probe::run(command, args)?;
             std::process::exit(code);
         }
         Some("monitor") => monitor::run(args)?,

@@ -20,6 +20,7 @@ pub(super) struct Snapshot {
     pub eof: bool,
 }
 pub(super) struct Client {
+    pub pid: u32,
     state: Arc<Mutex<Snapshot>>,
     input: mpsc::SyncSender<Vec<u8>>,
     stop: Arc<AtomicBool>,
@@ -89,6 +90,7 @@ impl Client {
         let r = NonZeroU16::new(rows).context("rows must be positive")?;
         let c = NonZeroU16::new(cols).context("cols must be positive")?;
         let mut terminal = crate::pty::Terminal::spawn(command, rows, cols)?;
+        let pid = terminal.pid();
         let state = Arc::new(Mutex::new(Snapshot::default()));
         let view = state.clone();
         let stop = Arc::new(AtomicBool::new(false));
@@ -145,6 +147,7 @@ impl Client {
             s.eof = true;
         });
         Ok(Self {
+            pid,
             state,
             input,
             stop,
