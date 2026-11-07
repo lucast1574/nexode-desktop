@@ -31,6 +31,7 @@ mod process;
 mod pty;
 mod rehearsal;
 mod release;
+mod release_notes;
 mod reload_storm;
 mod resume_bench;
 mod root_report;
@@ -80,6 +81,7 @@ fn main() -> Result<()> {
     }
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
+        Some("generate-release-notes") => release_notes::run(args)?,
         Some("test-desktop-selfdev") => {
             #[cfg(unix)]
             desktop_acceptance::run(&root()?, args)?;

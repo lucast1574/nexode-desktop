@@ -95,7 +95,7 @@ Estas rutas de shell contienen invocaciones de Python, bloques incrustados o con
 - [ ] `scripts/benchmark_tools.sh`
 - [ ] `scripts/compare_discovery_rate.sh`
 - [ ] `scripts/compile_time_probe.sh`
-- [ ] `scripts/generate_release_notes.sh`
+- [x] `scripts/generate_release_notes.sh` — lanzador de `generate-release-notes` nativo.
 - [ ] `scripts/record_demo.sh`
 - [ ] `scripts/replay_recording.sh`
 - [ ] `scripts/run_terminal_bench_claude.sh`

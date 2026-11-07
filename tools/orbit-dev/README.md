@@ -350,3 +350,9 @@ private fake sockets, synthetic tokens and loopback HTTP. `--usage-endpoint`
 accepts only the default Anthropic endpoint or local HTTP fixtures. Missing usage
 fails instead of reporting zero; sessions are destroyed even after failed turns.
 The 10% cache-read weight is a diagnostic convention, not a pricing guarantee.
+
+`generate-release-notes TAG [PREVIOUS_TAG]` renders the curated local changelog,
+falling back to conventional-commit groups. It selects the previous release from
+the numeric index, ancestor tags or sorted tags and appends the GitHub comparison
+link. `scripts/generate_release_notes.sh` remains a compatible native launcher.
+No release is created or published by this command.
