@@ -160,7 +160,8 @@ fn main() -> Result<()> {
             | "repro-slash-flicker"
             | "repro-input-flicker"
             | "repro-startup-lag"
-            | "repro-real-spawn-lag"),
+            | "repro-real-spawn-lag"
+            | "bench-nexode-maki"),
         ) => {
             let code = tui_probe::run(command, args)?;
             std::process::exit(code);

@@ -15,6 +15,8 @@ use std::{
 pub(super) struct Snapshot {
     pub rows: Vec<String>,
     pub frames: u64,
+    pub bytes: u64,
+    pub visible_at: Option<Instant>,
     pub colors: std::collections::BTreeSet<[u8; 3]>,
     pub first_output: Option<Instant>,
     pub last_output: Option<Instant>,
@@ -154,6 +156,18 @@ impl Client {
                         {
                             let mut state = view.lock().unwrap();
                             state.frames += 1;
+                            state.bytes += bytes.len() as u64;
+                            if state.visible_at.is_none()
+                                && rows
+                                    .iter()
+                                    .flat_map(|r| r.chars())
+                                    .filter(|c| c.is_alphanumeric())
+                                    .take(9)
+                                    .count()
+                                    > 8
+                            {
+                                state.visible_at = Some(at);
+                            }
                             if light.is_some() {
                                 state.colors = colors.values.clone();
                             }

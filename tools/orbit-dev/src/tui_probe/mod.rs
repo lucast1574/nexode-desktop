@@ -19,6 +19,10 @@ mod io;
 mod isolated;
 #[cfg(unix)]
 mod lag;
+#[cfg(target_os = "linux")]
+mod maki;
+#[cfg(target_os = "linux")]
+mod process_metrics;
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]
@@ -36,7 +40,16 @@ pub fn run(command: &str, args: impl Iterator<Item = String>) -> Result<i32> {
     #[cfg(unix)]
     {
         let _signals = crate::ci_suites::unix::Signals::install()?;
-        let result = if matches!(command, "repro-startup-lag" | "repro-real-spawn-lag") {
+        let result = if command == "bench-nexode-maki" {
+            #[cfg(target_os = "linux")]
+            {
+                maki::run(args)
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                anyhow::bail!("resource benchmark requires Linux /proc")
+            }
+        } else if matches!(command, "repro-startup-lag" | "repro-real-spawn-lag") {
             lag::run(command, args)
         } else if command == "repro-input-flicker" {
             input_flicker::run(args)

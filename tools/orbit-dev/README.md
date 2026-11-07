@@ -295,3 +295,12 @@ mode preservation, invalid and oversized payloads, validation before stdin,
 incremental EOF handling, concurrent one-winner import, PTY rejection and stalled
 input timeout. All nine passed against the local CLI with synthetic secrets,
 isolated homes and blocked provider proxies; no personal credentials were read.
+
+`bench-nexode-maki --maki PATH --output result.json` replaces the Python/pyte
+resource benchmark. `--tools nexode` can run Nexode alone without a Maki install.
+Native process-tree accounting deduplicates roots and reports PSS, RSS, private
+memory, CPU and rendered echo across isolated clients; the dedicated Nexode
+server is included. Reports are written atomically after each seeded job.
+Validation exercised a real Nexode daemon/client and a Maki CLI fixture, including
+secret-env exclusion, no-splash configuration, all 20 echoes and process cleanup.
+No real Maki performance comparison was run or claimed during migration.

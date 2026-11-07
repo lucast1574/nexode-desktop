@@ -99,31 +99,37 @@ Nexode's CPU ranges were 0.18 to 0.72% / 2.08 to 2.38% / **4.39 to 17.85%** at 1
 
 ## Reproduction and artifacts
 
-Harness: `scripts/bench_nexode_maki.py`. Tests: `scripts/test_bench_nexode_maki.py`.
+The historical results in this report used the former Python harness. Its replacement is
+`cargo xtask bench-nexode-maki`; native tests live in
+`tools/orbit-dev/tests/bench_maki.rs` and `tui_probe/process_metrics.rs`.
+The Rust runner includes spawn/emulation overhead and uses a different seeded
+shuffle; these historical numbers have not been recomputed with it.
 
-The full raw JSON, including startup samples, typing samples, screen evidence, paths, hashes, and executable checks, is retained locally at:
+The upstream report recorded these raw JSON artifact paths; those files are not
+included in this checkout:
 
 ```text
 /home/jeremy/.nexode/scratch/maki-bench/results.json
 /home/jeremy/.nexode/scratch/maki-bench/no-splash.json
 ```
 
-Reproduce on Linux with Python 3.11+ and `pyte` installed in an isolated environment:
+Run the native replacement on Linux with the Rust toolchain installed:
 
 ```bash
-python scripts/bench_nexode_maki.py \
+cargo xtask bench-nexode-maki \
   --nexode /path/to/pinned/nexode --maki /path/to/pinned/maki \
   --runs 3 --sessions 1 5 10 --idle-seconds 5 --output results.json
 
-python scripts/bench_nexode_maki.py \
+cargo xtask bench-nexode-maki \
   --nexode /path/to/pinned/nexode --maki /path/to/pinned/maki \
   --tools maki --maki-no-splash \
   --runs 3 --sessions 1 5 10 --idle-seconds 5 --output no-splash.json
 
-python -m unittest discover -s scripts -p test_bench_nexode_maki.py -v
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test bench_maki
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml tui_probe::process_metrics
 ```
 
-Validation: all **27 runs completed**, every recorded executable matched its pinned path, and all **five harness tests passed**. Tests cover live/missing process accounting, application input echo, rejection of unrendered input as readiness, and owned-process cleanup.
+Historical validation: all **27 runs completed**, every recorded executable matched its pinned path, and all **five harness tests passed**. Tests cover live/missing process accounting, application input echo, rejection of unrendered input as readiness, and owned-process cleanup.
 
 ## Follow-up: one-session memory attribution
 
