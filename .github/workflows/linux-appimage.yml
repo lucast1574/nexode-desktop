@@ -22,7 +22,7 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates curl git build-essential cmake clang pkg-config file binutils \
-            libssl-dev libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev \
+            libssl-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev \
             libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev \
             libdbus-1-dev librsvg2-dev libgirepository1.0-dev desktop-file-utils \
             patchelf squashfs-tools zsync

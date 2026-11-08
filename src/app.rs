@@ -435,6 +435,18 @@ impl OrbitApp {
                 .color(theme::MUTED),
         );
         ui.add_space(28.0);
+        ui.horizontal(|ui| {
+            if self.cloud.account.is_none() && ui.button("Conectar mi cuenta Nexode").clicked() {
+                self.cloud.open = true;
+            }
+            if ui.button("Conectar mis agentes").clicked() {
+                self.show_settings = true;
+            }
+            if ui.button("Explorar servicios").clicked() {
+                self.show_services = true;
+            }
+        });
+        ui.add_space(12.0);
         ui.horizontal_wrapped(|ui|{
             for(icon,title,prompt)in[(Icon::Code,"Entender este proyecto","Explora la estructura del proyecto y explícame cómo funciona, sin modificar archivos."),(Icon::Changes,"Revisar los cambios","Revisa los cambios de Git y señala posibles errores. No modifiques archivos."),(Icon::Search,"Encontrar qué mejorar","Analiza el proyecto y propón tres mejoras concretas. No modifiques archivos.")]{
                 if widgets::action(ui,icon,title).clicked(){self.draft=prompt.into();self.focus_composer=true;}

@@ -14,7 +14,7 @@ desktop="$(realpath "${NEXODE_DESKTOP_BINARY:-target/release/nexode-desktop}")"
 engine="$(realpath "${NEXODE_ENGINE_BINARY:-../nexode-orbit/target/release/nexode}")"
 [[ -x "$desktop" && -x "$engine" ]] || { echo 'Build both native executables first.' >&2; exit 1; }
 for tool in curl sha256sum readelf file pkg-config; do command -v "$tool" >/dev/null; done
-pkg-config --exists gtk+-3.0 librsvg-2.0 gobject-introspection-1.0 ayatana-appindicator3-0.1
+pkg-config --exists gtk+-3.0 librsvg-2.0 gobject-introspection-1.0 ayatana-appindicator3-0.1 xkbcommon-x11
 cache="$root/.local/appimage-tools/$arch"
 mkdir -p "$cache" "$root/dist"
 
@@ -84,14 +84,19 @@ DESKTOP
 # libayatana is loaded with dlopen, so ELF dependency scanning cannot discover it.
 ayatana="$(pkg-config --variable=libdir ayatana-appindicator3-0.1)/libayatana-appindicator3.so.1"
 [[ -f "$ayatana" ]] || { echo 'Ayatana indicator library not found.' >&2; exit 1; }
+dbus="$(pkg-config --variable=libdir dbus-1)/libdbus-1.so.3"
+[[ -f "$dbus" ]] || { echo 'DBus client library not found.' >&2; exit 1; }
+xkb_x11="$(pkg-config --variable=libdir xkbcommon-x11)/libxkbcommon-x11.so.0"
+[[ -f "$xkb_x11" ]] || { echo 'XKB X11 client library not found.' >&2; exit 1; }
 export APPIMAGE_EXTRACT_AND_RUN=1 DEPLOY_GTK_VERSION=3
 export PATH="$cache:$PATH"
 "$deploy" --appdir "$appdir" \
   --executable "$appdir/usr/bin/nexode-desktop" --executable "$appdir/usr/bin/nexode" \
   --deploy-deps-only "$appdir/usr/bin/mcp/node" \
-  --library "$ayatana" --plugin gtk \
+  --library "$ayatana" --library "$dbus" --library "$xkb_x11" --plugin gtk \
   --desktop-file "$appdir/usr/share/applications/app.nexode.orbit.desktop" \
   --icon-file "$appdir/usr/share/icons/hicolor/256x256/apps/nexode-orbit.png"
+ln -sfn libxkbcommon-x11.so.0 "$appdir/usr/lib/libxkbcommon-x11.so"
 
 # Fail closed if any bundled ELF requires newer glibc than the documented baseline.
 # Graphics drivers and glibc itself must remain supplied by the host OS.

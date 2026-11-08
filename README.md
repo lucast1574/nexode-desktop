@@ -147,7 +147,7 @@ Dependencias adicionales de compilación en Ubuntu/Debian para bandeja y
 credenciales del sistema:
 
 ```sh
-sudo apt-get install libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev
+sudo apt-get install libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev libxkbcommon-x11-dev
 ```
 
 En Linux, el entorno de ejecución necesita GTK3, Ayatana AppIndicator3 y una

@@ -56,7 +56,9 @@ pub fn run_mcp() -> Result<(), String> {
         .join("mcp");
     let node = bundled.join(if cfg!(windows) { "node.exe" } else { "node" });
     if node.is_file() && bundled.join("dist/index.js").is_file() {
-        let status = std::process::Command::new(node)
+        let mut command = std::process::Command::new(node);
+        hide_console(&mut command);
+        let status = command
             .arg(bundled.join("dist/index.js"))
             .env("NEXODE_API_KEY", key.as_str())
             .env_remove("NEXODE_API_URL")
@@ -76,6 +78,7 @@ pub fn run_mcp() -> Result<(), String> {
     };
     #[cfg(not(windows))]
     let mut command = std::process::Command::new("npx");
+    hide_console(&mut command);
     let status = command
         .args([
             "--yes",
@@ -93,6 +96,16 @@ pub fn run_mcp() -> Result<(), String> {
     } else {
         Err("El conector Nexode MCP terminó con error.".into())
     }
+}
+
+fn hide_console(command: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    #[cfg(not(windows))]
+    let _ = command;
 }
 
 #[cfg(test)]

@@ -18,6 +18,9 @@ impl OrbitApp {
             .width_range(200.0..=350.0)
             .frame(egui::Frame::new().fill(theme::SIDEBAR).inner_margin(16))
             .show(ctx, |ui| {
+                egui::TopBottomPanel::bottom("sidebar-account-footer")
+                    .frame(egui::Frame::new().fill(theme::SIDEBAR).inner_margin(0))
+                    .show_inside(ui, |ui| self.account_footer(ui));
                 ui.add_space(7.0);
                 ui.horizontal(|ui| {
                     ui.add(widgets::logo(30.0));
@@ -53,7 +56,7 @@ impl OrbitApp {
                         self.backend.send(Command::PickFolder);
                     }
                 });
-                let available = (ui.available_height() - 230.0).max(60.0);
+                let available = ui.available_height().max(0.0);
                 egui::ScrollArea::vertical()
                     .max_height(available)
                     .auto_shrink([false, false])
@@ -120,40 +123,40 @@ impl OrbitApp {
                             widgets::muted(ui, "Abre una carpeta para comenzar.");
                         }
                     });
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    self.usage.ui(ui);
-                    if widgets::action(ui, Icon::Shield, "Mi cuenta Nexode").clicked() {
-                        self.cloud.open = true;
-                    }
-                    if widgets::action(ui, Icon::Code, "Servicios Nexode").clicked() {
-                        self.show_services = true;
-                    }
-                    if widgets::action(ui, Icon::Settings, "Configuración").clicked() {
-                        self.show_settings = true;
-                    }
-                    ui.horizontal(|ui| {
-                        let color = if self.connected {
-                            theme::ACCENT
-                        } else {
-                            theme::MUTED
-                        };
-                        let (rect, _) =
-                            ui.allocate_exact_size(egui::vec2(7.0, 10.0), egui::Sense::hover());
-                        ui.painter().circle_filled(rect.center(), 2.5, color);
-                        widgets::muted(
-                            ui,
-                            if self.connecting {
-                                "Conectando motor…"
-                            } else if self.connected {
-                                "Motor conectado"
-                            } else {
-                                "Motor desconectado"
-                            },
-                        );
-                    });
-                    ui.separator();
-                });
             });
+    }
+    fn account_footer(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        if widgets::action(ui, Icon::Shield, "Mi cuenta Nexode").clicked() {
+            self.cloud.open = true;
+        }
+        if widgets::action(ui, Icon::Code, "Servicios Nexode").clicked() {
+            self.show_services = true;
+        }
+        if widgets::action(ui, Icon::Settings, "Configuración").clicked() {
+            self.show_settings = true;
+        }
+        ui.horizontal(|ui| {
+            let color = if self.connected {
+                theme::ACCENT
+            } else {
+                theme::MUTED
+            };
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(7.0, 10.0), egui::Sense::hover());
+            ui.painter().circle_filled(rect.center(), 2.5, color);
+            widgets::muted(
+                ui,
+                if self.connecting {
+                    "Conectando motor…"
+                } else if self.connected {
+                    "Motor conectado"
+                } else {
+                    "Motor desconectado"
+                },
+            );
+        });
+        ui.add_space(6.0);
+        self.usage.ui(ui);
     }
     pub fn header(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("header")

@@ -196,7 +196,10 @@ impl Cloud {
                 self.message = "Conector eliminado de este dispositivo.".into();
                 true
             }
-            Ok(Outcome::NoAccount) => false,
+            Ok(Outcome::NoAccount) => {
+                self.open = true;
+                false
+            }
             Err(e) => {
                 self.message = e;
                 false
