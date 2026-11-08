@@ -296,6 +296,9 @@ mod tests {
         std::os::unix::fs::symlink(&project, &alias).unwrap();
         let mut settings = Settings::default();
         settings.add_project(alias).unwrap();
-        assert!(same_project(&settings.projects[0], &project));
+        // macOS's temporary root itself can be a symlink (/var -> /private/var).
+        // Compare against the canonical path the runtime sends, not that alias.
+        let runtime_project = std::fs::canonicalize(project).unwrap();
+        assert!(same_project(&settings.projects[0], &runtime_project));
     }
 }
