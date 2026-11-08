@@ -1000,7 +1000,7 @@ impl BridgeState {
                     return Self::error_reply(
                         api_id,
                         ErrorCode::InvalidRequest,
-                        "unsupported API-key provider; supported: claude-api, openai-api, openrouter, cursor, gemini, nexode",
+                        "unsupported API-key provider; supported: claude-api, openai-api, openrouter, deepseek, cursor, gemini, nexode",
                     );
                 };
                 let configured = req == "set_api_key";

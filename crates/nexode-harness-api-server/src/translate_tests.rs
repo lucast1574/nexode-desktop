@@ -2683,6 +2683,56 @@ fn credential_provisioning_normalizes_gemini_and_supports_nexode() {
     }
 }
 
+#[test]
+fn deepseek_credentials_are_private_reloadable_and_clearable() {
+    let home = ScopedNexodeHome::new("deepseek-credentials");
+    let config = home.path.join("config/nexode");
+    std::fs::create_dir_all(&config).unwrap();
+    std::fs::write(
+        config.join("deepseek.env"),
+        "DEEPSEEK_API_KEY=old\nKEEP_ME=yes\n",
+    )
+    .unwrap();
+    let mut state = BridgeState::default();
+    for (req, key, configured) in [
+        ("set_api_key", "synthetic-deepseek-key", true),
+        ("clear_api_key", "", false),
+    ] {
+        let outbound = state.api_request_to_legacy(&json!({
+            "req": req, "id": 17, "provider": "deepseek", "api_key": key
+        }));
+        let [Outbound::Legacy(notify)] = outbound.as_slice() else {
+            panic!("expected auth reload");
+        };
+        assert_eq!(notify["type"], "notify_auth_changed");
+        assert_eq!(notify["provider"], "deepseek");
+        assert!(!notify.to_string().contains("synthetic-deepseek-key"));
+        let frames = state.legacy_event_to_api(&json!({"type":"ack", "id":notify["id"]}));
+        assert!(
+            matches!(&frames[0].event, ApiEvent::CredentialUpdated { provider, configured: actual } if provider == "deepseek" && *actual == configured)
+        );
+        let stored = std::fs::read_to_string(config.join("deepseek.env")).unwrap();
+        assert!(stored.contains("KEEP_ME=yes\n"));
+        assert_eq!(
+            stored.contains("DEEPSEEK_API_KEY=synthetic-deepseek-key\n"),
+            configured
+        );
+        assert!(!stored.contains("DEEPSEEK_API_KEY=old"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(config.join("deepseek.env"))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn owner_only_writes_refuse_symlink_targets_and_directories() {
