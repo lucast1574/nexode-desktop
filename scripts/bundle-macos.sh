@@ -21,11 +21,12 @@ curl --fail --location --proto '=https' "https://nodejs.org/dist/v24.22.2/$node_
 echo "$checksum  $cache/$node_archive" | shasum -a 256 -c -
 tar -xJf "$cache/$node_archive" -C "$cache"
 export PATH="$PWD/$cache/node-v24.22.2-darwin-$arch/bin:$PATH"
-curl --fail --location --proto '=https' https://codeload.github.com/lucast1574/nexode-mcp/tar.gz/v0.1.26 -o "$cache/mcp.tar.gz"
+mcp_revision=237d8d86e9f65906886e8b73d12a2afda2b2e6a4
+curl --fail --location --proto '=https' "https://codeload.github.com/lucast1574/nexode-mcp/tar.gz/$mcp_revision" -o "$cache/mcp.tar.gz"
 echo "8087cd448dbd8603f24abd2e1797de36008ac615bf09b4e3521a050705c36ec4  $cache/mcp.tar.gz" | shasum -a 256 -c -
 tar -xzf "$cache/mcp.tar.gz" -C "$cache"
-mcp_source="$cache/nexode-mcp-0.1.26"
-npm --prefix "$mcp_source" ci
+mcp_source="$cache/nexode-mcp-$mcp_revision"
+npm --prefix "$mcp_source" ci --ignore-scripts
 npm --prefix "$mcp_source" run build
 npm --prefix "$mcp_source" prune --omit=dev --ignore-scripts
 cp "$cache/node-v24.22.2-darwin-$arch/bin/node" "$bundle/MacOS/mcp/node"
