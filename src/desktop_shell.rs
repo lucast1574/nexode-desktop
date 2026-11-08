@@ -28,6 +28,7 @@ enum Action {
 /// Hold this for the entire lifetime of the egui app. Create it from
 /// `App::new` (the native event loop is running by then).
 pub struct DesktopShell {
+    visible: bool,
     actions: Receiver<Action>,
     quitting: bool,
     stop: Arc<AtomicBool>,
@@ -103,6 +104,7 @@ impl DesktopShell {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
         Ok(Self {
+            visible: !background_requested(),
             actions,
             quitting: false,
             stop,
@@ -120,20 +122,26 @@ impl DesktopShell {
         while let Ok(action) = self.actions.try_recv() {
             match action {
                 Action::Show => {
+                    self.visible = true;
                     ctx.send_viewport_cmd(ViewportCommand::Visible(true));
                     ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
                     ctx.send_viewport_cmd(ViewportCommand::Focus);
                 }
                 Action::Quit => {
+                    self.visible = false;
                     self.quitting = true;
                     ctx.send_viewport_cmd(ViewportCommand::Close);
                 }
             }
         }
         if !self.quitting && ctx.input(|i| i.viewport().close_requested()) {
+            self.visible = false;
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
+    }
+    pub fn is_visible(&self) -> bool {
+        self.visible && !self.quitting
     }
 }
 

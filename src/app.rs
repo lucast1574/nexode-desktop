@@ -74,6 +74,14 @@ pub struct OrbitApp {
     pub focus_composer: bool,
 }
 impl OrbitApp {
+    fn animation_enabled(&self, ctx: &egui::Context) -> bool {
+        self.desktop_shell
+            .as_ref()
+            .is_none_or(|shell| shell.is_visible())
+            && ctx.input(|i| {
+                !i.viewport().minimized.unwrap_or(false) && i.viewport().focused.unwrap_or(true)
+            })
+    }
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         theme::apply(&cc.egui_ctx);
         let ctx = cc.egui_ctx.clone();
@@ -331,7 +339,7 @@ impl OrbitApp {
         let welcome_top = (ui.available_height() * 0.22).max(24.0);
         egui::ScrollArea::vertical()
             .id_salt("conversation")
-            .stick_to_bottom(true)
+            .stick_to_bottom(!self.messages.is_empty() || self.busy)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_space(margin);
@@ -407,7 +415,12 @@ impl OrbitApp {
                                 }
                                 if self.busy || !self.stream.text().is_empty() {
                                     ui.horizontal(|ui| {
-                                        ui.add(widgets::logo(20.0));
+                                        crate::mascot::show(
+                                            ui,
+                                            32.0,
+                                            self.busy,
+                                            self.animation_enabled(ui.ctx()),
+                                        );
                                         ui.strong("Orbit");
                                         widgets::muted(ui, &self.activity);
                                     });
@@ -424,7 +437,7 @@ impl OrbitApp {
     }
     fn welcome(&mut self, ui: &mut egui::Ui, top: f32) {
         ui.add_space(top);
-        ui.add(widgets::mascot(96.0));
+        crate::mascot::show(ui, 110.0, self.busy, self.animation_enabled(ui.ctx()));
         ui.add_space(22.0);
         widgets::muted(ui, "TU ESPACIO PARA CONSTRUIR");
         ui.add_space(8.0);
@@ -497,9 +510,11 @@ impl eframe::App for OrbitApp {
             .frame(egui::Frame::new().fill(theme::CANVAS))
             .show(ctx, |ui| self.conversation(ui));
         self.settings_window(ctx);
+        let animate = self.animation_enabled(ctx);
         self.cloud.ui(
             ctx,
             self.busy || self.connecting || self.providers.is_busy(),
+            animate,
         );
         crate::ecosystem::panel(
             ctx,

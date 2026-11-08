@@ -73,7 +73,7 @@ la vida de los procesos descendientes al proceso de la aplicación.
 
 ## Funciones
 
-- Mascota Nexo original de la landing, cuenta Nexode y catálogo de servicios.
+- Mascota Nexo animada nativamente, cuenta Nexode y catálogo de servicios.
 - Harness sin suscripción Nexode obligatoria; checkout explícito para servicios cloud.
 - Conexiones Claude, GPT/Codex, DeepSeek, Gemini y Antigravity.
 - Cuotas reales por cuenta en círculos, con detalle y reinicio al pasar el cursor.

@@ -72,3 +72,9 @@ muestran como desconocidas. No se estima una cuota de suscripción desde los tok
 del chat. Se actualiza en segundo plano cada dos minutos y al terminar un turno.
 
 La mascota `assets/nexo.webp` es el archivo original de la landing Nexode.
+Se anima en la GPU con egui (máximo 30 FPS): respiración/flotación en reposo y
+reacción al trabajo. La preferencia de reducir movimiento del sistema prevalece.
+No programa animaciones con la ventana oculta, minimizada o sin foco, ni cuando
+la mascota está fuera del área visible. No hay controles para activar/pausar
+animaciones. OAuth, enlaces externos y Stripe usan el navegador del sistema sólo
+cuando el usuario solicita esos pasos; no existe navegador embebido.

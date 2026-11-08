@@ -206,10 +206,10 @@ impl Cloud {
             }
         }
     }
-    pub fn ui(&mut self, ctx: &egui::Context, engine_busy: bool) {
+    pub fn ui(&mut self, ctx: &egui::Context, engine_busy: bool, animate: bool) {
         let mut open = self.open;
         egui::Window::new("Mi cuenta Nexode").open(&mut open).default_width(520.0).show(ctx, |ui| {
-            ui.add(crate::widgets::mascot(72.0));
+            crate::mascot::show(ui, 82.0, self.receiver.is_some(), animate);
             ui.heading("Tu cuenta. Todos tus agentes.");
             ui.label("Orbit es gratuito: conecta tus proveedores sin contratar un plan Nexode. El consumo de IA se factura según tu proveedor.");
             ui.add_space(12.0);

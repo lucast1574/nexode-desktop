@@ -36,6 +36,9 @@ OpenGL, una sesión X11 o Wayland y DBus de sesión. Las credenciales persistent
 necesitan un servicio Secret Service, como GNOME Keyring o una implementación
 compatible de KWallet. La biblioteca cliente se puede empaquetar; el llavero y
 su desbloqueo pertenecen al escritorio del usuario.
+Los selectores de archivos y carpetas usan `xdg-desktop-portal` y el backend
+correspondiente al escritorio (GNOME, KDE, GTK, etc.). Es otro servicio de sesión
+del sistema, no una biblioteca que se pueda sustituir copiándola al AppImage.
 
 La UI y el motor no necesitan Node.js. El conector MCP oficial usa el Node.js
 24.22.2 LTS incluido en `usr/bin/mcp/`, sin requerir una instalación global ni
@@ -47,6 +50,9 @@ escritorios sin bandeja se mantiene la ventana accesible. Alpine/musl, sistemas
 anteriores a la base glibc y servidores sin entorno gráfico no son objetivos de
 este paquete. AppImage no convierte una compilación de Ubuntu nuevo en un
 binario compatible con distribuciones antiguas.
+El plugin GTK de empaquetado fija X11 para su backend; en una sesión Wayland,
+la integración GTK de bandeja requiere XWayland. La ventana de egui mantiene su
+soporte propio de Wayland, independientemente de esa integración.
 
 El script admite x86_64 y aarch64 **nativos**; el workflow genera x86_64. Para
 ARM64 se necesita un constructor ARM64 con la misma base, y validar ese artefacto

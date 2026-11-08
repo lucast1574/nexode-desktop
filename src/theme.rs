@@ -16,7 +16,7 @@ pub fn apply(ctx: &egui::Context) {
     style.visuals.extreme_bg_color = SIDEBAR;
     style.visuals.override_text_color = Some(TEXT);
     style.visuals.selection.bg_fill = Color32::from_rgb(49, 79, 55);
-    style.visuals.selection.stroke = Stroke::new(1.0_f32, TEXT);
+    style.visuals.selection.stroke = Stroke::new(0.0_f32, TEXT);
     style.visuals.hyperlink_color = ACCENT;
     for widget in [
         &mut style.visuals.widgets.inactive,

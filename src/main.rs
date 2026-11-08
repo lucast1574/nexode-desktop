@@ -4,6 +4,7 @@ mod backend;
 mod cloud;
 mod desktop_shell;
 mod ecosystem;
+mod mascot;
 mod panels;
 mod platform_runtime;
 mod provider_connections;
