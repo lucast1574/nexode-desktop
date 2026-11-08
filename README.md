@@ -1,8 +1,8 @@
-# Nexode Orbit — Desktop y motor
+# Nexode Desktop · Orbit
 
 Aplicación de escritorio escrita en Rust con **egui/eframe y renderizado por GPU**.
 La bienvenida y Servicios usan HTML/CSS local en el WebView del sistema mediante Wry;
-los chats, archivos, cuenta, configuración, bandeja y motor siguen en Rust. No usa
+los chats, la cuenta, la configuración, la bandeja y el motor siguen en Rust. No usa
 Electron, React ni un servidor HTTP local. El motor se controla mediante el SDK
 Rust de Orbit. El WebView se destruye al abrir una conversación, una pantalla
 nativa o al ocultar/minimizar la ventana.
@@ -11,17 +11,166 @@ La organización está inspirada en Codex: proyectos y chats a la izquierda,
 conversación central, compositor y panel de cambios de Git. La identidad y los
 activos visuales son de Nexode.
 
+## Qué puedes hacer
+
+### Cuenta Nexode y primer inicio
+
+- Iniciar sesión con correo y contraseña o con Google en el navegador del sistema.
+- Crear una cuenta y verificar el correo antes de acceder. El formulario enlaza a la recuperación de contraseña en Nexode.
+- Autorizar el acceso con Google mediante un código temporal y aprobación de dispositivo con PKCE; puedes copiar el código o cancelar el proceso.
+- Conectar tus agentes en el inicio guiado o saltar ese paso y configurarlos después.
+- Consultar tu correo, workspace, saldo y créditos disponibles desde **Mi cuenta**, y actualizar sus datos.
+- Consultar los planes que devuelve el catálogo de Nexode y preparar un checkout de Stripe explícitamente. El pago se completa en el navegador.
+- Cerrar sesión en este dispositivo desde **Mi cuenta**, eliminando su conector Nexode local.
+
+Una cuenta gratuita de Nexode es suficiente para usar el harness. Los proveedores
+de IA y los servicios cloud conservan sus propios costes, límites y permisos.
+
+### Conversaciones y proyectos
+
+- Crear chats generales sin seleccionar una carpeta. Se guardan en un directorio privado de conversaciones, separado del directorio de trabajo con el que se abrió la aplicación.
+- Añadir carpetas mediante el selector nativo del sistema y crear varios chats por proyecto.
+- Volver a abrir conversaciones y recuperar su historial persistente.
+- Buscar chats por título, sin distinguir mayúsculas, en conversaciones generales, proyectos y fijados.
+- Fijar y desfijar chats para tenerlos a mano en una sección propia.
+- Expandir o contraer los chats de cada proyecto y consultar su número de conversaciones.
+- Actualizar la lista de chats y recuperar explícitamente proyectos guardados por versiones anteriores.
+- Elegir **Chat general** o un proyecto desde el compositor al preparar un chat nuevo.
+- Ocultar y volver a mostrar la barra lateral y ajustar su anchura.
+
+Las instalaciones nuevas empiezan sin proyectos. Añadir una carpeta es una
+acción explícita; Orbit no importa automáticamente carpetas del equipo.
+
+### Trabajo con el agente
+
+- Enviar solicitudes al motor Orbit para explorar un proyecto, trabajar con código o revisar cambios mediante las herramientas que tenga habilitadas.
+- Ver respuestas en streaming, con correcciones de texto por identificador de mensaje.
+- Leer mensajes con Markdown y bloques de código, seleccionar texto y copiarlo.
+- Consultar **Actividad**, un bloque desplegable con las herramientas ejecutadas y sus resultados o errores.
+- Permitir o denegar las solicitudes de autorización que envía el motor.
+- Detener una respuesta en curso sin cerrar la aplicación.
+- Consultar errores de conexión o ejecución y acceder a la configuración del motor cuando no esté conectado.
+- Partir de sugerencias para entender la estructura del proyecto, revisar Git o proponer mejoras. Las sugerencias preparan el mensaje para revisarlo antes de enviarlo.
+
+La interfaz y las operaciones del motor se ejecutan en hilos separados. El
+redibujado responde a eventos y la conversación acompaña el avance de la respuesta.
+
+### Proveedores de IA y modelos
+
+En **Configuración → Agentes de IA** puedes mantener varios proveedores conectados:
+
+| Proveedor | Conexión desde la app | Cuentas OAuth |
+| --- | --- | --- |
+| Claude | Cuenta Claude o API key de Anthropic | Varias cuentas con etiquetas |
+| GPT / Codex | Cuenta de Codex o API key de OpenAI | Varias cuentas con etiquetas |
+| Gemini | Cuenta de Google o API key de Gemini | Una cuenta activa |
+| DeepSeek | API key propia | No aplica |
+| Antigravity | Autorización con cuenta de Google | Una cuenta activa |
+
+- Conectar un proveedor conserva las conexiones de los demás.
+- En Claude y GPT/Codex, una etiqueta nueva añade una cuenta; reutilizar una etiqueta actualiza esa cuenta.
+- En Gemini y Antigravity, una nueva autorización actualiza la cuenta OAuth activa.
+- Abrir la autorización en el navegador y completar el retorno solicitado por cada proveedor, o cancelar el flujo pendiente.
+- Guardar API keys mediante el IPC privado del motor, sin incluirlas en mensajes del chat ni preferencias de la interfaz.
+- Elegir el modelo de una sesión desde el compositor y solicitar **Actualizar modelos** al motor. Las opciones dependen de los proveedores conectados y del catálogo que devuelve Orbit.
+
+Las conexiones por API tienen facturación independiente de las suscripciones de
+chat de cada proveedor. Conectar una suscripción no garantiza acceso a su API.
+
+### Cuotas y estado de las cuentas de IA
+
+- Indicadores circulares por cuenta con el porcentaje restante que informa el proveedor.
+- Detalle al pasar el cursor: ventanas de uso, reinicios, etiqueta de cuenta y plan, cuando esos datos están disponibles.
+- El círculo representa la ventana con menos porcentaje restante.
+- Actualización en segundo plano cada dos minutos y al finalizar un turno; los cambios de credenciales también solicitan una actualización.
+- Las cuotas no expuestas se muestran como desconocidas y las lecturas que no se pueden renovar se identifican como obsoletas. No se estiman porcentajes a partir de los tokens del chat.
+
+### Revisión de Git
+
+- Abrir o cerrar el panel **Cambios** y ajustar su anchura.
+- Consultar la rama actual y el estado corto del árbol de trabajo, incluidos archivos sin seguimiento.
+- Ver el diff respecto a `HEAD`, con líneas añadidas y eliminadas diferenciadas por color.
+- Trabajar también con repositorios sin primer commit: en ese caso, el diff muestra los cambios preparados en el índice.
+- Actualizar la revisión manualmente y consultar los errores de Git en el panel.
+
+Los archivos sin seguimiento aparecen en el estado; su contenido no forma parte
+del diff hasta incorporarlos al índice. El panel es de consulta y no ofrece
+controles propios para preparar archivos o crear commits.
+
+### Servicios y conector Nexode MCP
+
+La pantalla **Servicios** permite buscar por nombre, propósito o palabras clave,
+filtrar por categoría y explorar este catálogo incluido en la app:
+
+| Servicio | Uso |
+| --- | --- |
+| Nexode | Aplicaciones, bases de datos, dominios, almacenamiento y automatizaciones |
+| Nexode Shield | Revisión de seguridad de repositorios |
+| Mapora | Mapas, geocodificación, lugares y rutas |
+| Vitruko | Metadatos públicos de productos desde enlaces |
+| Wazend | WhatsApp, mensajería, agentes y webhooks |
+| Harkai | Alertas vecinales y reportes por distrito en Perú |
+| The Date | Invitaciones y experiencias para eventos |
+| Olva API / Shalom API | Integraciones de envíos y logística |
+| API Sunat | Comprobantes y guías de remisión electrónicas |
+| HeyBunny | Agentes de IA conectados a herramientas |
+| Wazend Calls | Llamadas de WhatsApp e historial |
+| Zend CRM | Ventas y conversaciones de WhatsApp |
+| Cerebrads | Campañas, creativos y estrategias publicitarias |
+
+**Explorar** abre el sitio del servicio en el navegador. **Preparar con Orbit**
+crea un chat con una solicitud para revisar la documentación, el acceso y los
+costes antes de contratar o desplegar. No envía el mensaje automáticamente.
+
+La cuenta Nexode prepara el conector oficial **Nexode MCP** para su workspace.
+El agente puede utilizar las operaciones que ese conector expone y que la clave
+permite. El catálogo de otros servicios ofrece recomendaciones y enlaces; no
+implica que sus cuentas estén conectadas ni que compartan credenciales con Nexode.
+Consulta [SERVICE-CATALOG.md](SERVICE-CATALOG.md) y [HARNESS.md](HARNESS.md).
+
+### Configuración e integración con el sistema
+
+- **Agentes de IA:** conexiones OAuth y API keys de los proveedores disponibles.
+- **General:** comportamiento de bandeja, inicio automático por usuario, estado del registro de inicio y ubicación de los datos locales.
+- **Motor:** estado de conexión, selección de un ejecutable compatible y reconexión manual.
+- Bandeja nativa con **Abrir Nexode Orbit** y **Salir de Nexode Orbit**.
+- Cerrar la ventana conserva la aplicación en la bandeja cuando está disponible; salir desde su menú termina la instancia privada del motor.
+- Abrir de nuevo el ejecutable recupera la ventana existente en lugar de iniciar otra instancia con los mismos datos locales.
+- Inicio en segundo plano con la sesión del sistema, sólo cuando se activa explícitamente.
+- Logo animado que respeta el movimiento reducido del sistema y la visibilidad de la ventana.
+- Bienvenida y Servicios con activos y fuentes locales; si el WebView no está disponible en Linux, la bienvenida conserva una alternativa nativa.
+
+| Atajo | Acción |
+| --- | --- |
+| `Ctrl+N` / `Cmd+N` | Crear un chat nuevo |
+| `Enter` en el compositor | Enviar el mensaje |
+| `Shift+Enter` | Insertar una nueva línea |
+| `Escape` en Servicios | Volver a los chats |
+
+### Motor, CLI/TUI y SDK incluidos
+
+`nexode-orbit/` contiene el motor Rust, su interfaz de terminal, las herramientas,
+los contratos de sesiones y los SDK Rust/TypeScript. Desktop controla una
+instancia privada mediante el SDK Rust: creación y apertura de sesiones,
+historial, modelos, eventos, ejecución, cancelación y decisiones de permisos.
+Las capacidades adicionales del motor y sus SDK se documentan en el
+[README de Orbit](nexode-orbit/README.md) y en [sus documentos](nexode-orbit/docs/).
+
+El escritorio actual no incluye una terminal PTY integrada, un editor de archivos,
+actualizaciones automáticas ni un instalador firmado. Las capacidades del motor
+y SDK no equivalen a controles disponibles en la interfaz gráfica.
+
 ## Un solo repositorio
 
-El repositorio privado [lucast1574/nexode-desktop](https://github.com/lucast1574/nexode-desktop)
+El repositorio público [lucast1574/nexode-desktop](https://github.com/lucast1574/nexode-desktop)
 contiene la aplicación de escritorio en la raíz y el motor, CLI/TUI y SDK en
 `nexode-orbit/`. Son archivos normales de Git, sin submódulos ni descargas de otro
 repositorio durante la compilación. El historial original de ambos se conserva.
 Los cambios futuros de Desktop y Orbit se realizan aquí, en la misma revisión.
 El repositorio público original se eliminó tras verificar la importación completa
 y la conservación de su historial. Este es el repositorio único de desarrollo.
-La CI activa está en `.github/workflows/` de la raíz: prueba Desktop, SDK y
-soporte del motor, y construye los paquetes desde este único checkout. Los
+La CI activa está en `.github/workflows/` de la raíz: prueba Desktop, la paridad del SDK
+y la detección del motor en el monorepo, y construye los paquetes desde este único checkout. Los
 workflows importados bajo `nexode-orbit/.github/` se conservan como referencia
 histórica y GitHub no los ejecuta desde esa subcarpeta.
 
@@ -110,38 +259,19 @@ instancia sin modificar el servidor de la terminal. Cerrar la ventana la oculta
 cuando hay bandeja disponible. En Windows un Job Object limita también
 la vida de los procesos descendientes al proceso de la aplicación.
 
-## Funciones
-
-- Primera pantalla de acceso Nexode integrada; cuenta y configuración integradas en el layout.
-- Logo Nexode animado, chats generales sin carpeta, proyectos opcionales y chats fijados.
-- Harness sin suscripción Nexode obligatoria; checkout explícito para servicios cloud.
-- Conexiones Claude, GPT/Codex, DeepSeek, Gemini y Antigravity.
-- Cuotas reales por cuenta en círculos, con detalle y reinicio al pasar el cursor.
-- Bandeja e inicio de sesión del sistema en Windows, Linux y macOS.
-- Proyectos con selector de carpetas del sistema y preferencias persistentes.
-- Chats, historial, Markdown, código, selección y copia de texto.
-- Streaming con correcciones por ID de mensaje, actividad de herramientas y cancelación.
-- Autorización explícita de las solicitudes de permiso, sin autoaprobarlas.
-- Catálogo de modelos del motor y actualización explícita de proveedores.
-- Revisión de Git, incluyendo repositorios nuevos sin primer commit.
-- `Ctrl+N` / `Cmd+N`: nuevo chat; Enter: enviar; Shift+Enter: nueva línea.
-- Interfaz y operaciones del motor en hilos separados. Redibujado por eventos.
-
-Esta entrega no incluye una terminal PTY integrada, actualizaciones automáticas
-ni un instalador firmado. El parecido con Codex es de organización y flujo de
-trabajo; no reproduce todas sus funciones.
-
-Consulta [HARNESS.md](HARNESS.md) para cuentas, seguridad y límites de las
-integraciones; [APPIMAGE.md](APPIMAGE.md) para distribución Linux y requisitos.
-
 ## Validación
 
 ```sh
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
-cargo build --locked --release
+cargo test --manifest-path nexode-orbit/Cargo.toml --locked -p nexode-sdk parity
+cargo test --manifest-path nexode-orbit/Cargo.toml --locked -p nexode-build-support paths::tests::find
 ```
+
+Para compilar la aplicación y el motor juntos, usa `./start.ps1 -BuildOnly` en
+Windows o `bash scripts/build.sh` en Linux/macOS. Consulta [VALIDATION.md](VALIDATION.md)
+para la evidencia de pruebas, distribución y limitaciones conocidas.
 
 La prueba real del SDK está aislada y usa el proveedor sintético de Orbit:
 
@@ -200,7 +330,3 @@ plano si ese servicio no está disponible.
 Ejecuta `./scripts/bundle-windows.ps1` en PowerShell desde Windows x64. Compila la interfaz y el motor Rust, verifica por SHA256 Node.js 24.22.2 y el código fijado de Nexode MCP 0.1.26, instala sus dependencias mediante el lockfile y crea `dist/Nexode-Orbit-Windows-x64.zip` con un archivo SHA256. Extrae la carpeta completa antes de abrir `nexode-desktop.exe`; Node y MCP están incluidos y no requieren instalación global. El script conserva un staging independiente y no modifica la aplicación instalada ni registra el inicio automático.
 
 Para reutilizar compilaciones existentes, pasa `-DesktopBinary <ruta.exe> -EngineBinary <ruta.exe>`. `-NodeArchive <archivo.zip>` y `-McpArchive <archivo.tar.gz>` reutilizan descargas locales, siempre comprobando sus hashes. `-OutputDirectory <carpeta>` permite preparar una entrega separada. CI publica este ZIP completo en el artefacto Windows.
-
-Al entrar por primera vez se presenta la conexión de agentes. Puedes conectar varios
-proveedores o continuar sin conectarlos todavía. Configuración se organiza en
-Agentes de IA, General y Motor; Mi cuenta conserva la barra lateral.

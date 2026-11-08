@@ -2,7 +2,7 @@
 
 ## Consolidación en un solo checkout (8 de noviembre de 2026)
 
-Desktop y el motor/SDK se desarrollan en este repositorio privado. El árbol de
+Desktop y el motor/SDK se desarrollan en este repositorio único, ahora público por decisión del propietario. El árbol de
 Orbit se importó completo en `nexode-orbit/`, conservando su historial Git.
 Antes de eliminar el repositorio público se verificó que el hash de su árbol
 completo coincide con el árbol importado y que su commit es ancestro de main

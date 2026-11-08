@@ -1,6 +1,6 @@
 # Repository scope
 
-This private repository contains Nexode Desktop at the root and the complete
+This public repository contains Nexode Desktop at the root and the complete
 Orbit engine, CLI/TUI and SDK in `nexode-orbit/`. Keep them in this repository;
 do not introduce sibling checkouts, Git submodules or cross-repository CI checkouts.
 The imported Orbit Git history is preserved. Its old public repository was deleted
