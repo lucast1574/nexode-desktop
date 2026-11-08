@@ -33,7 +33,8 @@ dirigirse a distribuciones glibc modernas como Ubuntu 22.04+, Debian 12+ y sus
 derivadas; no significa que cada distribución y escritorio haya sido probado.
 
 El sistema debe proporcionar kernel Linux, glibc compatible, drivers gráficos,
-OpenGL, una sesión X11 (o XWayland dentro de Wayland) y DBus de sesión. Las credenciales persistentes
+OpenGL/EGL/OpenGL ES (`libgles2` en Debian/Ubuntu), una sesión X11 (o XWayland
+dentro de Wayland) y DBus de sesión. Las credenciales persistentes
 necesitan un servicio Secret Service, como GNOME Keyring o una implementación
 compatible de KWallet. La biblioteca cliente se puede empaquetar; el llavero y
 su desbloqueo pertenecen al escritorio del usuario.
