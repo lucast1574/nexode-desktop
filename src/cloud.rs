@@ -1,11 +1,16 @@
 //! Nexode account API. Desktop passwords are transient; only the user's own
 //! connector is kept in the OS credential vault. No administrator credentials.
 use eframe::egui;
+#[path = "cloud_browser.rs"]
+mod browser;
+#[path = "cloud_ui.rs"]
+mod ui;
+pub use browser::BrowserLogin;
 use reqwest::blocking::Client;
 use serde_json::{Value, json};
 use std::{
     sync::mpsc::{self, Receiver},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -111,6 +116,9 @@ fn account(key: &str) -> Result<Account, String> {
     })
 }
 enum Action {
+    BrowserStart,
+    BrowserPoll(Zeroizing<String>, Zeroizing<String>),
+    BrowserSave(Account, Zeroizing<String>),
     Restore,
     Login(String, Zeroizing<String>),
     Register(String, Zeroizing<String>),
@@ -118,6 +126,9 @@ enum Action {
     Logout,
 }
 enum Outcome {
+    BrowserStarted(BrowserLogin),
+    BrowserPending(Duration),
+    BrowserApproved(Account, Zeroizing<String>),
     Account(Account),
     Registered,
     Checkout(String),
@@ -125,6 +136,8 @@ enum Outcome {
     NoAccount,
 }
 pub struct Cloud {
+    ctx: egui::Context,
+    pub browser_login: Option<BrowserLogin>,
     pub open: bool,
     pub account: Option<Account>,
     pub email: String,
@@ -142,6 +155,8 @@ impl Drop for Cloud {
 impl Cloud {
     pub fn new(ctx: &egui::Context) -> Self {
         let mut cloud = Self {
+            ctx: ctx.clone(),
+            browser_login: None,
             open: false,
             account: None,
             email: String::new(),
@@ -151,10 +166,62 @@ impl Cloud {
             checkout: None,
             selected_plan: None,
         };
+        #[cfg(feature = "screenshot")]
+        if std::env::var_os("ORBIT_NATIVE_TEST").is_some()
+            && std::env::var_os("ORBIT_TEST_ACCOUNT").is_some()
+        {
+            cloud.account = Some(Account {
+                email: "orbit@example.invalid".into(),
+                workspace: "test".into(),
+                plans: vec![],
+                usage: Value::Null,
+            });
+            return cloud;
+        }
         if std::env::var_os("ORBIT_NATIVE_TEST").is_none() {
             cloud.start(Action::Restore, ctx);
         }
         cloud
+    }
+    pub fn start_browser_login(&mut self, ctx: &egui::Context) {
+        if self.browser_login.is_none() {
+            self.start(Action::BrowserStart, ctx);
+        }
+    }
+    /// Called each update. Only the active five-minute authorization requests
+    /// timed repaints; the connector is never part of the browser URL.
+    pub fn tick_browser(&mut self, ctx: &egui::Context) {
+        let Some(login) = &mut self.browser_login else {
+            return;
+        };
+        if Instant::now() >= login.expires_at {
+            self.browser_login = None;
+            self.message = "La autorización venció. Vuelve a conectar con Google.".into();
+            return;
+        }
+        if !login.opened {
+            ctx.open_url(egui::OpenUrl::new_tab(login.verification_url.clone()));
+            login.opened = true;
+        }
+        if !login.committing && self.receiver.is_none() && Instant::now() >= login.next_poll {
+            login.next_poll = Instant::now() + Duration::from_secs(5);
+            let action = Action::BrowserPoll(login.device_code.clone(), login.verifier.clone());
+            self.start(action, ctx);
+        }
+        ctx.request_repaint_after(Duration::from_secs(1));
+    }
+    /// Poll workers never persist credentials. Dropping their receiver safely
+    /// discards late results; only the short local vault commit disables cancel.
+    pub fn cancel_browser_login(&mut self) {
+        if self
+            .browser_login
+            .as_ref()
+            .is_some_and(|login| !login.committing)
+        {
+            self.receiver = None;
+            self.browser_login = None;
+            self.message.clear();
+        }
     }
     fn start(&mut self, action: Action, ctx: &egui::Context) {
         if self.receiver.is_some() {
@@ -176,7 +243,28 @@ impl Cloud {
         };
         self.receiver = None;
         match result {
+            Ok(Outcome::BrowserStarted(login)) => {
+                self.browser_login = Some(login);
+                false
+            }
+            Ok(Outcome::BrowserPending(delay)) => {
+                if let Some(login) = &mut self.browser_login {
+                    login.next_poll = Instant::now() + delay;
+                }
+                false
+            }
+            Ok(Outcome::BrowserApproved(account, key)) => {
+                if let Some(login) = &mut self.browser_login {
+                    login.committing = true;
+                    self.start(Action::BrowserSave(account, key), &self.ctx.clone());
+                }
+                false
+            }
             Ok(Outcome::Account(a)) => {
+                self.browser_login = None;
+                if self.account.is_none() {
+                    self.open = false;
+                }
                 self.account = Some(a);
                 self.message = "Cuenta conectada. MCP preparado para tu workspace.".into();
                 true
@@ -191,6 +279,7 @@ impl Cloud {
                 false
             }
             Ok(Outcome::LoggedOut) => {
+                self.browser_login = None;
                 self.account = None;
                 self.checkout = None;
                 self.message = "Conector eliminado de este dispositivo.".into();
@@ -201,57 +290,11 @@ impl Cloud {
                 false
             }
             Err(e) => {
+                self.browser_login = None;
                 self.message = e;
                 false
             }
         }
-    }
-    pub fn ui(&mut self, ctx: &egui::Context, engine_busy: bool, animate: bool) {
-        let mut open = self.open;
-        egui::Window::new("Mi cuenta Nexode").open(&mut open).default_width(520.0).show(ctx, |ui| {
-            crate::mascot::show(ui, 82.0, self.receiver.is_some(), animate);
-            ui.heading("Tu cuenta. Todos tus agentes.");
-            ui.label("Orbit es gratuito: conecta tus proveedores sin contratar un plan Nexode. El consumo de IA se factura según tu proveedor.");
-            ui.add_space(12.0);
-            let busy=self.receiver.is_some();
-            ui.add_enabled_ui(!busy && !engine_busy, |ui| {
-                if let Some(a)=&self.account {
-                    ui.strong(&a.email); ui.label(format!("Workspace: {}", a.workspace));
-                    ui.add_space(10.0); ui.strong("Servicios y créditos Nexode");
-                    if a.usage.is_null() { ui.label("Saldo no disponible. El acceso al harness sigue activo."); }
-                    else { billing_summary(ui, &a.usage); }
-                    let plans=a.plans.clone();
-                    for plan in plans.iter().filter(|p| p["purchasable"]==true) {
-                        let slug=plan["slug"].as_str().unwrap_or_default();
-                        let label=format!("{} · {} USD / mes",plan["name"].as_str().unwrap_or(slug),plan["price_monthly"]);
-                        if ui.button(&label).clicked(){self.selected_plan=Some((slug.into(),label));}
-                    }
-                    if let Some((slug,label))=self.selected_plan.clone() {
-                        ui.separator(); ui.label(format!("Contratar {label}. Renovación mensual. Revisa impuestos y total en Stripe."));
-                        if ui.button("Preparar checkout seguro").clicked(){self.start(Action::Checkout(slug),ctx); self.selected_plan=None;}
-                    }
-                    if let Some(url)=&self.checkout { ui.hyperlink_to("Abrir Stripe y revisar el pago",url); }
-                    ui.hyperlink_to("Gestionar facturación en Nexode", "https://cloud.nexode.app/dashboard");
-                    ui.separator();
-                    if ui.button("Actualizar cuenta y saldo").clicked(){self.start(Action::Restore,ctx);}
-                    if ui.button("Cerrar sesión en este dispositivo").clicked(){self.start(Action::Logout,ctx);}
-                } else {
-                    ui.label("Correo electrónico"); ui.text_edit_singleline(&mut self.email);
-                    ui.label("Contraseña"); ui.add(egui::TextEdit::singleline(&mut self.password).password(true));
-                    let valid=self.email.contains('@') && !self.password.is_empty();
-                    ui.horizontal(|ui| {
-                        if ui.add_enabled(valid,egui::Button::new("Iniciar sesión")).clicked(){ let password=Zeroizing::new(std::mem::take(&mut self.password)); self.start(Action::Login(self.email.trim().into(),password),ctx); }
-                        if ui.add_enabled(valid && self.password.len()>=6,egui::Button::new("Crear cuenta Nexode")).clicked(){let password=Zeroizing::new(std::mem::take(&mut self.password));self.start(Action::Register(self.email.trim().into(),password),ctx);}
-                    });
-                    ui.hyperlink_to("Recuperar contraseña / acceso con Google", "https://cloud.nexode.app/auth/login");
-                    ui.label("El acceso con Google se gestiona en Nexode. Esta versión conecta el escritorio mediante correo y contraseña.");
-                }
-            });
-            if busy { ui.label("Conectando con Nexode…"); }
-            if !self.message.is_empty(){ui.label(&self.message);}
-            ui.label("Las credenciales se guardan en el almacén seguro del sistema, nunca en el chat.");
-        });
-        self.open = open;
     }
 }
 fn billing_summary(ui: &mut egui::Ui, usage: &Value) {
@@ -272,6 +315,14 @@ fn billing_summary(ui: &mut egui::Ui, usage: &Value) {
 }
 fn execute(action: Action) -> Result<Outcome, String> {
     match action {
+        Action::BrowserStart => browser::begin().map(Outcome::BrowserStarted),
+        Action::BrowserPoll(device_code, verifier) => browser::exchange(&device_code, &verifier),
+        Action::BrowserSave(account, key) => {
+            entry()?.set_password(&key).map_err(|_| {
+                "No se pudo guardar la conexión en el almacén seguro del sistema.".to_string()
+            })?;
+            Ok(Outcome::Account(account))
+        }
         Action::Login(email, password) => {
             let c = client(true)?;
             let login = gql(

@@ -13,8 +13,8 @@ esac
 desktop="$(realpath "${NEXODE_DESKTOP_BINARY:-target/release/nexode-desktop}")"
 engine="$(realpath "${NEXODE_ENGINE_BINARY:-../nexode-orbit/target/release/nexode}")"
 [[ -x "$desktop" && -x "$engine" ]] || { echo 'Build both native executables first.' >&2; exit 1; }
-for tool in curl sha256sum readelf file pkg-config; do command -v "$tool" >/dev/null; done
-pkg-config --exists gtk+-3.0 librsvg-2.0 gobject-introspection-1.0 ayatana-appindicator3-0.1 xkbcommon-x11
+for tool in curl sha256sum readelf file pkg-config convert; do command -v "$tool" >/dev/null; done
+pkg-config --exists gtk+-3.0 librsvg-2.0 gobject-introspection-1.0 ayatana-appindicator3-0.1 xkbcommon-x11 webkit2gtk-4.1
 cache="$root/.local/appimage-tools/$arch"
 mkdir -p "$cache" "$root/dist"
 
@@ -35,13 +35,17 @@ verified_download "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plu
   "$cache/linuxdeploy-plugin-gtk.sh" b0f4cbc684a0103a9651f0955b635eaea0096b3a66c0f5a2c2aa337960375171
 
 # Every run starts in a fresh directory. Never delete an existing bundle/source checkout.
-stage="$(mktemp -d "$root/.local/appimage-stage.XXXXXXXX")"
+stage_root="${APPIMAGE_STAGE_ROOT:-$root/.local}"
+mkdir -p "$stage_root"
+stage="$(mktemp -d "$stage_root/appimage-stage.XXXXXXXX")"
 appdir="$stage/Nexode_Orbit.AppDir"
 mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/256x256/apps" "$appdir/usr/share/doc/nexode-orbit"
 install -m755 "$desktop" "$appdir/usr/bin/nexode-desktop"
 install -m755 "$engine" "$appdir/usr/bin/nexode"
-install -m644 assets/icon.png "$appdir/usr/share/icons/hicolor/256x256/apps/nexode-orbit.png"
+# linuxdeploy accepts launcher icons up to 512px; the brand source is 1024px.
+convert assets/icon.png -resize 256x256 "$appdir/usr/share/icons/hicolor/256x256/apps/nexode-orbit.png"
 install -m644 README.md APPIMAGE.md "$appdir/usr/share/doc/nexode-orbit/"
+install -m644 assets/fonts/OFL.txt "$appdir/usr/share/doc/nexode-orbit/FONT-LICENSE.txt"
 
 # The native UI launches this private MCP runtime directly. No global Node/npm install.
 node_version=v24.22.2
@@ -88,15 +92,75 @@ dbus="$(pkg-config --variable=libdir dbus-1)/libdbus-1.so.3"
 [[ -f "$dbus" ]] || { echo 'DBus client library not found.' >&2; exit 1; }
 xkb_x11="$(pkg-config --variable=libdir xkbcommon-x11)/libxkbcommon-x11.so.0"
 [[ -f "$xkb_x11" ]] || { echo 'XKB X11 client library not found.' >&2; exit 1; }
+# linuxdeploy's default exclusion list assumes desktop text-shaping libraries
+# exist. A clean KDE/minimal host need not have the GTK/Pango shaping stack.
+fribidi="$(pkg-config --variable=libdir fribidi)/libfribidi.so.0"
+harfbuzz="$(pkg-config --variable=libdir harfbuzz)/libharfbuzz.so.0"
+[[ -f "$fribidi" && -f "$harfbuzz" ]] || { echo 'GTK text-shaping libraries not found.' >&2; exit 1; }
+# Like Tauri's official AppImage bundler, preserve WebKit's helper directory.
+# ELF scanning alone misses these spawned executables and dlopen plugins.
+webkit_libdir="$(pkg-config --variable=libdir webkit2gtk-4.1)"
+webkit_helpers="$webkit_libdir/webkit2gtk-4.1"
+mkdir -p "$appdir$webkit_helpers"
+webkit_args=()
+for helper in WebKitNetworkProcess WebKitWebProcess WebKitGPUProcess; do
+  if [[ -f "$webkit_helpers/$helper" ]]; then
+    install -m755 "$webkit_helpers/$helper" "$appdir$webkit_helpers/$helper"
+    webkit_args+=(--deploy-deps-only "$appdir$webkit_helpers/$helper")
+  elif [[ "$helper" != WebKitGPUProcess ]]; then
+    echo "Missing WebKit helper: $helper" >&2; exit 1
+  fi
+done
+cp -a "$webkit_helpers/injected-bundle" "$appdir$webkit_helpers/"
+for package in libwebkit2gtk-4.1-0 libjavascriptcoregtk-4.1-0 libsoup-3.0-0 bubblewrap xdg-dbus-proxy; do
+  if [[ -f "/usr/share/doc/$package/copyright" ]]; then
+    mkdir -p "$appdir/usr/share/doc/$package"
+    install -m644 "/usr/share/doc/$package/copyright" "$appdir/usr/share/doc/$package/"
+  fi
+done
+for helper in bwrap xdg-dbus-proxy; do
+  install -m755 "/usr/bin/$helper" "$appdir/usr/bin/$helper"
+  webkit_args+=(--deploy-deps-only "$appdir/usr/bin/$helper")
+done
+# WebKit initializes GStreamer even though the welcome page contains no media.
+for plugins in gstreamer-1.0 gio/modules; do
+  mkdir -p "$appdir/usr/lib/$plugins"
+  while IFS= read -r -d '' plugin; do
+    install -m755 "$plugin" "$appdir/usr/lib/$plugins/$(basename "$plugin")"
+    webkit_args+=(--deploy-deps-only "$appdir/usr/lib/$plugins/$(basename "$plugin")")
+  done < <(find "$webkit_libdir/$plugins" -maxdepth 1 -type f -name '*.so' -print0)
+done
+scanner="$webkit_libdir/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner"
+install -m755 "$scanner" "$appdir/usr/bin/gst-plugin-scanner"
+webkit_args+=(--deploy-deps-only "$appdir/usr/bin/gst-plugin-scanner")
 export APPIMAGE_EXTRACT_AND_RUN=1 DEPLOY_GTK_VERSION=3
 export PATH="$cache:$PATH"
 "$deploy" --appdir "$appdir" \
   --executable "$appdir/usr/bin/nexode-desktop" --executable "$appdir/usr/bin/nexode" \
   --deploy-deps-only "$appdir/usr/bin/mcp/node" \
-  --library "$ayatana" --library "$dbus" --library "$xkb_x11" --plugin gtk \
+  "${webkit_args[@]}" \
+  --library "$ayatana" --library "$dbus" --library "$xkb_x11" \
+  --library "$fribidi" --library "$harfbuzz" --plugin gtk \
   --desktop-file "$appdir/usr/share/applications/app.nexode.orbit.desktop" \
   --icon-file "$appdir/usr/share/icons/hicolor/256x256/apps/nexode-orbit.png"
 ln -sfn libxkbcommon-x11.so.0 "$appdir/usr/lib/libxkbcommon-x11.so"
+
+# Relative helper paths used by some AppImage recipes break WebKit's sandbox
+# bind mounts. The private launcher relocates an ephemeral copy to absolute paths.
+mkdir -p "$appdir/usr/libexec"
+install -m755 scripts/appimage-webkit-runtime.sh "$appdir/usr/libexec/nexode-webkit-runtime.sh"
+printf '%s\n' "$webkit_helpers" > "$appdir/usr/share/nexode-webkit-helper-path"
+cat > "$appdir/apprun-hooks/zz-nexode-webkit.sh" <<'APPRUN'
+#!/usr/bin/env bash
+set -e
+export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PATH="$APPDIR/usr/bin:$PATH"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$APPDIR/usr/lib/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$APPDIR/usr/bin/gst-plugin-scanner"
+export GIO_EXTRA_MODULES="$APPDIR/usr/lib/gio/modules"
+exec "$APPDIR/usr/libexec/nexode-webkit-runtime.sh" "$@"
+APPRUN
+chmod +x "$appdir/apprun-hooks/zz-nexode-webkit.sh"
 
 # Fail closed if any bundled ELF requires newer glibc than the documented baseline.
 # Graphics drivers and glibc itself must remain supplied by the host OS.
@@ -118,4 +182,17 @@ printf 'UI SHA256: %s\nEngine SHA256: %s\nRequired glibc: %s\nArchitecture: %s\n
   "$(sha256sum "$desktop" | cut -d' ' -f1)" "$(sha256sum "$engine" | cut -d' ' -f1)" "$required" "$arch" \
   '1-alpha-20251107-1' '7a3fbc31a9e5075073ff8790f26effbac5f84453' "$node_version" "$mcp_revision" > "$OUTPUT.build-info.txt"
 (cd "$root/dist" && sha256sum "$(basename "$OUTPUT")" > "$(basename "$OUTPUT").sha256")
+printf 'Desktop revision: %s\nEngine revision: %s\n' \
+  "$(git rev-parse HEAD)" "$(git -C "$root/../nexode-orbit" rev-parse HEAD)" >> "$OUTPUT.build-info.txt"
+printf 'Desktop tracked changes: %s\nWebKitGTK: %s\n' \
+  "$(if git diff --quiet HEAD --; then echo clean; else echo dirty; fi)" \
+  "$(pkg-config --modversion webkit2gtk-4.1)" >> "$OUTPUT.build-info.txt"
+
+# The same complete bundle can run via AppRun on hosts without FUSE.
+portable="$root/dist/Nexode-Orbit-$version-$arch.tar.gz"
+tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+  -czf "$portable" -C "$stage" "$(basename "$appdir")"
+cp "$OUTPUT.build-info.txt" "$portable.build-info.txt"
+(cd "$root/dist" && sha256sum "$(basename "$portable")" > "$(basename "$portable").sha256")
+echo "Portable AppDir: $portable (extract and launch Nexode_Orbit.AppDir/AppRun)"
 echo "AppImage: $OUTPUT (glibc >= $required; AppDir retained at $appdir)"

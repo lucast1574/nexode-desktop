@@ -1,12 +1,19 @@
 name: Native desktop
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    paths: ['src/**', 'assets/**', 'Cargo.*', 'build.rs', 'scripts/**', '.github/workflows/native.yml']
+  pull_request:
+    paths: ['src/**', 'assets/**', 'Cargo.*', 'build.rs', 'scripts/**', '.github/workflows/native.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: native-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   native:
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.5'
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +34,7 @@ jobs:
           components: rustfmt, clippy
       - name: Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev libwebkit2gtk-4.1-dev libxdo-dev
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
@@ -50,6 +57,11 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: nexode-desktop
         run: bash scripts/bundle-macos.sh
+      - name: Bundle Windows application, engine and MCP
+        if: runner.os == 'Windows'
+        working-directory: nexode-desktop
+        shell: pwsh
+        run: ./scripts/bundle-windows.ps1 -DesktopBinary ./target/release/nexode-desktop.exe
       - uses: actions/upload-artifact@v4
         with:
           name: nexode-desktop-${{ runner.os }}-${{ runner.arch }}
@@ -57,3 +69,4 @@ jobs:
             nexode-desktop/target/release/nexode-desktop
             nexode-desktop/target/release/nexode-desktop.exe
             nexode-desktop/dist/Nexode-Orbit-macOS-*.zip
+            nexode-desktop/dist/Nexode-Orbit-Windows-x64.zip*

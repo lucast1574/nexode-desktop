@@ -108,7 +108,7 @@ struct MotionPreference {
     checked_at: Mutex<Option<Instant>>,
 }
 
-fn reduced_motion(ctx: &egui::Context) -> bool {
+pub(crate) fn reduced_motion(ctx: &egui::Context) -> bool {
     static PREFERENCE: OnceLock<MotionPreference> = OnceLock::new();
     let preference = PREFERENCE.get_or_init(|| MotionPreference {
         // Unknown accessibility preference means static artwork, never guess.

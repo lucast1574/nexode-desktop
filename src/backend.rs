@@ -15,6 +15,8 @@ use std::{
 
 pub enum Command {
     Connect(Settings),
+    Create(PathBuf),
+    ListSessions,
     Open(String),
     Send {
         session: Option<String>,
@@ -32,6 +34,7 @@ pub enum Command {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Operation {
     Connect,
+    Create,
     Open,
     Turn,
     Models,
@@ -40,6 +43,8 @@ pub enum Operation {
 }
 pub enum Event {
     Connected(Vec<SessionInfo>),
+    DraftCreated(SessionInfo),
+    Sessions(Vec<SessionInfo>),
     Opened(SessionInfo, Vec<HistoryMessage>),
     Created(SessionInfo),
     Models(String, Vec<String>, Option<String>),
@@ -99,6 +104,30 @@ impl Backend {
     pub fn client_snapshot(&self) -> Option<NexodeClient> {
         self.client.lock().ok()?.clone()
     }
+    fn create_draft(&self, path: PathBuf) -> Result<(NexodeClient, SessionInfo), String> {
+        let path = std::fs::canonicalize(path)
+            .map_err(|e| format!("No se puede abrir el proyecto: {e}"))?;
+        if !path.is_dir() {
+            return Err("El proyecto debe ser una carpeta.".into());
+        }
+        // A bridge connection owns one session: a repeated Subscribe would
+        // keep its previous session. New chats need a fresh connection to the
+        // same private daemon, without clearing or modifying the old chat.
+        let previous = self.client()?;
+        let client = NexodeClient::connect(ConnectOptions {
+            socket_path: Some(previous.socket_path().to_path_buf()),
+            ensure_runtime: false,
+            request_timeout: Some(Duration::from_secs(120)),
+            client_name: "nexode-desktop-native/0.2".into(),
+            ..Default::default()
+        })
+        .map_err(|e| e.to_string())?;
+        let session = client
+            .create_session(Some(path.to_string_lossy().into()))
+            .map_err(|e| e.to_string())?;
+        *self.client.lock().map_err(|e| e.to_string())? = Some(client.clone());
+        Ok((client, session))
+    }
     pub fn send(&self, command: Command) {
         if self.closing.load(Ordering::Acquire) {
             return;
@@ -108,6 +137,7 @@ impl Backend {
         let job = std::thread::spawn(move || {
             let op = match &command {
                 Command::Connect(_) => Operation::Connect,
+                Command::Create(_) => Operation::Create,
                 Command::Open(_) => Operation::Open,
                 Command::Send { .. } => Operation::Turn,
                 Command::Models(_) | Command::Model(..) => Operation::Models,
@@ -149,6 +179,7 @@ impl Backend {
                 crate::platform_runtime::prepare(&data_dir().join("engine"))?;
                 let instance = launch_instance(&LaunchOptions {
                     nexode_home: Some(data_dir().join("engine")),
+                    inherit_logins: false,
                     binary: Some(engine_binary(&settings)),
                     request_timeout: Some(Duration::from_secs(120)),
                     client_name: "nexode-desktop-native/0.2".into(),
@@ -174,8 +205,19 @@ impl Backend {
             }
             _ => {}
         }
-        let c = self.client()?;
+        let mut c = self.client()?;
         match command {
+            Command::Create(path) => {
+                let (c, session) = self.create_draft(path)?;
+                let id = session.session_id.clone();
+                self.emit(Event::DraftCreated(session));
+                self.publish_models(&c, &id)?;
+            }
+            Command::ListSessions => {
+                self.emit(Event::Sessions(
+                    c.list_sessions().map_err(|e| e.to_string())?,
+                ));
+            }
             Command::Open(id) => {
                 let s = c.attach_session(&id).map_err(|e| e.to_string())?;
                 let history = c.get_history(&id).map_err(|e| e.to_string())?;
@@ -190,11 +232,8 @@ impl Backend {
                 let id = match session {
                     Some(id) => id,
                     None => {
-                        let path = std::fs::canonicalize(path)
-                            .map_err(|e| format!("No se puede abrir el proyecto: {e}"))?;
-                        let s = c
-                            .create_session(Some(path.to_string_lossy().into()))
-                            .map_err(|e| e.to_string())?;
+                        let (fresh, s) = self.create_draft(path)?;
+                        c = fresh;
                         let id = s.session_id.clone();
                         self.emit(Event::Created(s));
                         id
@@ -337,6 +376,18 @@ mod tests {
         #[cfg(windows)]
         crate::windows_job::contain_child_processes().unwrap();
         assert_eq!(std::env::var("ORBIT_NATIVE_TEST").as_deref(), Ok("1"));
+        assert!(
+            std::env::var_os("ORBIT_DESKTOP_HOME").is_some(),
+            "an explicit isolated desktop directory is required"
+        );
+        // Configure only this test's private engine explicitly. Production does
+        // not copy a user's CLI credentials or provider config into the app.
+        std::fs::create_dir_all(data_dir().join("engine")).unwrap();
+        std::fs::write(
+            data_dir().join("engine/config.toml"),
+            "[provider]\ndefault_provider = 'openai-compatible'\ndefault_model = 'fake-model'\n",
+        )
+        .unwrap();
         let (backend, events) = Backend::new(|| {});
         backend.send(Command::Connect(Settings::default()));
         match events.recv_timeout(Duration::from_secs(120)).unwrap() {
@@ -345,12 +396,43 @@ mod tests {
             _ => panic!("expected connected"),
         };
         let dir = tempfile::tempdir().unwrap();
+        backend.send(Command::Create(dir.path().into()));
+        let mut id = String::new();
+        loop {
+            match events.recv_timeout(Duration::from_secs(120)).unwrap() {
+                Event::DraftCreated(session) => {
+                    assert!(crate::settings::session_matches_project(
+                        &session,
+                        &std::fs::canonicalize(dir.path()).unwrap()
+                    ));
+                    id = session.session_id;
+                }
+                Event::Models(session, models, _) if session == id => {
+                    assert!(
+                        !models.is_empty(),
+                        "models must be selectable before the first turn"
+                    );
+                    break;
+                }
+                Event::Error(_, e) => panic!("{e}"),
+                _ => {}
+            }
+        }
+        backend.send(Command::ListSessions);
+        match events.recv_timeout(Duration::from_secs(120)).unwrap() {
+            Event::Sessions(sessions) => assert!(sessions.iter().any(|s| s.session_id == id
+                && crate::settings::session_matches_project(
+                    s,
+                    &std::fs::canonicalize(dir.path()).unwrap()
+                ))),
+            Event::Error(_, e) => panic!("{e}"),
+            _ => panic!("expected persisted project sessions"),
+        }
         backend.send(Command::Send {
-            session: None,
+            session: Some(id.clone()),
             path: dir.path().into(),
             content: "native desktop integration test".into(),
         });
-        let mut id = String::new();
         let mut streamed = false;
         loop {
             match events.recv_timeout(Duration::from_secs(120)).unwrap() {
@@ -393,6 +475,53 @@ mod tests {
                 _ => {}
             }
         }
+        backend.send(Command::Open(id.clone()));
+        loop {
+            match events.recv_timeout(Duration::from_secs(30)).unwrap() {
+                Event::Models(session, _, _) if session == id => break,
+                Event::Error(_, e) => panic!("{e}"),
+                _ => {}
+            }
+        }
+        backend.send(Command::Create(dir.path().into()));
+        let mut second_id = String::new();
+        loop {
+            match events.recv_timeout(Duration::from_secs(30)).unwrap() {
+                Event::DraftCreated(session) => {
+                    assert_ne!(
+                        session.session_id, id,
+                        "New chat must not reuse the attached chat"
+                    );
+                    second_id = session.session_id;
+                }
+                Event::Models(session, models, _) if session == second_id => {
+                    assert!(!models.is_empty());
+                    break;
+                }
+                Event::Error(_, e) => panic!("{e}"),
+                _ => {}
+            }
+        }
+        let client = backend.client().unwrap();
+        assert!(
+            client
+                .get_history(&second_id)
+                .unwrap()
+                .iter()
+                .all(|m| m.role != "user" && m.role != "assistant")
+        );
+        let sessions = client.list_sessions().unwrap();
+        assert!(sessions.iter().any(|s| s.session_id == id));
+        assert!(sessions.iter().any(|s| s.session_id == second_id));
+        client.attach_session(&id).unwrap();
+        assert!(
+            client
+                .get_history(&id)
+                .unwrap()
+                .iter()
+                .any(|m| m.role == "assistant" && m.content.contains("[native] ack."))
+        );
+        drop(client);
         backend.shutdown();
         // socket_accepts only checks the file type; a stale Unix socket is not
         // a live process. Probe the actual API without auto-starting anything.

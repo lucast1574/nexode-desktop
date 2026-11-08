@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexode Orbit</title>
+<style>
+@font-face{font-family:Geist;src:url('__FONT_REGULAR__') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:Geist;src:url('__FONT_MEDIUM__') format('truetype');font-weight:500 700;font-display:swap}
+:root{color-scheme:dark;--canvas:#191b19;--surface:#232723;--ink:#e2e9dd;--quiet:#a0aa9a;--line:#353b32;--green:#10dc79}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--canvas)}
+body{font:14px/1.5 Geist,system-ui,sans-serif;color:var(--ink);font-synthesis:none;overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer;border:0;outline:none;background:none;-webkit-tap-highlight-color:transparent}
+button:focus-visible{background:#333c32;color:#fff}button:disabled{cursor:default;opacity:.4}
+main{min-height:100svh;display:flex;align-items:center;justify-content:center;padding:26px 32px 34px}
+.welcome{width:min(100%,680px);padding-bottom:12px}
+.nexo{display:block;width:92px;height:92px;object-fit:contain;margin:0 0 22px;transform-origin:50% 70%;animation:breathe 5.5s ease-in-out infinite;user-select:none;-webkit-user-drag:none}
+h1{font-weight:500;font-size:clamp(27px,4.1vw,38px);line-height:1.16;letter-spacing:-.045em;margin:0;max-width:620px;text-wrap:balance}
+.intro{color:var(--quiet);font-size:15px;line-height:1.65;max-width:470px;margin:14px 0 0;text-wrap:pretty}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:28px}
+.action{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:11px 15px;border-radius:8px;font-size:13px;line-height:20px;transition:background .14s,color .14s}
+.action:hover{background:#2e352c;color:#fff}.primary{background:var(--green);color:#102a1c;font-weight:500}.primary:hover,.primary:focus-visible{background:#47e69a;color:#102a1c}.secondary{background:var(--surface)}
+svg{height:17px;width:17px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.suggestions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:28px}
+.suggestion{display:flex;align-items:flex-start;gap:11px;text-align:left;padding:16px 12px;border:1px solid var(--line);border-radius:9px;min-height:72px;transition:background .14s,border-color .14s}
+.suggestion:hover,.suggestion:focus-visible{background:var(--surface);border-color:#515c4b}.suggestion svg{margin-top:2px;color:var(--quiet)}
+.suggestion strong{display:block;font-size:12px;font-weight:500;line-height:1.5}.suggestion span{display:block;color:var(--quiet);font-size:11px;line-height:1.5;margin-top:4px}
+.explore{display:inline-flex;align-items:center;gap:8px;color:var(--quiet);font-size:12px;padding:8px 0;margin-top:18px;border-radius:4px}.explore:hover,.explore:focus-visible{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.first-project .suggestions{display:none}.has-project .primary{display:none}.has-project .actions{margin-top:22px}.has-project .explore{display:none}.first-project .service-action{display:none}
+@keyframes breathe{0%,100%{transform:translateY(0) rotate(-2deg) scale(1)}50%{transform:translateY(-7px) rotate(2deg) scale(1.015,.985)}}
+.reduce-motion .nexo,.inactive .nexo{animation:none;transform:none}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@media(max-width:580px){main{padding:24px}.nexo{width:76px;height:76px;margin-bottom:18px}.intro{font-size:14px}.suggestions{grid-template-columns:1fr;gap:8px;margin-top:18px}.suggestion{min-height:0;padding:12px}.suggestion span{display:none}.actions{margin-top:22px}}
+@media(max-height:460px){main{align-items:flex-start;padding-top:20px;padding-bottom:20px}.nexo{width:60px;height:60px;margin-bottom:14px}h1{font-size:28px}.intro{margin-top:8px}.actions,.suggestions{margin-top:16px}.suggestion{padding:12px;min-height:58px}.welcome{padding-bottom:0}}
+@media(max-height:340px){.nexo{width:44px;height:44px;margin-bottom:10px}.intro{font-size:13px}.suggestion span{display:none}.suggestion{min-height:0}.actions{margin-top:12px}.explore{margin-top:10px}}
+</style>
+</head>
+<body class="first-project">
+<main><section class="welcome" aria-labelledby="welcome-title">
+<img class="nexo" src="__NEXO_DATA_URI__" width="92" height="92" alt="Nexo, tu compañero en Orbit" draggable="false">
+<h1 id="welcome-title">Un lugar para tus ideas.</h1>
+<p class="intro" id="welcome-description">Añade una carpeta, conecta tu agente y empieza a construir. Tu espacio se configura contigo.</p>
+<div class="actions">
+<button class="action primary" data-action="add_project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir proyecto</button>
+<button class="action secondary" data-action="connect_agents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v3m6-3v3M7 6h10v5a5 5 0 0 1-10 0V6Zm5 10v5"/></svg>Conectar agentes</button>
+<button class="action service-action" data-action="services">Explorar servicios</button>
+</div>
+<div class="suggestions" aria-label="Ideas para empezar">
+<button class="suggestion" data-action="suggestion" data-index="0"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-16-2 20"/></svg><div><strong>Entender el proyecto</strong><span>Explora cómo funciona</span></div></button>
+<button class="suggestion" data-action="suggestion" data-index="1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v12m12 6V9M3 12l3 3 3-3m6 0 3-3 3 3M6 3h12M6 21h12"/></svg><div><strong>Revisar cambios</strong><span>Encuentra posibles errores</span></div></button>
+<button class="suggestion" data-action="suggestion" data-index="2"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg><div><strong>Encontrar mejoras</strong><span>Decide el siguiente paso</span></div></button>
+</div>
+<button class="explore" data-action="services"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5v8l-9 5-9-5V8Zm0 0v18M3 8l9 5 9-5"/></svg>Descubre qué puedes construir con Nexode</button>
+</section></main>
+<script>
+(()=>{
+'use strict';
+const allowed=new Set(['add_project','connect_agents','services','suggestion','new_chat','focus_composer']);
+const send=message=>{if(window.ipc&&typeof window.ipc.postMessage==='function')window.ipc.postMessage(JSON.stringify(message));};
+document.addEventListener('click',event=>{
+const button=event.target.closest('button[data-action]');if(!button)return;
+const action=button.dataset.action;if(!allowed.has(action))return;
+const message={action};if(action==='suggestion'){const index=Number(button.dataset.index);if(!Number.isInteger(index)||index<0||index>2)return;message.index=index;}
+send(message);
+});
+document.addEventListener('keydown',event=>{
+if(event.isComposing)return;
+if((event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='n'){
+event.preventDefault();if(!event.repeat)send({action:'new_chat'});return;
+}
+if(event.key==='Escape'){event.preventDefault();send({action:'focus_composer'});return;}
+if(event.key==='Tab'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){
+const buttons=Array.from(document.querySelectorAll('button:not(:disabled)')).filter(button=>button.getClientRects().length>0);
+const boundary=event.shiftKey?buttons[0]:buttons[buttons.length-1];
+if(!boundary||document.activeElement===boundary){event.preventDefault();send({action:'focus_composer'});}
+}
+});
+window.orbitSetState=state=>{
+const first=state.firstProject!==false;
+document.body.classList.toggle('first-project',first);document.body.classList.toggle('has-project',!first);
+document.body.classList.toggle('reduce-motion',state.reduceMotion===true);
+document.getElementById('welcome-title').textContent=first?'Un lugar para tus ideas.':'¿Qué hacemos hoy?';
+document.getElementById('welcome-description').textContent=first?'Añade una carpeta, conecta tu agente y empieza a construir. Tu espacio se configura contigo.':'Tus ideas, tus agentes y todo Nexode. Elige por dónde empezar.';
+};
+document.addEventListener('visibilitychange',()=>document.body.classList.toggle('inactive',document.hidden));
+if(window.__orbitState)window.orbitSetState(window.__orbitState);
+})();
+</script>
+</body>
+</html>

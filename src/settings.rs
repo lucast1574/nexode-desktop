@@ -1,12 +1,28 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub projects: Vec<PathBuf>,
+    /// Older versions discovered folders automatically. Keep those paths for
+    /// explicit recovery instead of treating discovery as the user's consent.
+    pub previous_projects: Vec<PathBuf>,
+    #[serde(default)]
+    pub project_setup_version: u8,
     pub selected: Option<PathBuf>,
     pub binary: Option<PathBuf>,
+}
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            projects: vec![],
+            previous_projects: vec![],
+            project_setup_version: 1,
+            selected: None,
+            binary: None,
+        }
+    }
 }
 pub fn data_dir() -> PathBuf {
     std::env::var_os("ORBIT_DESKTOP_HOME")
@@ -37,39 +53,62 @@ pub fn lock_instance(directory: &Path) -> std::io::Result<Option<std::fs::File>>
 }
 impl Settings {
     pub fn load() -> Self {
-        let mut settings: Self = std::fs::read(data_dir().join("desktop.json"))
+        Self::load_from(&data_dir())
+    }
+    fn load_from(directory: &Path) -> Self {
+        let mut settings: Self = std::fs::read(directory.join("desktop.json"))
             .ok()
             .and_then(|s| serde_json::from_slice(&s).ok())
             .unwrap_or_default();
-        if settings.projects.is_empty() {
-            let root = std::env::var_os("ORBIT_PROJECTS")
-                .map(PathBuf::from)
-                .or_else(|| {
-                    std::env::current_dir()
-                        .ok()
-                        .and_then(|p| p.parent().map(Path::to_owned))
-                });
-            if let Some(root) = root.and_then(|p| std::fs::read_dir(p).ok()) {
-                settings.projects = root
-                    .flatten()
-                    .map(|e| e.path())
-                    .filter(|p| p.join(".git").exists())
-                    .collect();
-                settings.projects.sort();
+        if settings.project_setup_version == 0 {
+            for project in std::mem::take(&mut settings.projects)
+                .into_iter()
+                .chain(settings.selected.take())
+            {
+                if !settings
+                    .previous_projects
+                    .iter()
+                    .any(|p| same_project(p, &project))
+                {
+                    settings.previous_projects.push(project);
+                }
             }
+            settings.project_setup_version = 1;
+        }
+        // Resolve aliases once during loading/registration, never during a
+        // render pass. Missing folders remain recoverable metadata.
+        for project in &mut settings.projects {
+            *project = std::fs::canonicalize(&*project).unwrap_or_else(|_| project.clone());
         }
         settings.selected = settings
             .selected
-            .filter(|p| p.is_dir())
-            .or_else(|| {
+            .and_then(|p| {
+                let p = std::fs::canonicalize(&p).unwrap_or(p);
                 settings
                     .projects
                     .iter()
-                    .find(|p| p.file_name().is_some_and(|n| n == "nexode-orbit"))
+                    .find(|registered| same_project(registered, &p))
                     .cloned()
             })
             .or_else(|| settings.projects.first().cloned());
         settings
+    }
+    pub fn add_project(&mut self, path: PathBuf) -> Result<(), String> {
+        let path = std::fs::canonicalize(path)
+            .map_err(|e| format!("No se puede abrir la carpeta: {e}"))?;
+        if !path.is_dir() {
+            return Err("Selecciona una carpeta para añadir el proyecto.".into());
+        }
+        if !self.projects.iter().any(|p| same_project(p, &path)) {
+            self.projects.push(path.clone());
+        }
+        self.previous_projects.retain(|p| {
+            let normalized = std::fs::canonicalize(p).unwrap_or_else(|_| p.clone());
+            !same_project(&normalized, &path)
+        });
+        self.project_setup_version = 1;
+        self.selected = Some(path);
+        Ok(())
     }
     pub fn save(&self) -> Result<(), String> {
         std::fs::create_dir_all(data_dir()).map_err(|e| e.to_string())?;
@@ -78,6 +117,67 @@ impl Settings {
             serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())
+    }
+}
+
+/// Runtime session paths may carry Windows' verbatim prefix even when the
+/// folder picker does not. Identity also ignores separator/case differences on
+/// Windows, while preserving case-sensitive Unix paths.
+pub fn project_key(path: &Path) -> String {
+    normalized_key(&path.to_string_lossy(), cfg!(windows))
+}
+pub fn same_project(left: &Path, right: &Path) -> bool {
+    project_key(left) == project_key(right)
+}
+pub fn session_matches_project(session: &nexode_sdk::SessionInfo, project: &Path) -> bool {
+    session
+        .working_dir
+        .as_deref()
+        .is_some_and(|path| same_project(Path::new(path), project))
+}
+fn normalized_key(raw: &str, windows: bool) -> String {
+    let raw = if windows {
+        raw.replace('\\', "/")
+    } else {
+        raw.to_owned()
+    };
+    let raw = if windows {
+        if let Some(unc) = raw
+            .strip_prefix("//?/UNC/")
+            .or_else(|| raw.strip_prefix("//?/unc/"))
+        {
+            format!("//{unc}")
+        } else {
+            raw.strip_prefix("//?/").unwrap_or(&raw).to_owned()
+        }
+    } else {
+        raw
+    };
+    let prefix = if raw.starts_with("//") && windows {
+        "//"
+    } else if raw.starts_with('/') {
+        "/"
+    } else {
+        ""
+    };
+    let mut components: Vec<&str> = Vec::new();
+    for component in raw.split('/') {
+        match component {
+            "" | "." => {}
+            ".." if components
+                .last()
+                .is_some_and(|last| *last != ".." && !last.ends_with(':')) =>
+            {
+                components.pop();
+            }
+            _ => components.push(component),
+        }
+    }
+    let result = format!("{prefix}{}", components.join("/"));
+    if windows {
+        result.to_lowercase()
+    } else {
+        result
     }
 }
 pub fn engine_binary(settings: &Settings) -> PathBuf {
@@ -129,5 +229,73 @@ mod tests {
         assert!(lock_instance(dir.path()).unwrap().is_none());
         drop(first);
         assert!(lock_instance(dir.path()).unwrap().is_some());
+    }
+
+    #[test]
+    fn new_install_starts_empty_even_next_to_repositories() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("work/repo/.git")).unwrap();
+        let settings = Settings::load_from(&root.path().join("data"));
+        assert!(settings.projects.is_empty());
+        assert!(settings.previous_projects.is_empty());
+        assert!(settings.selected.is_none());
+    }
+
+    #[test]
+    fn legacy_discovery_is_preserved_for_explicit_recovery() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("original-project");
+        std::fs::create_dir(&project).unwrap();
+        let raw =
+            serde_json::json!({"projects":[project],"selected":project,"binary":"custom-engine"});
+        std::fs::write(dir.path().join("desktop.json"), raw.to_string()).unwrap();
+        let mut settings = Settings::load_from(dir.path());
+        assert!(settings.projects.is_empty());
+        assert!(settings.selected.is_none());
+        assert_eq!(settings.previous_projects, vec![project.clone()]);
+        assert_eq!(settings.binary, Some(PathBuf::from("custom-engine")));
+        assert!(project.is_dir());
+        settings.add_project(project.clone()).unwrap();
+        settings.add_project(project.join(".")).unwrap();
+        assert_eq!(settings.projects.len(), 1);
+        assert!(settings.previous_projects.is_empty());
+        std::fs::write(
+            dir.path().join("desktop.json"),
+            serde_json::to_vec(&settings).unwrap(),
+        )
+        .unwrap();
+        let restored = Settings::load_from(dir.path());
+        assert_eq!(restored.projects.len(), 1);
+        assert_eq!(restored.selected, settings.selected);
+    }
+
+    #[test]
+    fn session_path_identity_handles_windows_verbatim_drive_and_unc() {
+        assert_eq!(
+            normalized_key(r"\\?\D:\Projects\Orbit", true),
+            normalized_key("d:/projects/orbit/", true)
+        );
+        assert_eq!(
+            normalized_key(r"\\?\UNC\Server\Share\Orbit", true),
+            normalized_key(r"\\server\share\orbit\", true)
+        );
+        assert_ne!(
+            normalized_key("/work/Orbit", false),
+            normalized_key("/work/orbit", false)
+        );
+        assert_eq!(normalized_key("/work/./repo/", false), "/work/repo");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_symlink_folder_and_runtime_canonical_folder_match() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("project");
+        let alias = dir.path().join("alias");
+        std::fs::create_dir(&project).unwrap();
+        std::os::unix::fs::symlink(&project, &alias).unwrap();
+        let mut settings = Settings::default();
+        settings.add_project(alias).unwrap();
+        assert!(same_project(&settings.projects[0], &project));
     }
 }

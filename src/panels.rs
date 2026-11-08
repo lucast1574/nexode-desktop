@@ -1,7 +1,7 @@
 use crate::{
     app::OrbitApp,
     backend::Command,
-    settings::{data_dir, label},
+    settings::{data_dir, label, project_key, same_project, session_matches_project},
     theme,
     widgets::{self, Icon},
 };
@@ -33,14 +33,18 @@ impl OrbitApp {
                 ui.add_space(22.0);
                 if ui
                     .add_enabled(
-                        !self.busy,
-                        egui::Button::image_and_text(widgets::icon(Icon::Plus), "Nuevo chat")
+                        !self.busy && !self.loading,
+                        egui::Button::image_and_text(widgets::icon(Icon::Plus), if self.settings.projects.is_empty() { "Añadir proyecto" } else { "Nuevo chat" })
                             .min_size(egui::vec2(ui.available_width(), 36.0))
                             .fill(theme::SURFACE),
                     )
                     .clicked()
                 {
-                    self.new_chat();
+                    if self.settings.projects.is_empty() {
+                        self.backend.send(Command::PickFolder);
+                    } else {
+                        self.new_chat();
+                    }
                 }
                 ui.add_space(10.0);
                 ui.add(
@@ -55,46 +59,83 @@ impl OrbitApp {
                     if widgets::icon_button(ui, Icon::Plus, "Añadir proyecto").clicked() {
                         self.backend.send(Command::PickFolder);
                     }
+                    ui.add_enabled_ui(self.connected && !self.busy && !self.loading, |ui| {
+                        if widgets::icon_button(ui, Icon::Refresh, "Actualizar chats").clicked() {
+                            self.backend.send(Command::ListSessions);
+                        }
+                    });
                 });
                 let available = ui.available_height().max(0.0);
+                let selected_key = self.settings.selected.as_deref().map(project_key);
+                let selection_memory = ui.make_persistent_id("sidebar-last-selected-project");
+                let reveal_selected = ui.data_mut(|data| {
+                    let previous = data.get_temp::<Option<String>>(selection_memory);
+                    let changed = previous.as_ref() != Some(&selected_key);
+                    data.insert_temp(selection_memory, selected_key);
+                    changed
+                });
                 egui::ScrollArea::vertical()
                     .max_height(available)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         let projects = self.settings.projects.clone();
                         for project in projects {
-                            let selected = self.settings.selected.as_ref() == Some(&project);
-                            let button = egui::Button::image_and_text(
-                                widgets::icon(Icon::Folder),
-                                label(&project),
-                            )
-                            .selected(selected)
-                            .min_size(egui::vec2(ui.available_width(), 34.0));
-                            if ui
-                                .add_enabled(!self.busy && !self.loading, button)
-                                .on_hover_text(project.display().to_string())
-                                .clicked()
-                            {
-                                self.new_chat();
-                                self.settings.selected = Some(project.clone());
-                                self.save();
+                            let selected = self.settings.selected.as_ref().is_some_and(|p| same_project(p, &project));
+                            let all_sessions: Vec<_> = self.sessions.iter()
+                                .filter(|s| session_matches_project(s, &project))
+                                .cloned().collect();
+                            let search = self.search.trim().to_lowercase();
+                            let sessions: Vec<_> = all_sessions.iter().filter(|s| {
+                                s.title.as_deref().unwrap_or("Nuevo chat").to_lowercase().contains(&search)
+                            }).cloned().collect();
+                            let mut collapse = egui::collapsing_header::CollapsingState::load_with_default_open(
+                                ui.ctx(), ui.make_persistent_id(("project-chats", project_key(&project))), selected,
+                            );
+                            if !search.is_empty() && !sessions.is_empty() {
+                                collapse.set_open(true);
                             }
-                            let sessions: Vec<_> = self
-                                .sessions
-                                .iter()
-                                .filter(|s| {
-                                    s.working_dir.as_deref()
-                                        == Some(project.to_string_lossy().as_ref())
-                                        && s.title
-                                            .as_deref()
-                                            .unwrap_or("Nuevo chat")
-                                            .to_lowercase()
-                                            .contains(&self.search.to_lowercase())
-                                })
-                                .cloned()
-                                .collect();
-                            for s in sessions {
-                                ui.indent(&s.session_id, |ui| {
+                            let header = ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 3.0;
+                                collapse.show_toggle_button(ui, egui::collapsing_header::paint_default_icon)
+                                    .on_hover_text("Mostrar u ocultar chats del proyecto");
+                                let button = egui::Button::image_and_text(
+                                    widgets::icon(Icon::Folder),
+                                    format!("{} · {}", label(&project), all_sessions.len()),
+                                ).selected(selected).truncate()
+                                    .min_size(egui::vec2((ui.available_width() - 32.0).max(40.0), 34.0));
+                                if ui.add_enabled(!self.busy && !self.loading, button)
+                                    .on_hover_text(project.display().to_string()).clicked() {
+                                    collapse.set_open(true);
+                                    self.settings.selected = Some(project.clone());
+                                    self.save();
+                                    if self.connected && let Some(session) = all_sessions.first() {
+                                        self.open(session.clone());
+                                    } else {
+                                        self.new_chat();
+                                    }
+                                }
+                                ui.add_enabled_ui(self.connected && !self.busy && !self.loading, |ui| {
+                                    if widgets::icon_button(ui, Icon::Plus, "Nuevo chat en este proyecto").clicked() {
+                                        collapse.set_open(true);
+                                        self.settings.selected = Some(project.clone());
+                                        self.save();
+                                        self.new_chat();
+                                    }
+                                });
+                            });
+                            if selected && reveal_selected {
+                                header.response.scroll_to_me(Some(egui::Align::Center));
+                            }
+                            collapse.show_body_indented(&header.response, ui, |ui| {
+                                if sessions.is_empty() {
+                                    widgets::muted(ui, if all_sessions.is_empty() { "Aún no hay chats en este proyecto." } else { "Ningún chat coincide con la búsqueda." });
+                                    if all_sessions.is_empty() && ui.add_enabled(self.connected && !self.busy && !self.loading, egui::Button::new("Crear primer chat")).clicked() {
+                                        self.settings.selected = Some(project.clone());
+                                        self.save();
+                                        self.new_chat();
+                                    }
+                                }
+                                for s in sessions {
                                     let selected = self
                                         .session
                                         .as_ref()
@@ -102,7 +143,7 @@ impl OrbitApp {
                                     let title = s.title.as_deref().unwrap_or("Nuevo chat");
                                     if ui
                                         .add_enabled(
-                                            !self.busy && !self.loading,
+                                            self.connected && !self.busy && !self.loading,
                                             egui::Button::image_and_text(
                                                 widgets::icon(Icon::Chat),
                                                 RichText::new(title).size(12.0),
@@ -115,12 +156,41 @@ impl OrbitApp {
                                     {
                                         self.open(s.clone());
                                     }
-                                });
-                            }
+                                }
+                            });
                             ui.add_space(5.0);
                         }
                         if self.settings.projects.is_empty() {
-                            widgets::muted(ui, "Abre una carpeta para comenzar.");
+                            ui.add_space(12.0);
+                            ui.strong("Tus proyectos empiezan aquí");
+                            widgets::muted(ui, "Elige una carpeta. Orbit no importa repositorios ni chats de otras aplicaciones automáticamente.");
+                            if widgets::action(ui, Icon::Folder, "Elegir carpeta de proyecto").clicked() {
+                                self.backend.send(Command::PickFolder);
+                            }
+                        }
+                        if !self.settings.previous_projects.is_empty() {
+                            ui.add_space(14.0);
+                            egui::CollapsingHeader::new(format!("Recuperar proyectos anteriores ({})", self.settings.previous_projects.len()))
+                                .default_open(false).show(ui, |ui| {
+                                    widgets::muted(ui, "Conservamos las carpetas de la versión anterior. Añade solamente las que quieras utilizar; sus archivos y chats no se han borrado.");
+                                    for path in self.settings.previous_projects.clone() {
+                                        if ui.add_enabled(!self.busy && !self.loading, egui::Button::new(format!("Añadir {}", label(&path))).truncate())
+                                            .on_hover_text(path.display().to_string()).clicked() {
+                                            match self.settings.add_project(path) {
+                                                Ok(()) => {
+                                                    self.save();
+                                                    let previous = self.settings.selected.as_ref().and_then(|p| self.sessions.iter().find(|s| session_matches_project(s, p))).cloned();
+                                                    if self.connected && let Some(session) = previous {
+                                                        self.open(session);
+                                                    } else {
+                                                        self.new_chat();
+                                                    }
+                                                }
+                                                Err(error) => self.error = Some(error),
+                                            }
+                                        }
+                                    }
+                                });
                         }
                     });
             });

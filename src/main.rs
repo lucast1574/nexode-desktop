@@ -11,11 +11,21 @@ mod provider_connections;
 mod provider_usage;
 mod settings;
 mod theme;
+mod welcome_content;
+mod welcome_web;
 mod widgets;
 #[cfg(windows)]
 mod windows_job;
 
 fn main() -> eframe::Result {
+    // WebKitGTK 4.1's process sandbox is opt-in. Enable it before GTK or Wry
+    // creates any context (including Wry's private incognito context).
+    #[cfg(target_os = "linux")]
+    // SAFETY: this is the first operation in main, before any threads, GTK,
+    // runtime, network client, or environment-reading worker can be started.
+    unsafe {
+        std::env::set_var("WEBKIT_FORCE_SANDBOX", "1");
+    }
     if std::env::args().any(|arg| arg == "--enable-startup") {
         if let Err(error) = desktop_shell::set_startup(true) {
             eprintln!("{error}");
@@ -54,6 +64,16 @@ fn main() -> eframe::Result {
         eframe::NativeOptions {
             viewport,
             centered: true,
+            #[cfg(target_os = "linux")]
+            event_loop_builder: Some(Box::new(|builder| {
+                // WebKit's child-window host requires X11. Prefer XWayland
+                // when available; a pure Wayland desktop keeps egui's native
+                // welcome fallback instead of failing to launch.
+                if std::env::var_os("DISPLAY").is_some_and(|value| !value.is_empty()) {
+                    use winit::platform::x11::EventLoopBuilderExtX11;
+                    builder.with_x11();
+                }
+            })),
             ..Default::default()
         },
         Box::new(|cc| Ok(Box::new(app::OrbitApp::new(cc)))),

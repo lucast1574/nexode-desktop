@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ "$(uname -s)" == Darwin ]] || { echo 'Ejecuta este empaquetado en macOS.' >&2; exit 1; }
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.5}"
 cargo build --locked --release
 cargo build --manifest-path ../nexode-orbit/Cargo.toml --locked --release --no-default-features --bin nexode
 bundle="dist/Nexode Orbit.app/Contents"
@@ -9,6 +10,7 @@ mkdir -p "$bundle/MacOS" "$bundle/Resources"
 cp target/release/nexode-desktop "$bundle/MacOS/"
 cp ../nexode-orbit/target/release/nexode "$bundle/MacOS/"
 cp assets/icon.icns "$bundle/Resources/Orbit.icns"
+cp assets/fonts/OFL.txt "$bundle/Resources/FONT-LICENSE.txt"
 cache=".local/macos-bundle"
 mkdir -p "$cache" "$bundle/MacOS/mcp"
 case "$(uname -m)" in
@@ -45,6 +47,7 @@ cat > "$bundle/Info.plist" <<'PLIST'
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>Orbit</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>LSMinimumSystemVersion</key><string>13.5</string>
 </dict></plist>
 PLIST
 echo "Creado: dist/Nexode Orbit.app (sin firma ni notarización)"

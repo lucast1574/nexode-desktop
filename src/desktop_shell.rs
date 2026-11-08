@@ -33,54 +33,27 @@ pub struct DesktopShell {
     quitting: bool,
     stop: Arc<AtomicBool>,
     wake_worker: Option<std::thread::JoinHandle<()>>,
-    #[cfg(not(target_os = "linux"))]
     _tray: TrayIcon,
-    #[cfg(target_os = "linux")]
-    gtk_worker: Option<std::thread::JoinHandle<()>>,
 }
 
 impl DesktopShell {
     pub fn new(ctx: &Context) -> Result<Self, String> {
         let (send, actions) = mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
-        #[cfg(not(target_os = "linux"))]
-        let tray = make_tray(ctx.clone(), send.clone())?;
         #[cfg(target_os = "linux")]
-        let gtk_worker = {
-            let ctx = ctx.clone();
-            let send = send.clone();
-            let stop = stop.clone();
-            let (ready_send, ready_receive) = mpsc::sync_channel(1);
-            let worker = std::thread::spawn(move || {
-                let result = gtk::init()
-                    .map_err(|e| format!("No se pudo iniciar la bandeja GTK: {e}"))
-                    .and_then(|()| make_tray(ctx, send));
-                match result {
-                    Ok(tray) => {
-                        let _ = ready_send.send(Ok(()));
-                        // GTK owns the tray on this thread; egui/winit owns the
-                        // main thread. The timeout only handles orderly teardown.
-                        gtk::glib::timeout_add_local(Duration::from_millis(250), move || {
-                            if stop.load(Ordering::Acquire) {
-                                gtk::main_quit();
-                                gtk::glib::ControlFlow::Break
-                            } else {
-                                gtk::glib::ControlFlow::Continue
-                            }
-                        });
-                        gtk::main();
-                        drop(tray);
-                    }
-                    Err(error) => {
-                        let _ = ready_send.send(Err(error));
-                    }
-                }
-            });
-            ready_receive
-                .recv()
-                .map_err(|_| "El proceso de bandeja no respondió".to_string())??;
-            Some(worker)
-        };
+        {
+            // Match main.rs's winit backend on Wayland sessions with XWayland:
+            // GTK must not pick Wayland for an X11 child-window host.
+            if !gtk::is_initialized()
+                && std::env::var_os("DISPLAY").is_some_and(|value| !value.is_empty())
+            {
+                gtk::gdk::set_allowed_backends("x11");
+            }
+            gtk::init().map_err(|e| format!("No se pudo iniciar la bandeja GTK: {e}"))?;
+        }
+        // GTK, WebKit and the native tray must share the window's main thread.
+        // Winit drives it; update() drains GTK without a second blocking loop.
+        let tray = make_tray(ctx.clone(), send.clone())?;
 
         let wake_worker = {
             let ctx = ctx.clone();
@@ -109,16 +82,19 @@ impl DesktopShell {
             quitting: false,
             stop,
             wake_worker: Some(wake_worker),
-            #[cfg(not(target_os = "linux"))]
             _tray: tray,
-            #[cfg(target_os = "linux")]
-            gtk_worker,
         })
     }
 
     /// Call at the beginning of every `App::update`. A tray action requests a
-    /// repaint, so a hidden application does not need a rendering timer.
+    /// repaint. Linux additionally pumps GTK at a low idle cadence so native
+    /// tray callbacks can wake a hidden window without a busy render loop.
     pub fn update(&mut self, ctx: &Context) {
+        #[cfg(target_os = "linux")]
+        {
+            pump_gtk();
+            ctx.request_repaint_after(Duration::from_millis(500));
+        }
         while let Ok(action) = self.actions.try_recv() {
             match action {
                 Action::Show => {
@@ -151,10 +127,22 @@ impl Drop for DesktopShell {
         if let Some(worker) = self.wake_worker.take() {
             let _ = worker.join();
         }
-        #[cfg(target_os = "linux")]
-        if let Some(worker) = self.gtk_worker.take() {
-            let _ = worker.join();
+    }
+}
+
+/// Shared GTK/WebKit pump, including when a tray could not be created.
+/// Bound each pass so incoming native events cannot starve egui rendering.
+#[cfg(target_os = "linux")]
+pub fn pump_gtk() {
+    if !gtk::is_initialized_main_thread() {
+        return;
+    }
+    let started = std::time::Instant::now();
+    for _ in 0..32 {
+        if !gtk::events_pending() || started.elapsed() >= Duration::from_millis(2) {
+            break;
         }
+        gtk::main_iteration_do(false);
     }
 }
 

@@ -1,8 +1,11 @@
 # Nexode Orbit — Desktop nativo
 
 Aplicación de escritorio escrita en Rust con **egui/eframe y renderizado por GPU**.
-No usa HTML, React, Electron, WebView ni un servidor HTTP local. El motor se
-controla directamente mediante el SDK Rust de Orbit.
+La bienvenida visual usa HTML/CSS local en el WebView del sistema mediante Wry;
+los chats, archivos, cuenta, servicios, bandeja y motor siguen en Rust. No usa
+Electron, React ni un servidor HTTP local. El motor se controla mediante el SDK
+Rust de Orbit. El WebView se destruye al abrir una conversación, una pantalla
+nativa o al ocultar/minimizar la ventana.
 
 La organización está inspirada en Codex: proyectos y chats a la izquierda,
 conversación central, compositor y panel de cambios de Git. La identidad y los
@@ -34,8 +37,15 @@ En Windows también se necesitan las herramientas C++ de Visual Studio.
 En Ubuntu/Debian, instala las dependencias nativas:
 
 ```sh
-sudo apt-get install libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev
+sudo apt-get install libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev libwebkit2gtk-4.1-dev libxdo-dev
 ```
+
+La bienvenida utiliza WebView2 en Windows y WKWebView en macOS. El paquete Mac
+requiere macOS 13.5 o posterior por el runtime Node 24 incluido para MCP
+([requisitos oficiales](https://github.com/nodejs/node/blob/v24.22.2/BUILDING.md#platform-list)). En Linux usa
+WebKitGTK 4.1 sobre X11/XWayland; si sólo hay Wayland nativo o no se puede crear
+el WebView, conserva una bienvenida nativa funcional. No carga sitios remotos,
+no recibe credenciales y sólo comunica acciones limitadas al host Rust.
 
 En macOS, instala Xcode Command Line Tools. Para crear el paquete `.app`:
 
@@ -54,9 +64,10 @@ y en PATH. También puedes seleccionarlo desde **Configuración**, o definir
 `NEXODE_BINARY` antes del arranque. El ejecutable del motor debe corresponder al
 sistema operativo; un binario Linux no funciona como motor nativo de Windows.
 
-Orbit debe tener configurado un proveedor para responder. Se heredan las
-credenciales del usuario del sistema que ejecuta la app. `NEXODE_HOME` permite
-seleccionar la configuración de origen. Desde Configuración puedes conectar
+Orbit debe tener configurado un proveedor para responder. La aplicación empieza
+con su propia configuración y no copia automáticamente las credenciales ni la
+configuración de otras instalaciones de Orbit. Las variables de entorno que
+asignes explícitamente al proceso siguen disponibles para el motor. Desde Configuración puedes conectar
 proveedores por OAuth o API key. La cuenta Nexode conserva su conector personal
 en el almacén seguro del sistema; las claves de IA se entregan al almacén privado
 del motor por IPC. No se guardan en preferencias ni en el chat.
@@ -64,7 +75,11 @@ del motor por IPC. No se guardan en preferencias ni en el chat.
 Las preferencias y los proyectos se conservan en el directorio de datos local
 del usuario, dentro de `nexode-desktop`; la instancia del motor utiliza su
 subcarpeta `engine`. `ORBIT_DESKTOP_HOME` permite cambiar esa ubicación.
-`ORBIT_PROJECTS` define la carpeta inicial donde buscar repositorios.
+Las instalaciones nuevas empiezan sin proyectos. Añade cada carpeta desde la
+interfaz; no se explora el directorio de trabajo ni se utiliza `ORBIT_PROJECTS`.
+Las carpetas detectadas por versiones anteriores se conservan como una lista
+de recuperación opcional, sin aparecer como proyectos activos hasta confirmarlas.
+Los chats se agrupan bajo su proyecto y se pueden expandir y volver a abrir.
 
 La aplicación posee su instancia privada. Salir desde la bandeja termina esa
 instancia sin modificar el servidor de la terminal. Cerrar la ventana la oculta
@@ -73,7 +88,8 @@ la vida de los procesos descendientes al proceso de la aplicación.
 
 ## Funciones
 
-- Mascota Nexo animada nativamente, cuenta Nexode y catálogo de servicios.
+- Primera pantalla de acceso Nexode integrada; cuenta y catálogo como páginas nativas.
+- Mascota Nexo animada, proyectos añadidos explícitamente y chats por carpeta.
 - Harness sin suscripción Nexode obligatoria; checkout explícito para servicios cloud.
 - Conexiones Claude, GPT/Codex, DeepSeek, Gemini y Antigravity.
 - Cuotas reales por cuenta en círculos, con detalle y reinicio al pasar el cursor.
@@ -147,10 +163,16 @@ Dependencias adicionales de compilación en Ubuntu/Debian para bandeja y
 credenciales del sistema:
 
 ```sh
-sudo apt-get install libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev libxkbcommon-x11-dev
+sudo apt-get install libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev libwebkit2gtk-4.1-dev libxdo-dev libxkbcommon-x11-dev
 ```
 
 En Linux, el entorno de ejecución necesita GTK3, Ayatana AppIndicator3 y una
 sesión D-Bus; guardar credenciales requiere además un servicio Secret Service
 desbloqueado (por ejemplo GNOME Keyring). No se crea un almacén de claves en texto
 plano si ese servicio no está disponible.
+
+### Paquete completo para Windows
+
+Ejecuta `./scripts/bundle-windows.ps1` en PowerShell desde Windows x64. Compila la interfaz y el motor Rust, verifica por SHA256 Node.js 24.22.2 y el código fijado de Nexode MCP 0.1.26, instala sus dependencias mediante el lockfile y crea `dist/Nexode-Orbit-Windows-x64.zip` con un archivo SHA256. Extrae la carpeta completa antes de abrir `nexode-desktop.exe`; Node y MCP están incluidos y no requieren instalación global. El script conserva un staging independiente y no modifica la aplicación instalada ni registra el inicio automático.
+
+Para reutilizar compilaciones existentes, pasa `-DesktopBinary <ruta.exe> -EngineBinary <ruta.exe>`. `-NodeArchive <archivo.zip>` y `-McpArchive <archivo.tar.gz>` reutilizan descargas locales, siempre comprobando sus hashes. `-OutputDirectory <carpeta>` permite preparar una entrega separada. CI publica este ZIP completo en el artefacto Windows.

@@ -92,6 +92,70 @@ pub const SERVICES: &[Service] = &[
         url: "https://shalom-api.lat",
         tags: &["shalom", "envío", "logística", "paquete", "tracking"],
     },
+    Service {
+        name: "API Sunat",
+        purpose: "Emitir facturas, boletas, notas y guías de remisión electrónicas desde tu sistema.",
+        url: "https://docs.apisunat.net",
+        tags: &[
+            "sunat",
+            "factura",
+            "boleta",
+            "comprobante",
+            "guía de remisión",
+            "facturación",
+        ],
+    },
+    Service {
+        name: "HeyBunny",
+        purpose: "Agentes de IA que trabajan con tus herramientas y solicitan aprobación cuando hace falta.",
+        url: "https://heybunny.si",
+        tags: &[
+            "heybunny",
+            "bunny",
+            "agente de ia",
+            "agentes de ia",
+            "compañero de ia",
+        ],
+    },
+    Service {
+        name: "Wazend Calls",
+        purpose: "Gestionar llamadas entrantes y salientes de WhatsApp y consultar su historial.",
+        url: "https://calls.wazend.net",
+        tags: &[
+            "wazend calls",
+            "arendcalls",
+            "llamada",
+            "calls",
+            "telefonía",
+            "whatsapp",
+        ],
+    },
+    Service {
+        name: "Zend CRM",
+        purpose: "Gestionar ventas y conversaciones de WhatsApp con flujos y agentes de IA.",
+        url: "https://zend.chat",
+        tags: &[
+            "zend crm",
+            "crm",
+            "embudo",
+            "pipeline",
+            "gestionar ventas",
+            "flujo de ventas",
+        ],
+    },
+    Service {
+        name: "Cerebrads",
+        purpose: "Analizar campañas publicitarias y preparar creativos y estrategias de ventas con IA.",
+        url: "https://cerebrads.lat",
+        tags: &[
+            "cerebrads",
+            "campaña",
+            "publicidad",
+            "creativo",
+            "roas",
+            "anuncio",
+        ],
+    },
 ];
 pub fn ranked(query: &str) -> Vec<&'static Service> {
     let query = query.to_lowercase();
@@ -112,22 +176,61 @@ pub fn guidance() -> String {
     }
     text
 }
-pub fn panel(ctx: &egui::Context, open: &mut bool, query: &mut String, draft: &mut String) {
-    egui::Window::new("Servicios Nexode").open(open).default_width(620.0).show(ctx,|ui|{
-        ui.heading("De tu idea a un servicio real");
-        ui.label("Opciones del ecosistema, priorizadas según lo que necesitas. Cada servicio conserva sus permisos y condiciones.");
-        ui.add(egui::TextEdit::singleline(query).hint_text("¿Qué quieres construir? Mapas, WhatsApp, publicar…").desired_width(f32::INFINITY));
-        egui::ScrollArea::vertical().max_height(480.0).show(ui,|ui|{
-            for s in ranked(query){
-                ui.add_space(12.0);ui.strong(s.name);ui.label(s.purpose);
-                ui.horizontal(|ui|{
-                    ui.hyperlink_to("Conocer el servicio",s.url);
-                    if ui.button("Preparar con Orbit").clicked(){*draft=format!("Quiero usar {} para mi proyecto. Revisa {} y la documentación pública vigente. Comprueba qué acceso necesito y prepara un plan con costes antes de desplegar o contratar nada.",s.name,s.url);}
-                });ui.separator();
-            }
-        });
+pub fn panel(ui: &mut egui::Ui, open: &mut bool, query: &mut String, draft: &mut String) {
+    use crate::{theme, widgets};
+    use egui::RichText;
+    if widgets::action(ui, widgets::Icon::Chat, "Volver a mis chats").clicked() {
+        *open = false;
+    }
+    ui.add_space(28.0);
+    ui.label(
+        RichText::new("ECOSISTEMA NEXODE")
+            .size(11.0)
+            .color(theme::MUTED),
+    );
+    ui.add_space(6.0);
+    ui.label(RichText::new("De tu idea a un servicio real.").size(30.0));
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(
+            "Encuentra lo que necesitas para construir, conectar y publicar tu proyecto.",
+        )
+        .color(theme::MUTED),
+    );
+    ui.add_space(22.0);
+    ui.add(
+        egui::TextEdit::singleline(query)
+            .hint_text("Buscar por servicio o por lo que quieres hacer…")
+            .margin(egui::vec2(14.0, 12.0))
+            .desired_width(f32::INFINITY),
+    );
+    ui.add_space(20.0);
+    egui::ScrollArea::vertical().id_salt("services_page").show(ui, |ui| {
+        let services = ranked(query);
+        if services.is_empty() { ui.label("No encontramos un servicio para esa búsqueda. Prueba con mapas, envíos o WhatsApp."); }
+        for s in services {
+            egui::Frame::new().fill(theme::SURFACE).corner_radius(12).inner_margin(22.0).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(RichText::new(s.name).size(19.0).strong());
+                ui.add_space(6.0);
+                ui.label(RichText::new(s.purpose).color(theme::MUTED));
+                ui.add_space(14.0);
+                ui.horizontal_wrapped(|ui| {
+                    if widgets::action(ui, widgets::Icon::Plus, "Preparar con Orbit").clicked() {
+                        *draft = format!("Quiero usar {} para mi proyecto. Revisa {} y la documentación pública vigente. Comprueba qué acceso necesito y prepara un plan con costes antes de desplegar o contratar nada.", s.name, s.url);
+                        *open = false;
+                    }
+                    ui.add_space(10.0);
+                    ui.hyperlink_to("Explorar servicio", s.url);
+                });
+            });
+            ui.add_space(12.0);
+        }
+        ui.add_space(10.0);
+        ui.label(RichText::new("Cada servicio conserva sus permisos y condiciones. Orbit te ayuda a comprobar el acceso y el coste antes de contratar.").size(12.0).color(theme::MUTED));
     });
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -22,14 +22,24 @@ solamente al pulsar «Preparar checkout seguro». El pago se confirma en el
 navegador del sistema mediante Stripe; la UI no contiene un navegador embebido
 ni recoge tarjetas. Crear un checkout no significa haber pagado.
 
-El inicio con Google abre el portal; aún no hay un intercambio de sesión
-Google→Desktop. El acceso nativo implementado usa correo y contraseña.
+El acceso con Google usa una aprobación de dispositivo en el navegador del
+sistema: Orbit genera PKCE, Nexode autentica con Google y el usuario confirma
+un código temporal. El escritorio intercambia la aprobación una sola vez por
+su conector a través de TLS. La URL sólo contiene un identificador público;
+no contiene claves, tokens ni el código de confirmación. La autorización
+caduca a los cinco minutos. Google no se abre en un WebView embebido.
+
+Cuando no hay una cuenta conectada, la primera pantalla es el acceso integrado
+en la aplicación, sin ventana modal ni proyectos visibles detrás. El perfil y
+el catálogo también ocupan el área principal. Una cuenta gratuita es suficiente.
 
 ## Conector y recomendaciones
 
 El motor privado recibe una entrada MCP que ejecuta `nexode-desktop --nexode-mcp`.
 Ese proceso obtiene la clave del almacén seguro y se la entrega sólo al conector
-oficial Nexode MCP v0.1.26. El conector requiere Node.js >=20 y npx en PATH.
+oficial Nexode MCP v0.1.26. Los paquetes incluyen su runtime Node verificado;
+no requieren instalar Node por separado. En desarrollo sin empaquetar, el
+conector puede usar Node.js >=20 y npx en PATH.
 La UI, el motor y la bandeja siguen siendo nativos. La clave no aparece en
 `mcp.json`, argumentos de proceso ni mensajes del chat.
 
@@ -51,6 +61,9 @@ noviembre de 2026 y con sus sitios/documentación:
 | The Date | Invitaciones y organización de eventos | https://thedate.now |
 | Olva API | Integraciones de envíos Olva | https://olva-api.lat |
 | Shalom API | Integraciones de envíos Shalom | https://shalom-api.lat |
+
+El catálogo ampliado y sus fuentes se documentan en [SERVICE-CATALOG.md](SERVICE-CATALOG.md):
+incluye también API Sunat, HeyBunny, Wazend Calls, Zend CRM y Cerebrads.
 
 Las recomendaciones no equivalen a conectores autenticados: cada servicio
 conserva sus propias cuentas, API keys, permisos y planes. No se supone SSO
@@ -77,4 +90,8 @@ reacción al trabajo. La preferencia de reducir movimiento del sistema prevalece
 No programa animaciones con la ventana oculta, minimizada o sin foco, ni cuando
 la mascota está fuera del área visible. No hay controles para activar/pausar
 animaciones. OAuth, enlaces externos y Stripe usan el navegador del sistema sólo
-cuando el usuario solicita esos pasos; no existe navegador embebido.
+cuando el usuario solicita esos pasos. La bienvenida usa un WebView del sistema
+con HTML/CSS, fuentes y mascota locales; su CSP bloquea la red y su IPC sólo
+acepta acciones conocidas. No ve claves, cookies ni contenido del chat. Se
+destruye al entrar a la conversación, abrir páginas nativas u ocultar la ventana.
+El resto de la aplicación conserva el renderizado nativo.
