@@ -1,10 +1,11 @@
-param([string]$Distribution = 'Ubuntu')
+param([switch]$BuildOnly)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
-if (-not (Test-Path node_modules)) { npm ci; if ($LASTEXITCODE) { throw 'npm ci falló' } }
-npm run build
-if ($LASTEXITCODE) { throw 'La compilación de la interfaz falló' }
-$windowsPath = $PSScriptRoot.Replace('\', '/')
-$linuxPath = (wsl -d $Distribution --exec wslpath -a $windowsPath).Trim()
-# These are data arguments passed to bash, never interpolated into shell code.
-wsl -d $Distribution --exec bash ./scripts/start.sh $linuxPath
+$cargoBin = Join-Path $env:USERPROFILE '.cargo/bin'
+if (Test-Path (Join-Path $cargoBin 'cargo.exe')) { $env:PATH = "$cargoBin;$env:PATH" }
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { throw 'Instala Rust desde https://rustup.rs' }
+if (-not $env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = Join-Path $PSScriptRoot '.local/target-windows' }
+if (-not $env:CARGO_BUILD_JOBS) { $env:CARGO_BUILD_JOBS = '2' }
+cargo build --locked --release
+if ($LASTEXITCODE) { throw 'La compilación nativa falló' }
+if (-not $BuildOnly) { & (Join-Path $env:CARGO_TARGET_DIR 'release/nexode-desktop.exe') }

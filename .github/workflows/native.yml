@@ -1,0 +1,47 @@
+name: Native desktop
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nexode-desktop
+      - uses: actions/checkout@v4
+        with:
+          repository: lucast1574/nexode-orbit
+          ref: 6962272d6f52af63dc90673cbf38a1480c6d293f
+          path: nexode-orbit
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxcursor-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nexode-desktop
+      - name: Format
+        working-directory: nexode-desktop
+        run: cargo fmt --check
+      - name: Test
+        working-directory: nexode-desktop
+        run: cargo test --locked
+      - name: Clippy
+        working-directory: nexode-desktop
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Build native desktop
+        working-directory: nexode-desktop
+        run: cargo build --locked --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexode-desktop-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            nexode-desktop/target/release/nexode-desktop
+            nexode-desktop/target/release/nexode-desktop.exe
