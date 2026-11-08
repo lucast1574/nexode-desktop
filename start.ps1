@@ -8,4 +8,6 @@ if (-not $env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = Join-Path $PSScriptRoo
 if (-not $env:CARGO_BUILD_JOBS) { $env:CARGO_BUILD_JOBS = '2' }
 cargo build --locked --release
 if ($LASTEXITCODE) { throw 'La compilación nativa falló' }
+cargo build --manifest-path (Join-Path $PSScriptRoot 'nexode-orbit/Cargo.toml') --locked --release --no-default-features --bin nexode
+if ($LASTEXITCODE) { throw 'La compilación del motor incluido falló' }
 if (-not $BuildOnly) { & (Join-Path $env:CARGO_TARGET_DIR 'release/nexode-desktop.exe') }

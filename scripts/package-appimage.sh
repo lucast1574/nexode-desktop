@@ -11,7 +11,7 @@ case "$arch" in
   *) echo "Unsupported AppImage architecture: $arch" >&2; exit 1 ;;
 esac
 desktop="$(realpath "${NEXODE_DESKTOP_BINARY:-target/release/nexode-desktop}")"
-engine="$(realpath "${NEXODE_ENGINE_BINARY:-../nexode-orbit/target/release/nexode}")"
+engine="$(realpath "${NEXODE_ENGINE_BINARY:-target/release/nexode}")"
 [[ -x "$desktop" && -x "$engine" ]] || { echo 'Build both native executables first.' >&2; exit 1; }
 for tool in curl sha256sum readelf file pkg-config convert; do command -v "$tool" >/dev/null; done
 pkg-config --exists gtk+-3.0 librsvg-2.0 gobject-introspection-1.0 ayatana-appindicator3-0.1 xkbcommon-x11 webkit2gtk-4.1
@@ -183,7 +183,7 @@ printf 'UI SHA256: %s\nEngine SHA256: %s\nRequired glibc: %s\nArchitecture: %s\n
   '1-alpha-20251107-1' '7a3fbc31a9e5075073ff8790f26effbac5f84453' "$node_version" "$mcp_revision" > "$OUTPUT.build-info.txt"
 (cd "$root/dist" && sha256sum "$(basename "$OUTPUT")" > "$(basename "$OUTPUT").sha256")
 printf 'Desktop revision: %s\nEngine revision: %s\n' \
-  "$(git rev-parse HEAD)" "$(git -C "$root/../nexode-orbit" rev-parse HEAD)" >> "$OUTPUT.build-info.txt"
+  "$(git rev-parse HEAD)" "$(git -C "$root/nexode-orbit" rev-parse HEAD)" >> "$OUTPUT.build-info.txt"
 printf 'Desktop tracked changes: %s\nWebKitGTK: %s\n' \
   "$(if git diff --quiet HEAD --; then echo clean; else echo dirty; fi)" \
   "$(pkg-config --modversion webkit2gtk-4.1)" >> "$OUTPUT.build-info.txt"

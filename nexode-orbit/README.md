@@ -6,7 +6,9 @@
 
 Agente de programación en Rust con interfaz de terminal, herramientas, sesiones persistentes, múltiples proveedores y coordinación de agentes.
 
-Repositorio: [lucast1574/nexode-orbit](https://github.com/lucast1574/nexode-orbit).
+Repositorio de desarrollo: [lucast1574/nexode-desktop](https://github.com/lucast1574/nexode-desktop).
+Este directorio contiene el motor y SDK del mismo checkout que Desktop; consulta
+el [README principal](../README.md) para compilar ambos con un solo comando.
 
 Esta es la distribución de **Nexode Orbit**. Es independiente del monorepo de [Nexode Cloud](https://github.com/ronnaldrangel/nexode): comparte su identidad visual, pero las APIs de cuenta, suscripciones y despliegue todavía no están integradas con ese backend.
 
@@ -63,7 +65,7 @@ La [migración de herramientas a Rust](docs/RUST_MIGRATION.md) está completa. L
 - Endpoints `*.nexode.invalid` deliberadamente no operativos para servicios pendientes. No son el backend de Nexode Cloud.
 - El puente de navegador sigue siendo externo, con extensión JavaScript. El control nativo del escritorio incluido sigue limitado a macOS.
 
-Los videos y capturas originales no se presentan como demos de Nexode. Esta copia no incluye una aplicación desktop gráfica separada.
+Los videos y capturas originales no se presentan como demos de Nexode. La aplicación desktop gráfica está en la raíz de este mismo repositorio.
 
 ## Validación
 

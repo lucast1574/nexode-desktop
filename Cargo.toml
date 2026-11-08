@@ -24,7 +24,7 @@ rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 directories = "6"
-nexode-sdk = { path = "../nexode-orbit/crates/nexode-sdk" }
+nexode-sdk = { path = "nexode-orbit/crates/nexode-sdk" }
 
 [profile.release]
 lto = "thin"

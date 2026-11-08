@@ -603,8 +603,11 @@ pub fn is_nexode_repo(dir: &Path) -> bool {
         return false;
     }
 
-    // Check for a .git directory or gitdir file (worktrees use a file).
-    if !dir.join(".git").exists() {
+    // The engine can be nested in the Desktop monorepo. Worktrees use a file.
+    if !dir
+        .ancestors()
+        .any(|ancestor| ancestor.join(".git").exists())
+    {
         return false;
     }
 
@@ -811,6 +814,23 @@ mod tests {
     fn is_nexode_repo_accepts_git_file_for_worktree() {
         let repo = repo_fixture(true);
         assert!(is_nexode_repo(repo.path()));
+    }
+
+    #[test]
+    fn finds_engine_workspace_inside_desktop_monorepo() {
+        let repo = repo_fixture(false);
+        let engine = repo.path().join("nexode-orbit");
+        let crate_dir = engine.join("crates/nexode-build-support");
+        std::fs::create_dir_all(&crate_dir).unwrap();
+        std::fs::rename(repo.path().join("Cargo.toml"), engine.join("Cargo.toml")).unwrap();
+        std::fs::write(
+            repo.path().join("Cargo.toml"),
+            "[package]\nname = \"nexode-desktop\"\nversion = \"0.2.0\"\n",
+        )
+        .unwrap();
+        assert!(!is_nexode_repo(repo.path()));
+        assert!(is_nexode_repo(&engine));
+        assert_eq!(find_repo_in_ancestors(&crate_dir), Some(engine));
     }
 
     /// Build a release-style install dir: `nexode` wrapper script + payload.

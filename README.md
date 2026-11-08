@@ -1,4 +1,4 @@
-# Nexode Orbit — Desktop nativo
+# Nexode Orbit — Desktop y motor
 
 Aplicación de escritorio escrita en Rust con **egui/eframe y renderizado por GPU**.
 La bienvenida y Servicios usan HTML/CSS local en el WebView del sistema mediante Wry;
@@ -10,6 +10,24 @@ nativa o al ocultar/minimizar la ventana.
 La organización está inspirada en Codex: proyectos y chats a la izquierda,
 conversación central, compositor y panel de cambios de Git. La identidad y los
 activos visuales son de Nexode.
+
+## Un solo repositorio
+
+El repositorio privado [lucast1574/nexode-desktop](https://github.com/lucast1574/nexode-desktop)
+contiene la aplicación de escritorio en la raíz y el motor, CLI/TUI y SDK en
+`nexode-orbit/`. Son archivos normales de Git, sin submódulos ni descargas de otro
+repositorio durante la compilación. El historial original de ambos se conserva.
+Los cambios futuros de Desktop y Orbit se realizan aquí, en la misma revisión.
+El repositorio público original se conserva sin eliminar ni modificar su contenido.
+La CI activa está en `.github/workflows/` de la raíz: prueba Desktop, SDK y
+soporte del motor, y construye los paquetes desde este único checkout. Los
+workflows importados bajo `nexode-orbit/.github/` se conservan como referencia
+histórica y GitHub no los ejecuta desde esa subcarpeta.
+
+```sh
+git clone https://github.com/lucast1574/nexode-desktop.git
+cd nexode-desktop
+```
 
 ## Abrir y compilar
 
@@ -27,9 +45,14 @@ Linux y macOS:
 bash scripts/start.sh
 ```
 
-Requisitos para compilar: Rust estable, Git y un checkout hermano
-`../nexode-orbit`. Esta versión usa el SDK del commit
-`dc71ff1c41068b6eaf4ac3c1f7ca06c091203784`. Compilar la UI no necesita Node ni npm.
+Los comandos de arranque compilan Desktop y el motor incluido, y colocan ambos
+binarios en el mismo directorio para que la aplicación encuentre su motor sin una
+instalación previa. Para compilar ambos sin abrir la UI en Linux/macOS, usa
+`bash scripts/build.sh`.
+
+Requisitos para compilar: Rust estable y Git. No hace falta otro checkout.
+El SDK se enlaza directamente desde `nexode-orbit/crates/nexode-sdk`.
+Compilar la UI y el motor no necesita Node ni npm.
 Los paquetes incluyen Node y el MCP oficial. Si ejecutas sólo el binario de
 desarrollo, el conector MCP necesita Node.js 20+ y npx en PATH.
 En Windows también se necesitan las herramientas C++ de Visual Studio.

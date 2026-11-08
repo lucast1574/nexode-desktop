@@ -91,7 +91,7 @@ Instala en Ubuntu 22.04 las dependencias enumeradas en
 
 ```sh
 NEXODE_DESKTOP_BINARY=target/release/nexode-desktop \
-NEXODE_ENGINE_BINARY=../nexode-orbit/target/release/nexode \
+NEXODE_ENGINE_BINARY=target/release/nexode \
   bash scripts/package-appimage.sh
 ```
 

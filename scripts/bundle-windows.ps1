@@ -40,11 +40,11 @@ try {
         $DesktopBinary = Join-Path ($desktopMetadata | ConvertFrom-Json).target_directory 'release/nexode-desktop.exe'
     }
     if (!$EngineBinary) {
-        $manifest = Join-Path $repo '../nexode-orbit/Cargo.toml'
-        Invoke-Checked cargo @('build', '--manifest-path', $manifest, '--locked', '--release', '--no-default-features', '--bin', 'nexode')
-        $engineMetadata = & cargo metadata --manifest-path $manifest --format-version 1 --no-deps
-        if ($LASTEXITCODE -ne 0) { throw 'No se pudo localizar el target del motor.' }
-        $EngineBinary = Join-Path ($engineMetadata | ConvertFrom-Json).target_directory 'release/nexode.exe'
+        $manifest = Join-Path $repo 'nexode-orbit/Cargo.toml'
+        $desktopPath = (Resolve-Path -LiteralPath $DesktopBinary).Path
+        $engineTarget = Split-Path (Split-Path $desktopPath -Parent) -Parent
+        Invoke-Checked cargo @('build', '--manifest-path', $manifest, '--target-dir', $engineTarget, '--locked', '--release', '--no-default-features', '--bin', 'nexode')
+        $EngineBinary = Join-Path (Split-Path $desktopPath -Parent) 'nexode.exe'
     }
     $DesktopBinary = (Resolve-Path -LiteralPath $DesktopBinary).Path
     $EngineBinary = (Resolve-Path -LiteralPath $EngineBinary).Path

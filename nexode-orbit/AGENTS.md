@@ -2,7 +2,10 @@
 
 ## Repository Scope
 
-- Nexode Desktop is in a separate repository.
+- This engine, CLI/TUI and SDK live in `nexode-orbit/` inside the private
+  `lucast1574/nexode-desktop` repository. The desktop application is at the
+  repository root. Build both from the root using `scripts/build.sh` or
+  `start.ps1 -BuildOnly`; do not require a separate clone.
 
 ## TUI style
 

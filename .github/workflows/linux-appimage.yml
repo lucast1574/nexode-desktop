@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['src/**', 'assets/**', 'Cargo.*', 'build.rs', 'scripts/package-appimage.sh', 'scripts/appimage-webkit-runtime.sh', '.github/workflows/linux-appimage.yml']
+    paths: ['nexode-orbit/**', 'src/**', 'assets/**', 'Cargo.*', 'build.rs', 'scripts/build.sh', 'scripts/package-appimage.sh', 'scripts/appimage-webkit-runtime.sh', '.github/workflows/linux-appimage.yml']
 permissions:
   contents: read
 concurrency:
@@ -33,11 +33,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: nexode-desktop
-      - uses: actions/checkout@v4
-        with:
-          repository: lucast1574/nexode-orbit
-          ref: dc71ff1c41068b6eaf4ac3c1f7ca06c091203784
-          path: nexode-orbit
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: '1.99.1'
@@ -45,13 +40,10 @@ jobs:
         with:
           workspaces: |
             nexode-desktop
-            nexode-orbit
-      - name: Build native UI
+            nexode-desktop/nexode-orbit
+      - name: Build desktop and engine from this checkout
         working-directory: nexode-desktop
-        run: cargo build --locked --release
-      - name: Build native engine
-        working-directory: nexode-orbit
-        run: cargo build --locked --release --no-default-features --bin nexode
+        run: bash scripts/build.sh
       - name: Package and verify ABI
         working-directory: nexode-desktop
         run: bash scripts/package-appimage.sh

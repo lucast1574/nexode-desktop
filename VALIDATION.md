@@ -1,5 +1,26 @@
 # Validación de Nexode Orbit Desktop
 
+## Consolidación en un solo checkout (8 de noviembre de 2026)
+
+Desktop y el motor/SDK se desarrollan en este repositorio privado. El árbol de
+Orbit se importó completo en `nexode-orbit/`, conservando su historial Git.
+`cargo metadata --locked` resuelve los 15 paquetes locales de Desktop dentro de
+este checkout. No hay submódulos ni checkout de Orbit en la CI activa.
+
+Se comprobaron formato, 34 pruebas de Desktop (una integración opt-in omitida),
+Clippy con `-D warnings`, sintaxis Bash/PowerShell y los dos YAML de CI.
+También pasó `cargo check --locked --no-default-features --bin nexode` sobre el
+motor incluido, con advertencias heredadas. Un clon local aislado resolvió los
+15 paquetes de Desktop sin un checkout hermano. Pasaron las tres pruebas de
+paridad SDK y las tres de detección de repositorio/monorepo en Windows.
+La suite completa heredada de `nexode-build-support` dio 38 aprobadas y 15
+fallidas en Windows, en casos de rutas Unix, symlinks y modificación de mtimes;
+no se presenta esa suite como aprobada. La suite completa del SDK dio 34
+aprobadas, una omitida y tres fallidas en pruebas heredadas de worktrees Git en
+Windows. La CI de esta integración ejecuta la paridad del SDK y las pruebas de
+detección de repositorio pertinentes en las tres plataformas. Las evidencias de paquetes que aparecen más abajo corresponden
+al estado anterior a esta consolidación, no a una nueva distribución.
+
 ## Arquitectura y alcance
 
 Motor y aplicación Rust; egui/eframe 0.33.3 para conversaciones, cuenta,
@@ -9,7 +30,8 @@ no recibe credenciales ni contenido de chats; CSP bloquea la red y el IPC se
 limita a acciones conocidas. Se destruye al abrir páginas nativas, entrar al
 editor desde la bienvenida, ocultar la ventana o si no carga en diez segundos.
 
-Motor/SDK fijado: `dc71ff1c41068b6eaf4ac3c1f7ca06c091203784`.
+Revisión importada del motor/SDK: `dc71ff1c41068b6eaf4ac3c1f7ca06c091203784`.
+A partir de la consolidación, Desktop y Orbit usan el mismo commit del monorepo.
 
 ## Comprobaciones locales
 

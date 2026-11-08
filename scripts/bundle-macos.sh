@@ -4,12 +4,11 @@ cd "$(dirname "$0")/.."
 [[ "$(uname -s)" == Darwin ]] || { echo 'Ejecuta este empaquetado en macOS.' >&2; exit 1; }
 [[ "$(uname -m)" == arm64 ]] || { echo 'La distribución macOS requiere Apple Silicon (ARM64).' >&2; exit 1; }
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.5}"
-cargo build --locked --release
-cargo build --manifest-path ../nexode-orbit/Cargo.toml --locked --release --no-default-features --bin nexode
+bash scripts/build.sh
 bundle="dist/Nexode Orbit.app/Contents"
 mkdir -p "$bundle/MacOS" "$bundle/Resources"
-cp target/release/nexode-desktop "$bundle/MacOS/"
-cp ../nexode-orbit/target/release/nexode "$bundle/MacOS/"
+cp "${CARGO_TARGET_DIR:-target}/release/nexode-desktop" "$bundle/MacOS/"
+cp "${CARGO_TARGET_DIR:-target}/release/nexode" "$bundle/MacOS/"
 cp assets/icon.icns "$bundle/Resources/Orbit.icns"
 cp assets/fonts/OFL.txt "$bundle/Resources/FONT-LICENSE.txt"
 cache=".local/macos-bundle"
