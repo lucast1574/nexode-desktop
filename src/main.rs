@@ -1,7 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app;
 mod backend;
+mod cloud;
+mod desktop_shell;
+mod ecosystem;
 mod panels;
+mod platform_runtime;
+mod provider_connections;
+mod provider_usage;
 mod settings;
 mod theme;
 mod widgets;
@@ -9,9 +15,26 @@ mod widgets;
 mod windows_job;
 
 fn main() -> eframe::Result {
+    if std::env::args().any(|arg| arg == "--enable-startup") {
+        if let Err(error) = desktop_shell::set_startup(true) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+    if std::env::args().any(|arg| arg == "--nexode-mcp") {
+        if let Err(error) = platform_runtime::run_mcp() {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     let Some(_instance_lock) = settings::lock_instance(&settings::data_dir())
         .map_err(|e| eframe::Error::AppCreation(Box::new(e)))?
     else {
+        if !desktop_shell::background_requested() {
+            let _ = desktop_shell::signal_existing_instance();
+        }
         return Ok(());
     };
     #[cfg(windows)]

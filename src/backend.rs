@@ -96,6 +96,9 @@ impl Backend {
             .clone()
             .ok_or("Conecta el motor de Orbit desde Configuración".into())
     }
+    pub fn client_snapshot(&self) -> Option<NexodeClient> {
+        self.client.lock().ok()?.clone()
+    }
     pub fn send(&self, command: Command) {
         if self.closing.load(Ordering::Acquire) {
             return;
@@ -143,6 +146,7 @@ impl Backend {
                 // Drop an old private instance on a worker, never on the render thread.
                 self.client.lock().map_err(|e| e.to_string())?.take();
                 self.instance.lock().map_err(|e| e.to_string())?.take();
+                crate::platform_runtime::prepare(&data_dir().join("engine"))?;
                 let instance = launch_instance(&LaunchOptions {
                     nexode_home: Some(data_dir().join("engine")),
                     binary: Some(engine_binary(&settings)),

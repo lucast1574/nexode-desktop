@@ -1,0 +1,61 @@
+name: Linux AppImage
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'assets/**', 'Cargo.*', 'build.rs', 'scripts/package-appimage.sh', '.github/workflows/linux-appimage.yml']
+permissions:
+  contents: read
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    # Both executables and bundled libraries share the same glibc 2.35 baseline.
+    container: ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_BUILD_RUSTC_WRAPPER: ''
+      RUSTUP_TOOLCHAIN: '1.99.1'
+    steps:
+      - name: Native build and packaging dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential cmake clang pkg-config file binutils \
+            libssl-dev libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev \
+            libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev \
+            libdbus-1-dev librsvg2-dev libgirepository1.0-dev desktop-file-utils \
+            patchelf squashfs-tools zsync
+      - uses: actions/checkout@v4
+        with:
+          path: nexode-desktop
+      - uses: actions/checkout@v4
+        with:
+          repository: lucast1574/nexode-orbit
+          ref: dc71ff1c41068b6eaf4ac3c1f7ca06c091203784
+          path: nexode-orbit
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.99.1'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            nexode-desktop
+            nexode-orbit
+      - name: Build native UI
+        working-directory: nexode-desktop
+        run: cargo build --locked --release
+      - name: Build native engine
+        working-directory: nexode-orbit
+        run: cargo build --locked --release --no-default-features --bin nexode
+      - name: Package and verify ABI
+        working-directory: nexode-desktop
+        run: bash scripts/package-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nexode-Orbit-Linux-x86_64-AppImage
+          path: |
+            nexode-desktop/dist/*.AppImage
+            nexode-desktop/dist/*.AppImage.sha256
+            nexode-desktop/dist/*.AppImage.build-info.txt
+          if-no-files-found: error

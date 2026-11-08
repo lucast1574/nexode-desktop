@@ -53,7 +53,7 @@ impl OrbitApp {
                         self.backend.send(Command::PickFolder);
                     }
                 });
-                let available = (ui.available_height() - 94.0).max(60.0);
+                let available = (ui.available_height() - 230.0).max(60.0);
                 egui::ScrollArea::vertical()
                     .max_height(available)
                     .auto_shrink([false, false])
@@ -121,6 +121,13 @@ impl OrbitApp {
                         }
                     });
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                    self.usage.ui(ui);
+                    if widgets::action(ui, Icon::Shield, "Mi cuenta Nexode").clicked() {
+                        self.cloud.open = true;
+                    }
+                    if widgets::action(ui, Icon::Code, "Servicios Nexode").clicked() {
+                        self.show_services = true;
+                    }
                     if widgets::action(ui, Icon::Settings, "Configuración").clicked() {
                         self.show_settings = true;
                     }
@@ -489,18 +496,30 @@ impl OrbitApp {
     }
     pub fn settings_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_settings;
-        egui::Window::new("Configuración").open(&mut open).collapsible(false).resizable(false).default_width(490.0).show(ctx,|ui|{
+        egui::Window::new("Configuración").open(&mut open).collapsible(false).resizable(false).default_width(540.0).vscroll(true).show(ctx,|ui|{
             ui.add(widgets::logo(42.0));ui.heading("Tu espacio, tu motor.");ui.add_space(8.0);
-            ui.label("Aplicación nativa en Rust. Tus conversaciones y archivos permanecen en tu equipo.");ui.add_space(12.0);
+            ui.label("Aplicación nativa en Rust. El historial se guarda en tu equipo; los proveedores conectados reciben el contexto necesario para responder.");ui.add_space(12.0);
+            ui.strong("Bandeja e inicio");
+            ui.label(if self.desktop_shell.is_some(){"Cerrar la ventana mantiene Orbit en la bandeja. Usa Salir en su menú para terminar."}else{"La bandeja no está disponible; cerrar la ventana termina Orbit."});
+            let mut startup = self.startup.enabled();
+            if ui.checkbox(&mut startup,"Iniciar Orbit al entrar en mi sesión, en la bandeja").changed(){
+                match crate::desktop_shell::set_startup(startup){Ok(())=>{self.startup=crate::desktop_shell::startup_status().unwrap_or_default();},Err(e)=>self.error=Some(e)}
+            }
+            if self.startup.disabled_by_windows {ui.label("Windows desactivó el inicio de Orbit. Puedes habilitarlo en Administrador de tareas → Aplicaciones de inicio.");}
+            if ui.button("Actualizar estado de inicio").clicked(){match crate::desktop_shell::startup_status(){Ok(s)=>self.startup=s,Err(e)=>self.error=Some(e)}}
+            ui.separator();
             ui.label(RichText::new("Ejecutable de Orbit").strong());
             ui.label(self.settings.binary.as_ref().map(|p|p.display().to_string()).unwrap_or("Detectar junto a la aplicación o en PATH".into()));
             if ui.add_enabled(!self.busy&&!self.connecting,egui::Button::new("Seleccionar ejecutable…")).clicked(){self.backend.send(Command::PickBinary);}
             ui.add_space(8.0);
             if ui.add_enabled(!self.busy&&!self.connecting,egui::Button::new(if self.connecting{"Conectando…"}else{"Conectar motor"})).clicked(){self.connecting=true;self.error=None;self.backend.send(Command::Connect(self.settings.clone()));}
-            ui.separator();ui.label(RichText::new("Proveedor y credenciales").strong());
-            ui.label("Orbit hereda la configuración de tu usuario. Configura el proveedor en Orbit para conversar con modelos reales. Esta ventana no guarda claves.");
+            ui.separator();ui.label(RichText::new("Conectar agentes de IA").strong());
+            ui.label("Conserva varias conexiones y elige el modelo en cada chat. Tu suscripción Nexode no es un requisito.");
+            ui.add_enabled_ui(!self.busy && !self.connecting, |ui| {
+                if self.providers.ui(ui,&crate::settings::engine_binary(&self.settings),&data_dir().join("engine"),self.backend.client_snapshot()){self.usage.refresh();}
+            });
             widgets::muted(ui,format!("Datos locales: {}",data_dir().display()));
-            ui.add_space(8.0);widgets::muted(ui,"Nexode Desktop 0.2 · Sin navegador ni servidor web");
+            ui.add_space(8.0);widgets::muted(ui,"Nexode Desktop · UI nativa sin WebView");
         });
         self.show_settings = open;
     }

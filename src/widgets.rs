@@ -5,6 +5,10 @@ pub fn logo(size: f32) -> Image<'static> {
     Image::new(egui::include_image!("../assets/nexode.svg"))
         .fit_to_exact_size(egui::vec2(size, size))
 }
+pub fn mascot(size: f32) -> Image<'static> {
+    Image::new(egui::include_image!("../assets/nexo.webp"))
+        .fit_to_exact_size(egui::vec2(size, size))
+}
 #[derive(Clone, Copy)]
 pub enum Icon {
     Plus,

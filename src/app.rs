@@ -36,6 +36,14 @@ impl StreamText {
     }
 }
 pub struct OrbitApp {
+    pub providers: crate::provider_connections::ProviderConnections,
+    pub desktop_shell: Option<crate::desktop_shell::DesktopShell>,
+    pub startup: crate::desktop_shell::StartupStatus,
+    pub cloud: crate::cloud::Cloud,
+    pub usage: crate::provider_usage::UsageMonitor,
+    pub show_services: bool,
+    pub service_query: String,
+    pub cloud_reconnect_pending: bool,
     pub settings: Settings,
     pub backend: Backend,
     receiver: Receiver<Event>,
@@ -71,8 +79,18 @@ impl OrbitApp {
         let ctx = cc.egui_ctx.clone();
         let (backend, receiver) = Backend::new(move || ctx.request_repaint());
         let settings = Settings::load();
+        let shell = crate::desktop_shell::DesktopShell::new(&cc.egui_ctx);
+        let shell_error = shell.as_ref().err().cloned();
         backend.send(Command::Connect(settings.clone()));
         Self {
+            providers: Default::default(),
+            desktop_shell: shell.ok(),
+            startup: crate::desktop_shell::startup_status().unwrap_or_default(),
+            cloud: crate::cloud::Cloud::new(&cc.egui_ctx),
+            usage: Default::default(),
+            show_services: false,
+            service_query: String::new(),
+            cloud_reconnect_pending: false,
             settings,
             backend,
             receiver,
@@ -90,7 +108,7 @@ impl OrbitApp {
             show_settings: false,
             models: vec![],
             model: String::new(),
-            error: None,
+            error: shell_error,
             changes: None,
             changes_loading: false,
             changes_error: None,
@@ -210,6 +228,7 @@ impl OrbitApp {
                     }
                 }
                 Event::Finished(id, history, sessions) => {
+                    self.usage.refresh();
                     self.sessions = sessions;
                     if self.matches(&id) {
                         self.messages = history;
@@ -405,14 +424,14 @@ impl OrbitApp {
     }
     fn welcome(&mut self, ui: &mut egui::Ui, top: f32) {
         ui.add_space(top);
-        ui.add(widgets::logo(54.0));
+        ui.add(widgets::mascot(96.0));
         ui.add_space(22.0);
         widgets::muted(ui, "TU ESPACIO PARA CONSTRUIR");
         ui.add_space(8.0);
         ui.label(RichText::new("¿Qué hacemos hoy?").size(36.0));
         ui.add_space(6.0);
         ui.label(
-            RichText::new("De la idea al código, con el contexto de tu proyecto.")
+            RichText::new("Tus agentes, tus proyectos y todo Nexode en un mismo lugar.")
                 .color(theme::MUTED),
         );
         ui.add_space(28.0);
@@ -426,6 +445,35 @@ impl OrbitApp {
 impl eframe::App for OrbitApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.events();
+        if let Some(shell) = &mut self.desktop_shell {
+            shell.update(ctx);
+        }
+        if self.providers.poll() {
+            self.usage.refresh();
+            if let Some(session) = &self.session {
+                self.backend
+                    .send(Command::Models(session.session_id.clone()));
+            }
+        }
+        if self.cloud.poll() {
+            self.cloud_reconnect_pending = true;
+        }
+        if self.cloud_reconnect_pending
+            && !self.busy
+            && !self.connecting
+            && !self.providers.is_busy()
+        {
+            self.cloud_reconnect_pending = false;
+            self.connecting = true;
+            self.backend.send(Command::Connect(self.settings.clone()));
+        }
+        if self.connected {
+            self.usage.update(
+                ctx,
+                &crate::settings::engine_binary(&self.settings),
+                &crate::settings::data_dir().join("engine"),
+            );
+        }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::N)) {
             self.new_chat();
         }
@@ -437,6 +485,16 @@ impl eframe::App for OrbitApp {
             .frame(egui::Frame::new().fill(theme::CANVAS))
             .show(ctx, |ui| self.conversation(ui));
         self.settings_window(ctx);
+        self.cloud.ui(
+            ctx,
+            self.busy || self.connecting || self.providers.is_busy(),
+        );
+        crate::ecosystem::panel(
+            ctx,
+            &mut self.show_services,
+            &mut self.service_query,
+            &mut self.draft,
+        );
     }
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.save();
