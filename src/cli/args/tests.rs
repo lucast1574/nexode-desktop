@@ -953,7 +953,6 @@ fn onboarding_repair_brief_commands_are_valid_cli() {
 /// them. When the subcommand flag was also `--socket`, clap bound the global
 /// and the bridge listened on, and dialled, the same path: it came up looking
 /// healthy and every SDK client got ECONNREFUSED. Keep the names distinct.
-#[cfg(unix)]
 #[test]
 fn api_bridge_socket_flags_do_not_collide() {
     let args = Args::try_parse_from([

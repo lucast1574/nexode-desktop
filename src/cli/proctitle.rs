@@ -14,7 +14,6 @@ pub(crate) fn initial_title(args: &Args) -> String {
         Some(Command::Acp) => "nexode acp".to_string(),
         Some(Command::Server { .. }) => "nexode server".to_string(),
         Some(Command::Connect) => "nexode:client".to_string(),
-        #[cfg(unix)]
         Some(Command::ApiBridge { .. }) => "nexode api-bridge".to_string(),
         Some(Command::Run { .. }) => "nexode run".to_string(),
         Some(Command::Login { .. }) => "nexode login".to_string(),

@@ -319,11 +319,29 @@ impl SyncStream {
         use std::os::windows::fs::OpenOptionsExt;
         use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OVERLAPPED;
 
-        let handle = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .custom_flags(FILE_FLAG_OVERLAPPED)
-            .open(path_to_pipe_name(path))?;
+        let pipe_name = path_to_pipe_name(path);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        // A readiness probe consumes a named-pipe instance. The listener must
+        // accept it and publish the next instance before the SDK can dial.
+        // Match the async transport's retry, bounded for blocking callers.
+        let handle = loop {
+            match std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .custom_flags(FILE_FLAG_OVERLAPPED)
+                .open(&pipe_name)
+            {
+                Ok(handle) => break handle,
+                Err(error)
+                    if error.raw_os_error()
+                        == Some(windows_sys::Win32::Foundation::ERROR_PIPE_BUSY as i32)
+                        && std::time::Instant::now() < deadline =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(error) => return Err(error),
+            }
+        };
         Ok(Self {
             inner: std::sync::Arc::new(SyncPipe {
                 handle,
@@ -663,6 +681,34 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     static BUSY_PIPE_TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    #[tokio::test]
+    async fn sync_connect_waits_for_instance_after_readiness_probe() {
+        let path = std::env::temp_dir().join(format!(
+            "nexode-sync-retry-{}-{}.sock",
+            std::process::id(),
+            BUSY_PIPE_TEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut listener = Listener::bind(&path).unwrap();
+        let probe = path.clone();
+        assert!(
+            std::thread::spawn(move || is_socket_path(&probe))
+                .join()
+                .unwrap()
+        );
+        let client = tokio::task::spawn_blocking(move || SyncStream::connect(&path));
+        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+        let (probe_connection, _) = listener.accept().await.unwrap();
+        drop(probe_connection);
+        let (accepted, connected) =
+            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                tokio::join!(listener.accept(), client)
+            })
+            .await
+            .expect("listener must republish the pipe instance");
+        assert!(accepted.is_ok());
+        assert!(connected.unwrap().is_ok());
+    }
 
     /// Nexode Desktop drives the SDK from plain `std::thread`s, where tokio's
     /// named-pipe client panics with "there is no reactor running". The two

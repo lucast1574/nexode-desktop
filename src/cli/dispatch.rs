@@ -188,8 +188,14 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         Some(Command::Connect) => {
             tui_launch::run_client().await?;
         }
-        #[cfg(unix)]
         Some(Command::ApiBridge { api_socket, stdio }) => {
+            #[cfg(not(unix))]
+            if stdio {
+                anyhow::bail!(
+                    "api --stdio is currently supported on Unix; use api-bridge --api-socket for native Windows clients"
+                );
+            }
+            #[cfg(unix)]
             if stdio {
                 crate::env::set_var("NEXODE_NON_INTERACTIVE", "1");
                 tokio::time::timeout(

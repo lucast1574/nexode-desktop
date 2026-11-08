@@ -609,13 +609,12 @@ pub(crate) enum Command {
         json: bool,
     },
 
-    /// Serve the stable harness API on a Unix socket, for SDK clients.
+    /// Serve the stable harness API over local IPC, for SDK clients.
     ///
     /// This is the endpoint the TypeScript SDK (`@nexode/agent-sdk`) connects to. It
     /// ships in the released binary on purpose: the API is only "generally
     /// available" if reaching it does not require a Rust toolchain and a
     /// source checkout.
-    #[cfg(unix)]
     #[command(name = "api-bridge", alias = "api")]
     ApiBridge {
         /// Path of the API socket to listen on (default: $XDG_RUNTIME_DIR/nexode-api.sock)
