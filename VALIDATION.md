@@ -17,7 +17,7 @@ Motor/SDK fijado: `dc71ff1c41068b6eaf4ac3c1f7ca06c091203784`.
 | --- | --- |
 | Windows x64 | Clippy sin advertencias, 31 pruebas unitarias aprobadas y una integración real ejecutada explícitamente. Build release de UI y motor; el empaquetado ZIP reproducible incluye Node/MCP verificados. |
 | Linux x64 | Clippy sin advertencias, 32 pruebas unitarias aprobadas y la misma integración real. Builds release sobre Ubuntu/WSL y Ubuntu 22.04. Capturas X11 reales a 1380×880 y 1024×640. |
-| macOS Apple Silicon e Intel | Matriz CI nativa configurada para ambas arquitecturas. La versión anterior completó build/tests y paquetes en ambas arquitecturas; la validación de esta revisión híbrida se confirma mediante el run asociado al commit. No se afirma revisión visual en un Mac físico. |
+| macOS Apple Silicon | Formato, pruebas, Clippy, release y paquete aprobados en GitHub Actions. ZIP descargado y comprobado: ejecutables ARM64 de UI, motor y Node, permisos ejecutables, MCP y licencias. No se afirma revisión visual en un Mac físico. |
 
 La integración utiliza exclusivamente un proveedor sintético local. Comprueba:
 creación y persistencia de chats, modelos antes del primer mensaje, streaming,
@@ -64,3 +64,21 @@ ni paridad completa con Codex: no incluye terminal PTY ni actualización automá
 
 Las cuentas con cuotas no expuestas muestran estado desconocido; no se inventan
 porcentajes. Las integraciones pagadas conservan sus permisos y condiciones.
+
+## Evidencia final de distribución
+
+La ejecución [42449653478](https://github.com/lucast1574/nexode-desktop/actions/runs/42449653478)
+completó con éxito los jobs Linux y macOS Apple Silicon. Por indicación del
+mantenedor se retiró macOS Intel de la matriz y se cancelaron los empaquetados
+remotos todavía activos; Windows y AppImage ya tenían paquetes locales completos
+verificados. La cancelación no se presenta como un workflow íntegramente verde.
+
+Windows: ZIP verificado, 31 pruebas y Clippy aprobados, integración real del SDK
+aprobada. Linux: 32 pruebas, Clippy e integración real aprobados; AppImage y tar.gz
+arrancaron sobre Debian 12. El renderer WebKit se verificó con NoNewPrivs=1,
+Seccomp=2 y namespace PID propio. El launcher portable pasó concurrencia,
+permisos 0700, rutas con espacios y limpieza tras éxito, error y SIGTERM.
+
+Distribución macOS: sólo Apple Silicon, macOS 13.5+. No se entrega un paquete
+para Mac Intel. La corrección de prueba del commit 2d9688f sólo normaliza la ruta
+temporal de macOS; no cambia los ejecutables Windows/Linux empaquetados antes.

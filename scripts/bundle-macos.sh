@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ "$(uname -s)" == Darwin ]] || { echo 'Ejecuta este empaquetado en macOS.' >&2; exit 1; }
+[[ "$(uname -m)" == arm64 ]] || { echo 'La distribución macOS requiere Apple Silicon (ARM64).' >&2; exit 1; }
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.5}"
 cargo build --locked --release
 cargo build --manifest-path ../nexode-orbit/Cargo.toml --locked --release --no-default-features --bin nexode
@@ -15,7 +16,6 @@ cache=".local/macos-bundle"
 mkdir -p "$cache" "$bundle/MacOS/mcp"
 case "$(uname -m)" in
   arm64) arch=arm64; checksum=1f5ac075be50bed4780ea3be19a007fda95ea4d527d28d76d0b91de47d915115 ;;
-  x86_64) arch=x64; checksum=6965578fd823e72c1b5387f5ab84cb25368f886e02eb8779e6f0fce6b91c27b7 ;;
   *) echo 'Arquitectura macOS no soportada' >&2; exit 1 ;;
 esac
 node_archive="node-v24.22.2-darwin-$arch.tar.xz"

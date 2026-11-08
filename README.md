@@ -40,7 +40,7 @@ En Ubuntu/Debian, instala las dependencias nativas:
 sudo apt-get install libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxcursor-dev libgtk-3-dev libayatana-appindicator3-dev libdbus-1-dev libwebkit2gtk-4.1-dev libxdo-dev
 ```
 
-La bienvenida utiliza WebView2 en Windows y WKWebView en macOS. El paquete Mac
+La bienvenida utiliza WebView2 en Windows y WKWebView en macOS. El paquete Mac se distribuye sólo para Apple Silicon (M1 o posterior) y
 requiere macOS 13.5 o posterior por el runtime Node 24 incluido para MCP
 ([requisitos oficiales](https://github.com/nodejs/node/blob/v24.22.2/BUILDING.md#platform-list)). En Linux usa
 WebKitGTK 4.1 sobre X11/XWayland; si sólo hay Wayland nativo o no se puede crear
