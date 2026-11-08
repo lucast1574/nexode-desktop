@@ -7,6 +7,16 @@ pub const TEXT: Color32 = Color32::from_rgb(226, 233, 221);
 pub const ACCENT: Color32 = Color32::from_rgb(16, 220, 121);
 pub const LINE: Color32 = Color32::from_rgb(43, 48, 40);
 pub fn apply(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "geist".into(),
+        egui::FontData::from_static(include_bytes!("../assets/fonts/Geist-Regular.ttf")).into(),
+    );
+    fonts.families.insert(
+        egui::FontFamily::Name("account".into()),
+        vec!["geist".into()],
+    );
+    ctx.set_fonts(fonts);
     let mut style = egui::Style {
         visuals: egui::Visuals::dark(),
         ..Default::default()
