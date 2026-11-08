@@ -16,6 +16,9 @@ pub enum WelcomeAction {
     Services,
     NewChat,
     FocusComposer,
+    BackToChats,
+    ServicePrepare { index: u8 },
+    ServiceExplore { index: u8 },
     Suggestion { index: u8 },
 }
 
@@ -31,7 +34,11 @@ fn parse_action(body: &str) -> Option<WelcomeAction> {
     }
     let message: Message = serde_json::from_str(body).ok()?;
     let fields: serde_json::Map<String, serde_json::Value> = serde_json::from_str(body).ok()?;
-    if message.action != "suggestion" && fields.len() != 1 {
+    if !matches!(
+        message.action.as_str(),
+        "suggestion" | "service_prepare" | "service_explore"
+    ) && fields.len() != 1
+    {
         return None;
     }
     match (message.action.as_str(), message.index) {
@@ -40,6 +47,17 @@ fn parse_action(body: &str) -> Option<WelcomeAction> {
         ("services", None) => Some(WelcomeAction::Services),
         ("new_chat", None) => Some(WelcomeAction::NewChat),
         ("focus_composer", None) => Some(WelcomeAction::FocusComposer),
+        ("back_to_chats", None) => Some(WelcomeAction::BackToChats),
+        ("service_prepare", Some(index))
+            if usize::from(index) < crate::ecosystem::SERVICES.len() =>
+        {
+            Some(WelcomeAction::ServicePrepare { index })
+        }
+        ("service_explore", Some(index))
+            if usize::from(index) < crate::ecosystem::SERVICES.len() =>
+        {
+            Some(WelcomeAction::ServiceExplore { index })
+        }
         ("suggestion", Some(index @ 0..=3)) => Some(WelcomeAction::Suggestion { index }),
         _ => None,
     }
@@ -54,6 +72,7 @@ pub struct WelcomeWeb {
     state: Option<String>,
     ready: Arc<AtomicBool>,
     loading_since: Option<std::time::Instant>,
+    document_key: String,
 }
 
 impl WelcomeWeb {
@@ -70,6 +89,26 @@ impl WelcomeWeb {
         rect: Option<egui::Rect>,
         html: &str,
     ) -> bool {
+        self.sync_document(frame, ctx, rect, html, "welcome")
+    }
+
+    pub fn sync_document(
+        &mut self,
+        frame: &eframe::Frame,
+        ctx: &egui::Context,
+        rect: Option<egui::Rect>,
+        html: &str,
+        document_key: &str,
+    ) -> bool {
+        if self.document_key != document_key {
+            self.view = None;
+            self.actions = None;
+            self.bounds = None;
+            self.state = None;
+            self.ready = Arc::new(AtomicBool::new(false));
+            self.loading_since = None;
+            self.document_key = document_key.to_owned();
+        }
         let Some(rect) = rect.filter(|r| r.is_positive() && r.is_finite()) else {
             self.view = None;
             self.actions = None;
@@ -137,7 +176,7 @@ impl WelcomeWeb {
             let result = wry::WebViewBuilder::new()
                 .with_html(html)
                 .with_bounds(bounds)
-                .with_background_color((25, 27, 25, 255))
+                .with_background_color((15, 15, 15, 255))
                 .with_incognito(true)
                 .with_devtools(false)
                 .with_clipboard(false)
@@ -250,6 +289,26 @@ mod tests {
 
     #[test]
     fn ipc_rejects_unknown_commands_fields_and_out_of_range_suggestions() {
+        assert_eq!(
+            parse_action(r#"{"action":"back_to_chats"}"#),
+            Some(WelcomeAction::BackToChats)
+        );
+        assert_eq!(
+            parse_action(r#"{"action":"service_prepare","index":0}"#),
+            Some(WelcomeAction::ServicePrepare { index: 0 })
+        );
+        assert_eq!(
+            parse_action(r#"{"action":"service_explore","index":13}"#),
+            Some(WelcomeAction::ServiceExplore { index: 13 })
+        );
+        for invalid in [
+            r#"{"action":"service_explore","index":255}"#,
+            r#"{"action":"service_prepare","index":14}"#,
+            r#"{"action":"back_to_chats","index":null}"#,
+            r#"{"action":"service_explore","url":"https://example.com","index":0}"#,
+        ] {
+            assert_eq!(parse_action(invalid), None);
+        }
         assert_eq!(
             parse_action(r#"{"action":"add_project"}"#),
             Some(WelcomeAction::AddProject)

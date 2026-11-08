@@ -7,7 +7,7 @@
 <style>
 @font-face{font-family:Geist;src:url('__FONT_REGULAR__') format('truetype');font-weight:400;font-display:swap}
 @font-face{font-family:Geist;src:url('__FONT_MEDIUM__') format('truetype');font-weight:500 700;font-display:swap}
-:root{color-scheme:dark;--canvas:#191b19;--surface:#232723;--ink:#e2e9dd;--quiet:#a0aa9a;--line:#353b32;--green:#10dc79}
+:root{color-scheme:dark;--canvas:#0f0f0f;--surface:#232723;--ink:#e2e9dd;--quiet:#a0aa9a;--line:#353b32;--green:#10dc79}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--canvas)}
 body{font:14px/1.5 Geist,system-ui,sans-serif;color:var(--ink);font-synthesis:none;overflow-x:hidden}
 button{font:inherit;color:inherit;cursor:pointer;border:0;outline:none;background:none;-webkit-tap-highlight-color:transparent}
@@ -37,11 +37,11 @@ svg{height:17px;width:17px;flex-shrink:0;fill:none;stroke:currentColor;stroke-wi
 </head>
 <body class="first-project">
 <main><section class="welcome" aria-labelledby="welcome-title">
-<img class="nexo" src="__NEXO_DATA_URI__" width="92" height="92" alt="Nexo, tu compañero en Orbit" draggable="false">
+<img class="nexo" src="__NEXO_DATA_URI__" width="92" height="92" alt="Nexode Orbit" draggable="false">
 <h1 id="welcome-title">Un lugar para tus ideas.</h1>
-<p class="intro" id="welcome-description">Añade una carpeta, conecta tu agente y empieza a construir. Tu espacio se configura contigo.</p>
+<p class="intro" id="welcome-description">Empieza una conversación con tus agentes. Añade un proyecto sólo cuando lo necesites.</p>
 <div class="actions">
-<button class="action primary" data-action="add_project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir proyecto</button>
+<button class="action primary" data-action="focus_composer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Empezar a conversar</button>
 <button class="action secondary" data-action="connect_agents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v3m6-3v3M7 6h10v5a5 5 0 0 1-10 0V6Zm5 10v5"/></svg>Conectar agentes</button>
 <button class="action service-action" data-action="services">Explorar servicios</button>
 </div>
@@ -80,7 +80,7 @@ const first=state.firstProject!==false;
 document.body.classList.toggle('first-project',first);document.body.classList.toggle('has-project',!first);
 document.body.classList.toggle('reduce-motion',state.reduceMotion===true);
 document.getElementById('welcome-title').textContent=first?'Un lugar para tus ideas.':'¿Qué hacemos hoy?';
-document.getElementById('welcome-description').textContent=first?'Añade una carpeta, conecta tu agente y empieza a construir. Tu espacio se configura contigo.':'Tus ideas, tus agentes y todo Nexode. Elige por dónde empezar.';
+document.getElementById('welcome-description').textContent=first?'Empieza una conversación con tus agentes. Añade un proyecto sólo cuando lo necesites.':'Tus ideas, tus agentes y todo Nexode. Elige por dónde empezar.';
 };
 document.addEventListener('visibilitychange',()=>document.body.classList.toggle('inactive',document.hidden));
 if(window.__orbitState)window.orbitSetState(window.__orbitState);

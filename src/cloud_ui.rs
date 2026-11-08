@@ -67,7 +67,7 @@ impl Cloud {
                                 .show(ui, |ui| { self.sign_in_form(ui, &ctx, compact); });
                         }
                     });
-                    if busy { ui.add_space(12.0); ui.horizontal(|ui| { ui.spinner(); ui.label("Conectando con Nexode…"); }); }
+                    if busy && self.browser_login.is_none() { ui.add_space(12.0); ui.horizontal(|ui| { ui.spinner(); ui.label("Conectando con Nexode…"); }); }
                     if !self.message.is_empty() { ui.add_space(12.0); ui.label(&self.message); }
                     ui.add_space(if compact { 12.0 } else { 20.0 });
                     ui.vertical_centered(|ui| {
@@ -87,26 +87,73 @@ impl Cloud {
 
     fn sign_in_form(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, compact: bool) {
         if let Some(browser) = &self.browser_login {
-            ui.strong("Confirma que eres tú en Nexode");
-            ui.label("Inicia sesión con Google en el navegador y escribe este código para conectar Orbit.");
-            ui.add_space(12.0);
             ui.label(
-                RichText::new(&browser.user_code)
-                    .monospace()
-                    .size(28.0)
-                    .color(theme::ACCENT),
+                RichText::new("Conecta tu cuenta Nexode")
+                    .size(20.0)
+                    .strong(),
             );
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new("Continúa con Google en tu navegador y confirma este código.")
+                    .color(theme::MUTED),
+            );
+            ui.add_space(18.0);
+            egui::Frame::new()
+                .fill(theme::SIDEBAR)
+                .corner_radius(10)
+                .inner_margin(16)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(&browser.user_code)
+                                .monospace()
+                                .size(24.0)
+                                .color(theme::TEXT),
+                        );
+                        let copied_id = ui.id().with("code-copied-until");
+                        let now = ui.input(|i| i.time);
+                        let copied = ui
+                            .data(|d| d.get_temp::<f64>(copied_id))
+                            .is_some_and(|until| until > now);
+                        if ui
+                            .button(if copied { "Copiado" } else { "Copiar" })
+                            .clicked()
+                        {
+                            ui.ctx().copy_text(browser.user_code.clone());
+                            ui.data_mut(|d| d.insert_temp(copied_id, now + 2.0));
+                            ui.ctx()
+                                .request_repaint_after(std::time::Duration::from_secs(2));
+                        }
+                    });
+                });
+            ui.add_space(16.0);
+            if ui
+                .add_sized(
+                    [ui.available_width(), 42.0],
+                    egui::Button::new(RichText::new("Continuar en Nexode").color(theme::CANVAS))
+                        .fill(theme::ACCENT),
+                )
+                .clicked()
+            {
+                ctx.open_url(egui::OpenUrl::new_tab(&browser.verification_url));
+            }
             ui.add_space(12.0);
             ui.horizontal(|ui| {
-                if ui.button("Copiar código").clicked() {
-                    ui.ctx().copy_text(browser.user_code.clone());
-                }
-                ui.hyperlink_to("Volver a abrir Nexode", &browser.verification_url);
+                ui.spinner();
+                ui.label(
+                    RichText::new("Esperando tu confirmación")
+                        .size(12.0)
+                        .color(theme::MUTED),
+                );
             });
-            ui.label(RichText::new("El código caduca en cinco minutos. Vuelve aquí al terminar; Orbit se conectará automáticamente.").size(12.0).color(theme::MUTED));
+            ui.label(
+                RichText::new("Vuelve aquí al terminar. El código caduca en 5 minutos.")
+                    .size(12.0)
+                    .color(theme::MUTED),
+            );
             ui.add_space(12.0);
             if ui
-                .add_enabled(!browser.committing, egui::Button::new("Cancelar conexión"))
+                .add_enabled(!browser.committing, egui::Button::new("Cancelar y volver"))
                 .clicked()
             {
                 self.cancel_browser_login();

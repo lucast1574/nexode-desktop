@@ -157,6 +157,44 @@ pub const SERVICES: &[Service] = &[
         ],
     },
 ];
+
+pub fn prepare_service(index: u8) -> Option<String> {
+    SERVICES.get(usize::from(index)).map(|s| format!("Quiero usar {} para mi proyecto. Revisa {} y la documentación pública vigente. Comprueba qué acceso necesito y prepara un plan con costes antes de desplegar o contratar nada.", s.name, s.url))
+}
+
+pub fn service_url(index: u8) -> Option<&'static str> {
+    SERVICES.get(usize::from(index)).map(|s| s.url)
+}
+
+pub fn html() -> String {
+    let groups = [
+        "Infraestructura",
+        "Seguridad",
+        "Datos y mapas",
+        "Comercio",
+        "Comunicación",
+        "Seguridad",
+        "Experiencias",
+        "Logística",
+        "Logística",
+        "Comercio",
+        "Inteligencia artificial",
+        "Comunicación",
+        "Comercio",
+        "Inteligencia artificial",
+    ];
+    let catalogue: Vec<_> = SERVICES.iter().enumerate().map(|(index, s)| serde_json::json!({"index": index, "name": s.name, "purpose": s.purpose, "tags": s.tags, "category": groups.get(index).copied().unwrap_or("Otros")})).collect();
+    // No URL, credentials or remote content enters the document. Escape script
+    // delimiters even if future catalogue descriptions contain HTML-like text.
+    let json = serde_json::to_string(&catalogue)
+        .expect("static catalogue serializes")
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026");
+    crate::welcome_content::embed_fonts(
+        include_str!("../assets/services.html").replace("__CATALOGUE_JSON__", &json),
+    )
+}
 pub fn ranked(query: &str) -> Vec<&'static Service> {
     let query = query.to_lowercase();
     let mut found: Vec<_> = SERVICES
@@ -177,6 +215,7 @@ pub fn guidance() -> String {
     text
 }
 pub fn panel(ui: &mut egui::Ui, open: &mut bool, query: &mut String, draft: &mut String) {
+    ui.set_max_width(1100.0);
     use crate::{theme, widgets};
     use egui::RichText;
     if widgets::action(ui, widgets::Icon::Chat, "Volver a mis chats").clicked() {
@@ -189,7 +228,7 @@ pub fn panel(ui: &mut egui::Ui, open: &mut bool, query: &mut String, draft: &mut
             .color(theme::MUTED),
     );
     ui.add_space(6.0);
-    ui.label(RichText::new("De tu idea a un servicio real.").size(30.0));
+    ui.label(RichText::new("Conecta tu próximo paso.").size(26.0));
     ui.add_space(8.0);
     ui.label(
         RichText::new(
@@ -234,6 +273,22 @@ pub fn panel(ui: &mut egui::Ui, open: &mut bool, query: &mut String, draft: &mut
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn service_actions_use_only_catalogue_entries_and_public_display_data() {
+        assert_eq!(service_url(0), Some("https://nexode.app"));
+        assert!(
+            prepare_service(0)
+                .unwrap()
+                .contains("antes de desplegar o contratar nada")
+        );
+        assert!(service_url(u8::MAX).is_none());
+        assert!(prepare_service(u8::MAX).is_none());
+        let page = html();
+        assert!(!page.contains("__FONT_"));
+        assert!(!page.contains("__CATALOGUE_JSON__"));
+        assert!(!page.contains("https://"));
+        assert!(page.contains("Nexode Shield"));
+    }
     #[test]
     fn relevant_services_win_and_unrelated_queries_stay_empty() {
         assert_eq!(ranked("quiero publicar en internet")[0].name, "Nexode");

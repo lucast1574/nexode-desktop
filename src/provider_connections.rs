@@ -1,4 +1,5 @@
 //! Native provider setup. Secrets travel through private IPC, never a chat turn.
+use crate::{provider_usage::AccountUsage, theme, widgets};
 use eframe::egui::{self, RichText};
 use nexode_sdk::NexodeClient;
 use serde::Deserialize;
@@ -26,8 +27,8 @@ impl Provider {
     const ALL: [Self; 5] = [
         Self::Claude,
         Self::OpenAi,
-        Self::DeepSeek,
         Self::Gemini,
+        Self::DeepSeek,
         Self::Antigravity,
     ];
     fn name(self) -> &'static str {
@@ -60,6 +61,30 @@ impl Provider {
     fn multi_account(self) -> bool {
         matches!(self, Self::Claude | Self::OpenAi)
     }
+    fn description(self) -> &'static str {
+        match self {
+            Self::Claude => "Cuenta Claude o API de Anthropic",
+            Self::OpenAi => "Cuenta de Codex o API de OpenAI",
+            Self::Gemini => "Cuenta de Google o API de Gemini",
+            Self::DeepSeek => "API key propia de DeepSeek",
+            Self::Antigravity => "Autorización con tu cuenta de Google",
+        }
+    }
+    fn matches_account(self, name: &str) -> bool {
+        let name = name.to_ascii_lowercase();
+        match self {
+            Self::Claude => name.contains("claude") || name.contains("anthropic"),
+            Self::OpenAi => {
+                name.contains("openai") || name.contains("codex") || name.contains("gpt")
+            }
+            Self::DeepSeek => name.contains("deepseek"),
+            Self::Gemini => {
+                !name.contains("antigravity")
+                    && (name.contains("gemini") || name.contains("google"))
+            }
+            Self::Antigravity => name.contains("antigravity"),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -90,6 +115,7 @@ enum Event {
 
 pub struct ProviderConnections {
     provider: Provider,
+    expanded: bool,
     account: String,
     api_key: String,
     callback: String,
@@ -104,6 +130,7 @@ impl Default for ProviderConnections {
         let (sender, receiver) = mpsc::channel();
         Self {
             provider: Provider::Claude,
+            expanded: false,
             account: String::new(),
             api_key: String::new(),
             callback: String::new(),
@@ -163,24 +190,43 @@ impl ProviderConnections {
         binary: &Path,
         home: &Path,
         client: Option<NexodeClient>,
+        accounts: &[AccountUsage],
     ) -> bool {
         let changed = self.poll();
-        ui.heading("Tus agentes de IA");
-        ui.label("Conecta tus cuentas y claves. Orbit no exige una suscripción Nexode para conversar; cada proveedor aplica sus propias condiciones y costes.");
+        self.provider_cards(ui, accounts);
         ui.add_space(12.0);
+        if !self.expanded && self.pending.is_none() {
+            return changed;
+        }
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(self.provider.name()).size(22.0).strong());
+            if !self.busy
+                && self.pending.is_none()
+                && widgets::icon_button(ui, widgets::Icon::Close, "Cerrar opciones del proveedor")
+                    .clicked()
+            {
+                self.expanded = false;
+                self.api_key.zeroize();
+            }
+        });
+        for account in accounts
+            .iter()
+            .filter(|account| self.provider.matches_account(&account.provider_name))
+        {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(account.provider_name.replace('✦', "").trim());
+                widgets::muted(
+                    ui,
+                    if account.error.is_some() {
+                        "Uso no disponible; revisa la cuenta si no responde."
+                    } else {
+                        "Detectada en Orbit"
+                    },
+                );
+            });
+        }
         ui.add_enabled_ui(!self.busy && self.pending.is_none(), |ui| {
-            egui::ComboBox::from_id_salt("ai-provider")
-                .selected_text(self.provider.name())
-                .show_ui(ui, |ui| {
-                    for provider in Provider::ALL {
-                        if ui
-                            .selectable_value(&mut self.provider, provider, provider.name())
-                            .changed()
-                        {
-                            self.api_key.zeroize();
-                        }
-                    }
-                });
+            widgets::muted(ui, "Cada conexión se guarda de forma independiente. Conectar un proveedor no elimina los demás.");
         });
         if let Some(message) = &self.message {
             ui.label(message);
@@ -230,7 +276,7 @@ impl ProviderConnections {
                 ui.label(RichText::new("Conectar una cuenta").strong());
                 if self.provider.multi_account() {
                     ui.add(egui::TextEdit::singleline(&mut self.account).hint_text("Etiqueta de cuenta (opcional)").desired_width(290.0));
-                    ui.small("Claude y Codex admiten varias cuentas. Deja la etiqueta vacía para añadir una cuenta nueva.");
+                    ui.small("Deja la etiqueta vacía para añadir otra cuenta. Una etiqueta existente actualiza esa cuenta.");
                 } else {
                     ui.small("El motor mantiene una cuenta OAuth activa de este proveedor; una nueva autorización actualiza esa conexión.");
                 }
@@ -239,6 +285,11 @@ impl ProviderConnections {
             if let Some(id) = self.provider.key_id() {
                 ui.add_space(16.0);
                 ui.label(RichText::new("Usar una API key propia").strong());
+                if self.provider == Provider::DeepSeek {
+                    ui.label("DeepSeek se conecta mediante su API key. El uso de la API se factura con DeepSeek; una suscripción de chat no concede automáticamente acceso a la API.");
+                } else {
+                    ui.small("La API tiene sus propios costes y límites, separados de una suscripción de chat.");
+                }
                 ui.small("Se guarda en el almacén privado del motor. No se envía a la conversación ni a Nexode.");
                 ui.add(egui::TextEdit::singleline(&mut self.api_key).password(true).hint_text("API key").desired_width(f32::INFINITY));
                 if ui.add_enabled(client.is_some() && !self.api_key.trim().is_empty(), egui::Button::new("Guardar clave en Orbit")).clicked()
@@ -254,6 +305,83 @@ impl ProviderConnections {
             }
         });
         changed
+    }
+
+    fn provider_cards(&mut self, ui: &mut egui::Ui, accounts: &[AccountUsage]) {
+        let columns = if ui.available_width() >= 600.0 { 2 } else { 1 };
+        let width = (ui.available_width() - 12.0 * (columns - 1) as f32) / columns as f32;
+        for row in Provider::ALL.chunks(columns) {
+            ui.horizontal(|ui| {
+                for &provider in row {
+                    ui.push_id(provider.name(), |ui| {
+                        egui::Frame::new()
+                            .fill(theme::SURFACE)
+                            .corner_radius(12)
+                            .inner_margin(18.0)
+                            .show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    let content_width = (width - 36.0).max(0.0);
+                                    ui.set_min_width(content_width);
+                                    ui.set_max_width(content_width);
+                                    ui.set_min_height(104.0);
+                                    ui.label(RichText::new(provider.name()).size(18.0).strong());
+                                    widgets::muted(ui, provider.description());
+                                    let count = accounts
+                                        .iter()
+                                        .filter(|account| {
+                                            provider.matches_account(&account.provider_name)
+                                        })
+                                        .count();
+                                    ui.add_space(4.0);
+                                    ui.horizontal_wrapped(|ui| {
+                                        let selected = self.expanded && self.provider == provider;
+                                        let label = if selected {
+                                            "Opciones abiertas"
+                                        } else if count > 0 {
+                                            "Gestionar conexión"
+                                        } else {
+                                            "Conectar"
+                                        };
+                                        if ui
+                                            .add_enabled(
+                                                !self.busy && self.pending.is_none(),
+                                                egui::Button::new(label)
+                                                    .selected(selected)
+                                                    .min_size(egui::vec2(140.0, 32.0)),
+                                            )
+                                            .clicked()
+                                        {
+                                            if self.provider != provider {
+                                                self.api_key.zeroize();
+                                                self.account.clear();
+                                                self.callback.zeroize();
+                                                self.message = None;
+                                            }
+                                            self.provider = provider;
+                                            self.expanded = true;
+                                        }
+                                        if count > 0 {
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "{count} detectada{}",
+                                                    if count == 1 { "" } else { "s" }
+                                                ))
+                                                .size(11.0)
+                                                .color(theme::ACCENT),
+                                            );
+                                        }
+                                    });
+                                });
+                            });
+                    });
+                }
+            });
+            ui.add_space(2.0);
+        }
+        widgets::muted(
+            ui,
+            "Las cuentas detectadas se actualizan junto con el uso de IA. Los permisos y cuotas se comprueban con cada proveedor.",
+        );
     }
 
     fn begin(&mut self, binary: &Path, home: &Path, ctx: egui::Context) {

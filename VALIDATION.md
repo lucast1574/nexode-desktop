@@ -3,7 +3,7 @@
 ## Arquitectura y alcance
 
 Motor y aplicación Rust; egui/eframe 0.33.3 para conversaciones, cuenta,
-servicios, configuración y bandeja. Sólo la bienvenida utiliza Wry 0.57.1 con
+configuración y bandeja. El catálogo usa HTML/CSS local. La bienvenida y Servicios utilizan Wry 0.57.1 con
 HTML/CSS y activos locales. No hay Electron ni servidor HTTP local. El WebView
 no recibe credenciales ni contenido de chats; CSP bloquea la red y el IPC se
 limita a acciones conocidas. Se destruye al abrir páginas nativas, entrar al
@@ -15,8 +15,8 @@ Motor/SDK fijado: `dc71ff1c41068b6eaf4ac3c1f7ca06c091203784`.
 
 | Plataforma | Evidencia |
 | --- | --- |
-| Windows x64 | Clippy sin advertencias, 31 pruebas unitarias aprobadas y una integración real ejecutada explícitamente. Build release de UI y motor; el empaquetado ZIP reproducible incluye Node/MCP verificados. |
-| Linux x64 | Clippy sin advertencias, 32 pruebas unitarias aprobadas y la misma integración real. Builds release sobre Ubuntu/WSL y Ubuntu 22.04. Capturas X11 reales a 1380×880 y 1024×640. |
+| Windows x64 | Clippy sin advertencias, 34 pruebas unitarias aprobadas y una integración real ejecutada explícitamente. Build release de UI y motor; el empaquetado ZIP reproducible incluye Node/MCP verificados. |
+| Linux x64 | Clippy sin advertencias, 35 pruebas unitarias aprobadas y la misma integración real. Builds release sobre Ubuntu/WSL y Ubuntu 22.04. Capturas X11 reales a 1380×880 y 1024×640. |
 | macOS Apple Silicon | Formato, pruebas, Clippy, release y paquete aprobados en GitHub Actions. ZIP descargado y comprobado: ejecutables ARM64 de UI, motor y Node, permisos ejecutables, MCP y licencias. No se afirma revisión visual en un Mac físico. |
 
 La integración utiliza exclusivamente un proveedor sintético local. Comprueba:
@@ -73,8 +73,8 @@ mantenedor se retiró macOS Intel de la matriz y se cancelaron los empaquetados
 remotos todavía activos; Windows y AppImage ya tenían paquetes locales completos
 verificados. La cancelación no se presenta como un workflow íntegramente verde.
 
-Windows: ZIP verificado, 31 pruebas y Clippy aprobados, integración real del SDK
-aprobada. Linux: 32 pruebas, Clippy e integración real aprobados; AppImage y tar.gz
+Windows: ZIP verificado, 34 pruebas y Clippy aprobados, integración real del SDK
+aprobada. Linux: 35 pruebas, Clippy e integración real aprobados; AppImage y tar.gz
 arrancaron sobre Debian 12. El renderer WebKit se verificó con NoNewPrivs=1,
 Seccomp=2 y namespace PID propio. El launcher portable pasó concurrencia,
 permisos 0700, rutas con espacios y limpieza tras éxito, error y SIGTERM.
@@ -82,3 +82,25 @@ permisos 0700, rutas con espacios y limpieza tras éxito, error y SIGTERM.
 Distribución macOS: sólo Apple Silicon, macOS 13.5+. No se entrega un paquete
 para Mac Intel. La corrección de prueba del commit 2d9688f sólo normaliza la ruta
 temporal de macOS; no cambia los ejecutables Windows/Linux empaquetados antes.
+
+## Layout, conversaciones y agentes
+
+Cuenta y Configuración comparten la barra lateral con los chats. Configuración
+es una página con pestañas, sin ventana flotante. El inicio guiado ofrece varios
+proveedores y permite omitir la conexión. DeepSeek utiliza API key con costes
+propios del proveedor. Las pruebas usan cuentas sintéticas, sin autenticar
+suscripciones reales ni consumir inferencia pagada.
+
+Chats generales sin proyecto: directorio privado de conversaciones; seleccionar
+carpeta es opcional. Fijados y progreso de inicio guiado persistidos. El logo
+Nexode reemplaza la mascota. Fondo común #0F0F0F, incluyendo las vistas HTML.
+Servicios comparte el host local con navegación por documentos y allowlist de
+acciones; Rust resuelve los enlaces públicos del catálogo.
+
+Comprobación funcional final de layout a 1024×640 y 1380×880 con configuración
+privada de pruebas: chat general enviado a proveedor sintético, pin conservado
+tras reinicio sin duplicación, selected=null y projects=[] conservados. Cuenta,
+General y Motor mantienen sidebar; cerrar sesión sólo aparece en Cuenta.
+Búsqueda WhatsApp del catálogo filtra los servicios esperados; Explorar entrega
+https://wazend.net/ al navegador de pruebas. Preparar vuelve al compositor con un
+plan y no envía el mensaje. No se autenticaron cuentas humanas ni se compró nada.

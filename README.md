@@ -1,8 +1,8 @@
 # Nexode Orbit — Desktop nativo
 
 Aplicación de escritorio escrita en Rust con **egui/eframe y renderizado por GPU**.
-La bienvenida visual usa HTML/CSS local en el WebView del sistema mediante Wry;
-los chats, archivos, cuenta, servicios, bandeja y motor siguen en Rust. No usa
+La bienvenida y Servicios usan HTML/CSS local en el WebView del sistema mediante Wry;
+los chats, archivos, cuenta, configuración, bandeja y motor siguen en Rust. No usa
 Electron, React ni un servidor HTTP local. El motor se controla mediante el SDK
 Rust de Orbit. El WebView se destruye al abrir una conversación, una pantalla
 nativa o al ocultar/minimizar la ventana.
@@ -88,8 +88,8 @@ la vida de los procesos descendientes al proceso de la aplicación.
 
 ## Funciones
 
-- Primera pantalla de acceso Nexode integrada; cuenta y catálogo como páginas nativas.
-- Mascota Nexo animada, proyectos añadidos explícitamente y chats por carpeta.
+- Primera pantalla de acceso Nexode integrada; cuenta y configuración integradas en el layout.
+- Logo Nexode animado, chats generales sin carpeta, proyectos opcionales y chats fijados.
 - Harness sin suscripción Nexode obligatoria; checkout explícito para servicios cloud.
 - Conexiones Claude, GPT/Codex, DeepSeek, Gemini y Antigravity.
 - Cuotas reales por cuenta en círculos, con detalle y reinicio al pasar el cursor.
@@ -176,3 +176,7 @@ plano si ese servicio no está disponible.
 Ejecuta `./scripts/bundle-windows.ps1` en PowerShell desde Windows x64. Compila la interfaz y el motor Rust, verifica por SHA256 Node.js 24.22.2 y el código fijado de Nexode MCP 0.1.26, instala sus dependencias mediante el lockfile y crea `dist/Nexode-Orbit-Windows-x64.zip` con un archivo SHA256. Extrae la carpeta completa antes de abrir `nexode-desktop.exe`; Node y MCP están incluidos y no requieren instalación global. El script conserva un staging independiente y no modifica la aplicación instalada ni registra el inicio automático.
 
 Para reutilizar compilaciones existentes, pasa `-DesktopBinary <ruta.exe> -EngineBinary <ruta.exe>`. `-NodeArchive <archivo.zip>` y `-McpArchive <archivo.tar.gz>` reutilizan descargas locales, siempre comprobando sus hashes. `-OutputDirectory <carpeta>` permite preparar una entrega separada. CI publica este ZIP completo en el artefacto Windows.
+
+Al entrar por primera vez se presenta la conexión de agentes. Puedes conectar varios
+proveedores o continuar sin conectarlos todavía. Configuración se organiza en
+Agentes de IA, General y Motor; Mi cuenta conserva la barra lateral.

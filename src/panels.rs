@@ -1,7 +1,7 @@
 use crate::{
     app::OrbitApp,
     backend::Command,
-    settings::{data_dir, label, project_key, same_project, session_matches_project},
+    settings::label,
     theme,
     widgets::{self, Icon},
 };
@@ -9,225 +9,6 @@ use eframe::egui::{self, RichText, Stroke};
 use nexode_sdk::PermissionDecision;
 
 impl OrbitApp {
-    pub fn sidebar(&mut self, ctx: &egui::Context) {
-        if !self.show_sidebar {
-            return;
-        }
-        egui::SidePanel::left("projects")
-            .default_width(244.0)
-            .width_range(200.0..=350.0)
-            .frame(egui::Frame::new().fill(theme::SIDEBAR).inner_margin(16))
-            .show(ctx, |ui| {
-                egui::TopBottomPanel::bottom("sidebar-account-footer")
-                    .frame(egui::Frame::new().fill(theme::SIDEBAR).inner_margin(0))
-                    .show_inside(ui, |ui| self.account_footer(ui));
-                ui.add_space(7.0);
-                ui.horizontal(|ui| {
-                    ui.add(widgets::logo(30.0));
-                    ui.label(RichText::new("nexode").size(23.0).strong());
-                    widgets::muted(ui, "orbit");
-                    if widgets::icon_button(ui, Icon::Panel, "Ocultar proyectos").clicked() {
-                        self.show_sidebar = false;
-                    }
-                });
-                ui.add_space(22.0);
-                if ui
-                    .add_enabled(
-                        !self.busy && !self.loading,
-                        egui::Button::image_and_text(widgets::icon(Icon::Plus), if self.settings.projects.is_empty() { "Añadir proyecto" } else { "Nuevo chat" })
-                            .min_size(egui::vec2(ui.available_width(), 36.0))
-                            .fill(theme::SURFACE),
-                    )
-                    .clicked()
-                {
-                    if self.settings.projects.is_empty() {
-                        self.backend.send(Command::PickFolder);
-                    } else {
-                        self.new_chat();
-                    }
-                }
-                ui.add_space(10.0);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.search)
-                        .hint_text("Buscar chats")
-                        .desired_width(f32::INFINITY)
-                        .frame(false),
-                );
-                ui.add_space(14.0);
-                ui.horizontal(|ui| {
-                    widgets::muted(ui, "PROYECTOS");
-                    if widgets::icon_button(ui, Icon::Plus, "Añadir proyecto").clicked() {
-                        self.backend.send(Command::PickFolder);
-                    }
-                    ui.add_enabled_ui(self.connected && !self.busy && !self.loading, |ui| {
-                        if widgets::icon_button(ui, Icon::Refresh, "Actualizar chats").clicked() {
-                            self.backend.send(Command::ListSessions);
-                        }
-                    });
-                });
-                let available = ui.available_height().max(0.0);
-                let selected_key = self.settings.selected.as_deref().map(project_key);
-                let selection_memory = ui.make_persistent_id("sidebar-last-selected-project");
-                let reveal_selected = ui.data_mut(|data| {
-                    let previous = data.get_temp::<Option<String>>(selection_memory);
-                    let changed = previous.as_ref() != Some(&selected_key);
-                    data.insert_temp(selection_memory, selected_key);
-                    changed
-                });
-                egui::ScrollArea::vertical()
-                    .max_height(available)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        let projects = self.settings.projects.clone();
-                        for project in projects {
-                            let selected = self.settings.selected.as_ref().is_some_and(|p| same_project(p, &project));
-                            let all_sessions: Vec<_> = self.sessions.iter()
-                                .filter(|s| session_matches_project(s, &project))
-                                .cloned().collect();
-                            let search = self.search.trim().to_lowercase();
-                            let sessions: Vec<_> = all_sessions.iter().filter(|s| {
-                                s.title.as_deref().unwrap_or("Nuevo chat").to_lowercase().contains(&search)
-                            }).cloned().collect();
-                            let mut collapse = egui::collapsing_header::CollapsingState::load_with_default_open(
-                                ui.ctx(), ui.make_persistent_id(("project-chats", project_key(&project))), selected,
-                            );
-                            if !search.is_empty() && !sessions.is_empty() {
-                                collapse.set_open(true);
-                            }
-                            let header = ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 3.0;
-                                collapse.show_toggle_button(ui, egui::collapsing_header::paint_default_icon)
-                                    .on_hover_text("Mostrar u ocultar chats del proyecto");
-                                let button = egui::Button::image_and_text(
-                                    widgets::icon(Icon::Folder),
-                                    format!("{} · {}", label(&project), all_sessions.len()),
-                                ).selected(selected).truncate()
-                                    .min_size(egui::vec2((ui.available_width() - 32.0).max(40.0), 34.0));
-                                if ui.add_enabled(!self.busy && !self.loading, button)
-                                    .on_hover_text(project.display().to_string()).clicked() {
-                                    collapse.set_open(true);
-                                    self.settings.selected = Some(project.clone());
-                                    self.save();
-                                    if self.connected && let Some(session) = all_sessions.first() {
-                                        self.open(session.clone());
-                                    } else {
-                                        self.new_chat();
-                                    }
-                                }
-                                ui.add_enabled_ui(self.connected && !self.busy && !self.loading, |ui| {
-                                    if widgets::icon_button(ui, Icon::Plus, "Nuevo chat en este proyecto").clicked() {
-                                        collapse.set_open(true);
-                                        self.settings.selected = Some(project.clone());
-                                        self.save();
-                                        self.new_chat();
-                                    }
-                                });
-                            });
-                            if selected && reveal_selected {
-                                header.response.scroll_to_me(Some(egui::Align::Center));
-                            }
-                            collapse.show_body_indented(&header.response, ui, |ui| {
-                                if sessions.is_empty() {
-                                    widgets::muted(ui, if all_sessions.is_empty() { "Aún no hay chats en este proyecto." } else { "Ningún chat coincide con la búsqueda." });
-                                    if all_sessions.is_empty() && ui.add_enabled(self.connected && !self.busy && !self.loading, egui::Button::new("Crear primer chat")).clicked() {
-                                        self.settings.selected = Some(project.clone());
-                                        self.save();
-                                        self.new_chat();
-                                    }
-                                }
-                                for s in sessions {
-                                    let selected = self
-                                        .session
-                                        .as_ref()
-                                        .is_some_and(|a| a.session_id == s.session_id);
-                                    let title = s.title.as_deref().unwrap_or("Nuevo chat");
-                                    if ui
-                                        .add_enabled(
-                                            self.connected && !self.busy && !self.loading,
-                                            egui::Button::image_and_text(
-                                                widgets::icon(Icon::Chat),
-                                                RichText::new(title).size(12.0),
-                                            )
-                                            .selected(selected)
-                                            .truncate()
-                                            .min_size(egui::vec2(ui.available_width(), 30.0)),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.open(s.clone());
-                                    }
-                                }
-                            });
-                            ui.add_space(5.0);
-                        }
-                        if self.settings.projects.is_empty() {
-                            ui.add_space(12.0);
-                            ui.strong("Tus proyectos empiezan aquí");
-                            widgets::muted(ui, "Elige una carpeta. Orbit no importa repositorios ni chats de otras aplicaciones automáticamente.");
-                            if widgets::action(ui, Icon::Folder, "Elegir carpeta de proyecto").clicked() {
-                                self.backend.send(Command::PickFolder);
-                            }
-                        }
-                        if !self.settings.previous_projects.is_empty() {
-                            ui.add_space(14.0);
-                            egui::CollapsingHeader::new(format!("Recuperar proyectos anteriores ({})", self.settings.previous_projects.len()))
-                                .default_open(false).show(ui, |ui| {
-                                    widgets::muted(ui, "Conservamos las carpetas de la versión anterior. Añade solamente las que quieras utilizar; sus archivos y chats no se han borrado.");
-                                    for path in self.settings.previous_projects.clone() {
-                                        if ui.add_enabled(!self.busy && !self.loading, egui::Button::new(format!("Añadir {}", label(&path))).truncate())
-                                            .on_hover_text(path.display().to_string()).clicked() {
-                                            match self.settings.add_project(path) {
-                                                Ok(()) => {
-                                                    self.save();
-                                                    let previous = self.settings.selected.as_ref().and_then(|p| self.sessions.iter().find(|s| session_matches_project(s, p))).cloned();
-                                                    if self.connected && let Some(session) = previous {
-                                                        self.open(session);
-                                                    } else {
-                                                        self.new_chat();
-                                                    }
-                                                }
-                                                Err(error) => self.error = Some(error),
-                                            }
-                                        }
-                                    }
-                                });
-                        }
-                    });
-            });
-    }
-    fn account_footer(&mut self, ui: &mut egui::Ui) {
-        ui.separator();
-        if widgets::action(ui, Icon::Shield, "Mi cuenta Nexode").clicked() {
-            self.cloud.open = true;
-        }
-        if widgets::action(ui, Icon::Code, "Servicios Nexode").clicked() {
-            self.show_services = true;
-        }
-        if widgets::action(ui, Icon::Settings, "Configuración").clicked() {
-            self.show_settings = true;
-        }
-        ui.horizontal(|ui| {
-            let color = if self.connected {
-                theme::ACCENT
-            } else {
-                theme::MUTED
-            };
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(7.0, 10.0), egui::Sense::hover());
-            ui.painter().circle_filled(rect.center(), 2.5, color);
-            widgets::muted(
-                ui,
-                if self.connecting {
-                    "Conectando motor…"
-                } else if self.connected {
-                    "Motor conectado"
-                } else {
-                    "Motor desconectado"
-                },
-            );
-        });
-        ui.add_space(6.0);
-        self.usage.ui(ui);
-    }
     pub fn header(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("header")
             .exact_height(58.0)
@@ -249,7 +30,7 @@ impl OrbitApp {
                             .selected
                             .as_ref()
                             .map(|p| label(p))
-                            .unwrap_or("Selecciona un proyecto".into()),
+                            .unwrap_or("Chat general".into()),
                     );
                     widgets::muted(ui, " / ");
                     ui.add(
@@ -284,10 +65,10 @@ impl OrbitApp {
                         self.changes
                             .as_ref()
                             .map(|c| c.branch.trim())
-                            .unwrap_or("Proyecto local"),
+                            .unwrap_or("Chat general"),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        widgets::muted(ui, "Rust nativo · GPU");
+                        widgets::muted(ui, "En tu equipo");
                     });
                 });
             });
@@ -393,9 +174,14 @@ impl OrbitApp {
                                                     .selected
                                                     .as_ref()
                                                     .map(|p| label(p))
-                                                    .unwrap_or("Proyecto".into()),
+                                                    .unwrap_or("Chat general".into()),
                                             )
                                             .show_ui(ui, |ui| {
+                                                ui.selectable_value(
+                                                    &mut self.settings.selected,
+                                                    None,
+                                                    "Chat general",
+                                                );
                                                 for p in &self.settings.projects {
                                                     ui.selectable_value(
                                                         &mut self.settings.selected,
@@ -473,8 +259,7 @@ impl OrbitApp {
                                             .add_enabled(
                                                 self.connected
                                                     && !self.loading
-                                                    && !self.draft.trim().is_empty()
-                                                    && self.settings.selected.is_some(),
+                                                    && !self.draft.trim().is_empty(),
                                                 egui::Button::image(
                                                     widgets::icon(Icon::Send).tint(theme::SIDEBAR),
                                                 )
@@ -566,34 +351,5 @@ impl OrbitApp {
                     }
                 });
             });
-    }
-    pub fn settings_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.show_settings;
-        egui::Window::new("Configuración").open(&mut open).collapsible(false).resizable(false).default_width(540.0).vscroll(true).show(ctx,|ui|{
-            ui.add(widgets::logo(42.0));ui.heading("Tu espacio, tu motor.");ui.add_space(8.0);
-            ui.label("Aplicación nativa en Rust. El historial se guarda en tu equipo; los proveedores conectados reciben el contexto necesario para responder.");ui.add_space(12.0);
-            ui.strong("Bandeja e inicio");
-            ui.label(if self.desktop_shell.is_some(){"Cerrar la ventana mantiene Orbit en la bandeja. Usa Salir en su menú para terminar."}else{"La bandeja no está disponible; cerrar la ventana termina Orbit."});
-            let mut startup = self.startup.enabled();
-            if ui.checkbox(&mut startup,"Iniciar Orbit al entrar en mi sesión, en la bandeja").changed(){
-                match crate::desktop_shell::set_startup(startup){Ok(())=>{self.startup=crate::desktop_shell::startup_status().unwrap_or_default();},Err(e)=>self.error=Some(e)}
-            }
-            if self.startup.disabled_by_windows {ui.label("Windows desactivó el inicio de Orbit. Puedes habilitarlo en Administrador de tareas → Aplicaciones de inicio.");}
-            if ui.button("Actualizar estado de inicio").clicked(){match crate::desktop_shell::startup_status(){Ok(s)=>self.startup=s,Err(e)=>self.error=Some(e)}}
-            ui.separator();
-            ui.label(RichText::new("Ejecutable de Orbit").strong());
-            ui.label(self.settings.binary.as_ref().map(|p|p.display().to_string()).unwrap_or("Detectar junto a la aplicación o en PATH".into()));
-            if ui.add_enabled(!self.busy&&!self.connecting,egui::Button::new("Seleccionar ejecutable…")).clicked(){self.backend.send(Command::PickBinary);}
-            ui.add_space(8.0);
-            if ui.add_enabled(!self.busy&&!self.connecting,egui::Button::new(if self.connecting{"Conectando…"}else{"Conectar motor"})).clicked(){self.connecting=true;self.error=None;self.backend.send(Command::Connect(self.settings.clone()));}
-            ui.separator();ui.label(RichText::new("Conectar agentes de IA").strong());
-            ui.label("Conserva varias conexiones y elige el modelo en cada chat. Tu suscripción Nexode no es un requisito.");
-            ui.add_enabled_ui(!self.busy && !self.connecting, |ui| {
-                if self.providers.ui(ui,&crate::settings::engine_binary(&self.settings),&data_dir().join("engine"),self.backend.client_snapshot()){self.usage.refresh();}
-            });
-            widgets::muted(ui,format!("Datos locales: {}",data_dir().display()));
-            ui.add_space(8.0);widgets::muted(ui,"Nexode Desktop · UI nativa sin WebView");
-        });
-        self.show_settings = open;
     }
 }

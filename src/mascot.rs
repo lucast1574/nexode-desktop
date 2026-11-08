@@ -1,4 +1,4 @@
-//! Nexo, rendered by egui's GPU image pipeline. No web runtime or animation timer.
+//! Nexode logo, rendered by egui's GPU image pipeline. No web runtime or animation timer.
 use eframe::egui::{self, Image, Rect, Response, Sense, Vec2};
 use std::{
     sync::{
@@ -71,13 +71,13 @@ pub fn show(ui: &mut egui::Ui, size: f32, working: bool, animate: bool) -> Respo
         rect.center() + egui::vec2(0.0, size * pose.y),
         Vec2::splat(size * 0.82 * pose.scale),
     );
-    Image::new(egui::include_image!("../assets/nexo.webp"))
+    Image::new(egui::include_image!("../assets/nexode.svg"))
         .rotate(pose.rotation, Vec2::splat(0.5))
         .paint_at(ui, image_rect);
     response.on_hover_text(if working {
-        "Nexo está trabajando"
+        "Nexode está trabajando"
     } else {
-        "Nexo, tu compañero en Orbit"
+        "Nexode Orbit"
     })
 }
 

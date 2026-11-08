@@ -84,14 +84,15 @@ Las lecturas fallidas se identifican como obsoletas y las cuotas no expuestas se
 muestran como desconocidas. No se estima una cuota de suscripción desde los tokens
 del chat. Se actualiza en segundo plano cada dos minutos y al terminar un turno.
 
-La mascota `assets/nexo.webp` es el archivo original de la landing Nexode.
-Se anima en la GPU con egui (máximo 30 FPS): respiración/flotación en reposo y
-reacción al trabajo. La preferencia de reducir movimiento del sistema prevalece.
-No programa animaciones con la ventana oculta, minimizada o sin foco, ni cuando
-la mascota está fuera del área visible. No hay controles para activar/pausar
-animaciones. OAuth, enlaces externos y Stripe usan el navegador del sistema sólo
-cuando el usuario solicita esos pasos. La bienvenida usa un WebView del sistema
-con HTML/CSS, fuentes y mascota locales; su CSP bloquea la red y su IPC sólo
-acepta acciones conocidas. No ve claves, cookies ni contenido del chat. Se
-destruye al entrar a la conversación, abrir páginas nativas u ocultar la ventana.
-El resto de la aplicación conserva el renderizado nativo.
+El logo Nexode SVG sustituye a la mascota en las pantallas. Su animación respeta
+el movimiento reducido y la visibilidad de la ventana. Bienvenida y Servicios
+usan HTML/CSS y fuentes locales con CSP sin red e IPC limitado a acciones
+conocidas. Las URLs públicas del catálogo se resuelven en Rust, sin aceptar
+URLs arbitrarias desde JavaScript. OAuth y pagos usan el navegador del sistema.
+El WebView se destruye o cambia de documento al navegar; las páginas nativas
+mantienen el mismo layout y barra lateral. No se usa Electron.
+
+Los chats generales usan un directorio privado de conversaciones en los datos
+locales de Orbit. No requieren seleccionar un proyecto ni adoptan el directorio
+de trabajo del proceso. Los proyectos se añaden de forma explícita. Los IDs de
+chats fijados y el estado de inicio guiado se guardan en preferencias locales.

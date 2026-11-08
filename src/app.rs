@@ -35,9 +35,14 @@ impl StreamText {
             .join("\n\n")
     }
 }
+pub fn general_chat_dir() -> PathBuf {
+    crate::settings::data_dir().join("conversations")
+}
+
 pub struct OrbitApp {
     welcome_web: crate::welcome_web::WelcomeWeb,
     welcome_html: String,
+    services_html: String,
     welcome_dismissed: bool,
     pub providers: crate::provider_connections::ProviderConnections,
     pub desktop_shell: Option<crate::desktop_shell::DesktopShell>,
@@ -96,6 +101,7 @@ impl OrbitApp {
         Self {
             welcome_web: crate::welcome_web::WelcomeWeb::new(),
             welcome_html: crate::welcome_content::html(),
+            services_html: crate::ecosystem::html(),
             welcome_dismissed: false,
             providers: Default::default(),
             desktop_shell: shell.ok(),
@@ -147,6 +153,7 @@ impl OrbitApp {
         self.welcome_dismissed = false;
         self.draft.clear();
         self.show_services = false;
+        self.show_settings = false;
         self.cloud.open = false;
         self.session = None;
         self.pending = None;
@@ -159,11 +166,19 @@ impl OrbitApp {
         self.loading = false;
         self.tools.clear();
         self.focus_composer = true;
-        if self.connected
-            && let Some(path) = self.settings.selected.clone()
-        {
-            self.loading = true;
-            self.backend.send(Command::Create(path));
+        if self.connected {
+            let path = self
+                .settings
+                .selected
+                .clone()
+                .unwrap_or_else(general_chat_dir);
+            match std::fs::create_dir_all(&path) {
+                Ok(()) => {
+                    self.loading = true;
+                    self.backend.send(Command::Create(path));
+                }
+                Err(error) => self.error = Some(format!("No se pudo preparar el chat: {error}")),
+            }
         }
     }
     pub fn open(&mut self, session: SessionInfo) {
@@ -171,6 +186,7 @@ impl OrbitApp {
             return;
         }
         self.show_services = false;
+        self.show_settings = false;
         self.cloud.open = false;
         self.pending = Some(session.session_id.clone());
         self.loading = true;
@@ -180,7 +196,11 @@ impl OrbitApp {
         self.models.clear();
         self.tools.clear();
         self.stream = Default::default();
-        self.settings.selected = session.working_dir.as_ref().map(PathBuf::from);
+        self.settings.selected = session
+            .working_dir
+            .as_ref()
+            .map(PathBuf::from)
+            .filter(|p| !crate::settings::same_project(p, &general_chat_dir()));
         self.backend.send(Command::Open(session.session_id.clone()));
         self.session = Some(session);
         self.save();
@@ -189,10 +209,15 @@ impl OrbitApp {
         if self.busy || self.loading || !self.connected || self.draft.trim().is_empty() {
             return;
         }
-        let Some(path) = self.settings.selected.clone() else {
-            self.error = Some("Selecciona una carpeta de proyecto".into());
+        let path = self
+            .settings
+            .selected
+            .clone()
+            .unwrap_or_else(general_chat_dir);
+        if let Err(error) = std::fs::create_dir_all(&path) {
+            self.error = Some(format!("No se pudo preparar el chat: {error}"));
             return;
-        };
+        }
         let content = std::mem::take(&mut self.draft);
         self.messages.push(HistoryMessage {
             role: "user".into(),
@@ -382,7 +407,7 @@ impl OrbitApp {
                                             if self.settings.selected.is_some() {
                                                 "Revisa tu mensaje antes de enviarlo."
                                             } else {
-                                                "Añade un proyecto desde la barra lateral."
+                                                "Escribe lo que necesitas. No hace falta un proyecto."
                                             },
                                         );
                                     } else {
@@ -478,19 +503,12 @@ impl OrbitApp {
         ui.add_space(22.0);
         widgets::muted(ui, "TU ESPACIO PARA CONSTRUIR");
         ui.add_space(8.0);
-        let first_project = self.settings.projects.is_empty();
-        ui.label(
-            RichText::new(if first_project {
-                "Empieza con tu primer proyecto."
-            } else {
-                "¿Qué hacemos hoy?"
-            })
-            .size(36.0),
-        );
+        let first_project = self.settings.selected.is_none();
+        ui.label(RichText::new("¿Qué hacemos hoy?").size(36.0));
         ui.add_space(6.0);
         ui.label(
             RichText::new(if first_project {
-                "Elige una carpeta y conecta tu agente. Tú decides qué entra en Orbit."
+                "Empieza una conversación. Tus proyectos son opcionales."
             } else {
                 "Tus agentes, tus proyectos y todo Nexode en un mismo lugar."
             })
@@ -498,10 +516,9 @@ impl OrbitApp {
         );
         ui.add_space(28.0);
         ui.horizontal_wrapped(|ui| {
-            if first_project
-                && widgets::action(ui, Icon::Plus, "Añadir mi primer proyecto").clicked()
-            {
-                self.backend.send(Command::PickFolder);
+            if first_project && widgets::action(ui, Icon::Chat, "Empezar a conversar").clicked() {
+                self.welcome_dismissed = true;
+                self.focus_composer = true;
             }
             if ui.button("Conectar mis agentes").clicked() {
                 self.show_settings = true;
@@ -539,11 +556,16 @@ impl eframe::App for OrbitApp {
                 WelcomeAction::ConnectAgents => self.show_settings = true,
                 WelcomeAction::Services => self.show_services = true,
                 WelcomeAction::NewChat => self.new_chat(),
-                WelcomeAction::FocusComposer => {
-                    if self.settings.selected.is_some() {
-                        self.focus_composer = true;
+                WelcomeAction::ServicePrepare { index } => {
+                    if let Some(prompt) = crate::ecosystem::prepare_service(index) {
+                        self.new_chat(); self.draft = prompt; self.focus_composer = true;
                     }
                 }
+                WelcomeAction::ServiceExplore { index } => {
+                    if let Some(url) = crate::ecosystem::service_url(index) { ctx.open_url(egui::OpenUrl::new_tab(url)); }
+                }
+                WelcomeAction::BackToChats => { self.show_services = false; },
+                WelcomeAction::FocusComposer => { self.focus_composer = true; }
                 WelcomeAction::Suggestion { index } => {
                     if let Some(prompt) = [
                         "Explora la estructura del proyecto y explícame cómo funciona, sin modificar archivos.",
@@ -599,7 +621,7 @@ impl eframe::App for OrbitApp {
         }
         // Account restoration and sign-in are full application screens. No chat
         // controls or local project inventory are exposed behind a login dialog.
-        if self.cloud.account.is_none() || self.cloud.open {
+        if self.cloud.account.is_none() {
             self.welcome_web.sync(frame, ctx, None, &self.welcome_html);
             egui::CentralPanel::default()
                 .frame(egui::Frame::new().fill(theme::CANVAS))
@@ -614,24 +636,53 @@ impl eframe::App for OrbitApp {
             self.new_chat();
         }
         self.sidebar(ctx);
-        if self.show_services {
+        if self.cloud.open {
             self.welcome_web.sync(frame, ctx, None, &self.welcome_html);
+            egui::CentralPanel::default()
+                .frame(egui::Frame::new().fill(theme::CANVAS))
+                .show(ctx, |ui| {
+                    self.cloud
+                        .ui(ui, self.busy || self.providers.is_busy(), animate);
+                });
+        } else if self.show_settings || !self.settings.onboarding_complete {
+            self.welcome_web.sync(frame, ctx, None, &self.welcome_html);
+            let onboarding = !self.settings.onboarding_complete;
+            egui::CentralPanel::default()
+                .frame(egui::Frame::new().fill(theme::CANVAS).inner_margin(24))
+                .show(ctx, |ui| {
+                    if self.settings_page(ui, onboarding) {
+                        self.settings.onboarding_complete = true;
+                        self.show_settings = false;
+                        self.save();
+                        if onboarding {
+                            self.settings.selected = None;
+                            self.new_chat();
+                        }
+                    }
+                });
+        } else if self.show_services {
             egui::CentralPanel::default()
                 .frame(egui::Frame::new().fill(theme::CANVAS).inner_margin(28.0))
                 .show(ctx, |ui| {
-                    crate::ecosystem::panel(
-                        ui,
-                        &mut self.show_services,
-                        &mut self.service_query,
-                        &mut self.draft,
-                    )
+                    if !self.welcome_web.sync_document(
+                        frame,
+                        ctx,
+                        Some(ui.max_rect()),
+                        &self.services_html,
+                        "services",
+                    ) {
+                        crate::ecosystem::panel(
+                            ui,
+                            &mut self.show_services,
+                            &mut self.service_query,
+                            &mut self.draft,
+                        );
+                    }
                 });
         } else {
             self.review_panel(ctx);
             self.header(ctx);
-            if self.settings.selected.is_some() {
-                self.composer(ctx);
-            }
+            self.composer(ctx);
             egui::CentralPanel::default()
                 .frame(egui::Frame::new().fill(theme::CANVAS))
                 .show(ctx, |ui| {
@@ -653,7 +704,7 @@ impl eframe::App for OrbitApp {
                     );
                     if web {
                         self.welcome_web.set_state(
-                            self.settings.projects.is_empty(),
+                            self.settings.selected.is_none(),
                             "",
                             !animate || crate::mascot::reduced_motion(ctx),
                         );
@@ -662,7 +713,6 @@ impl eframe::App for OrbitApp {
                     }
                 });
         }
-        self.settings_window(ctx);
     }
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.save();

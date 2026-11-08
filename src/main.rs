@@ -10,6 +10,8 @@ mod platform_runtime;
 mod provider_connections;
 mod provider_usage;
 mod settings;
+mod settings_page;
+mod sidebar;
 mod theme;
 mod welcome_content;
 mod welcome_web;

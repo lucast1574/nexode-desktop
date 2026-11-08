@@ -21,6 +21,7 @@ pub enum Icon {
     Code,
     Search,
     Shield,
+    Pin,
 }
 pub fn icon(kind: Icon) -> Image<'static> {
     let (name, path) = match kind {
@@ -67,6 +68,10 @@ pub fn icon(kind: Icon) -> Image<'static> {
         Icon::Shield => (
             "shield",
             r#"<path d="m12 2 9 4v6c0 6-9 10-9 10S3 18 3 12V6Zm-5 10 3 3 7-7"/>"#,
+        ),
+        Icon::Pin => (
+            "pin",
+            r#"<path d="M12 16v6M9 3h6l-1 6 4 4v3H6v-3l4-4-1-6Z"/>"#,
         ),
     };
     let svg = format!(

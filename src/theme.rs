@@ -1,6 +1,6 @@
 use eframe::egui::{self, Color32, FontId, Stroke, TextStyle};
-pub const CANVAS: Color32 = Color32::from_rgb(25, 27, 25);
-pub const SIDEBAR: Color32 = Color32::from_rgb(20, 22, 20);
+pub const CANVAS: Color32 = Color32::from_rgb(15, 15, 15);
+pub const SIDEBAR: Color32 = Color32::from_rgb(15, 15, 15);
 pub const SURFACE: Color32 = Color32::from_rgb(35, 39, 35);
 pub const MUTED: Color32 = Color32::from_rgb(143, 153, 136);
 pub const TEXT: Color32 = Color32::from_rgb(226, 233, 221);

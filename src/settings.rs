@@ -12,6 +12,8 @@ pub struct Settings {
     pub project_setup_version: u8,
     pub selected: Option<PathBuf>,
     pub binary: Option<PathBuf>,
+    pub pinned_sessions: Vec<String>,
+    pub onboarding_complete: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -21,6 +23,8 @@ impl Default for Settings {
             project_setup_version: 1,
             selected: None,
             binary: None,
+            pinned_sessions: vec![],
+            onboarding_complete: false,
         }
     }
 }
@@ -80,17 +84,14 @@ impl Settings {
         for project in &mut settings.projects {
             *project = std::fs::canonicalize(&*project).unwrap_or_else(|_| project.clone());
         }
-        settings.selected = settings
-            .selected
-            .and_then(|p| {
-                let p = std::fs::canonicalize(&p).unwrap_or(p);
-                settings
-                    .projects
-                    .iter()
-                    .find(|registered| same_project(registered, &p))
-                    .cloned()
-            })
-            .or_else(|| settings.projects.first().cloned());
+        settings.selected = settings.selected.and_then(|p| {
+            let p = std::fs::canonicalize(&p).unwrap_or(p);
+            settings
+                .projects
+                .iter()
+                .find(|registered| same_project(registered, &p))
+                .cloned()
+        });
         settings
     }
     pub fn add_project(&mut self, path: PathBuf) -> Result<(), String> {
@@ -109,6 +110,16 @@ impl Settings {
         self.project_setup_version = 1;
         self.selected = Some(path);
         Ok(())
+    }
+    pub fn is_session_pinned(&self, session_id: &str) -> bool {
+        self.pinned_sessions.iter().any(|id| id == session_id)
+    }
+    pub fn toggle_session_pin(&mut self, session_id: &str) {
+        if self.is_session_pinned(session_id) {
+            self.pinned_sessions.retain(|id| id != session_id);
+        } else if !session_id.is_empty() {
+            self.pinned_sessions.push(session_id.to_owned());
+        }
     }
     pub fn save(&self) -> Result<(), String> {
         std::fs::create_dir_all(data_dir()).map_err(|e| e.to_string())?;
@@ -222,6 +233,47 @@ pub fn label(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pins_and_onboarding_survive_reload_without_implicit_setup() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut settings = Settings::default();
+        assert!(!settings.onboarding_complete);
+        settings.toggle_session_pin("chat-a");
+        settings.toggle_session_pin("chat-b");
+        settings.toggle_session_pin("chat-a");
+        settings.toggle_session_pin("");
+        settings.onboarding_complete = true;
+        std::fs::write(
+            directory.path().join("desktop.json"),
+            serde_json::to_vec(&settings).unwrap(),
+        )
+        .unwrap();
+        let loaded = Settings::load_from(directory.path());
+        assert_eq!(loaded.pinned_sessions, ["chat-b"]);
+        assert!(loaded.onboarding_complete);
+        assert!(loaded.projects.is_empty());
+        let legacy: Settings =
+            serde_json::from_str(r#"{"project_setup_version":1,"projects":[]}"#).unwrap();
+        assert!(!legacy.onboarding_complete);
+        assert!(legacy.pinned_sessions.is_empty());
+    }
+    #[test]
+    fn general_chat_selection_survives_registered_project_reload() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = directory.path().join("project");
+        std::fs::create_dir(&project).unwrap();
+        let mut settings = Settings::default();
+        settings.add_project(project).unwrap();
+        settings.selected = None;
+        std::fs::write(
+            directory.path().join("desktop.json"),
+            serde_json::to_vec(&settings).unwrap(),
+        )
+        .unwrap();
+        let loaded = Settings::load_from(directory.path());
+        assert_eq!(loaded.projects.len(), 1);
+        assert!(loaded.selected.is_none());
+    }
     #[test]
     fn only_one_window_can_own_the_private_runtime() {
         let dir = tempfile::tempdir().unwrap();
