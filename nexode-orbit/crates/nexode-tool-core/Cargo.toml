@@ -1,0 +1,17 @@
+[package]
+name = "nexode-tool-core"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "nexode_tool_core"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+nexode-agent-runtime = { path = "../nexode-agent-runtime" }
+nexode-message-types = { path = "../nexode-message-types" }
+nexode-tool-types = { path = "../nexode-tool-types" }
+serde_json = "1"
+tokio = { version = "1", features = ["sync"] }

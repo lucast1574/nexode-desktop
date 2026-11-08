@@ -1,0 +1,46 @@
+name: Signing helper validation (native macOS)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: vars.NEXODE_RELEASE_REPO != '' && github.repository == vars.NEXODE_RELEASE_REPO && github.ref == 'refs/heads/master'
+    runs-on: macos-15
+    environment: native-handoff-signing
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate Rust helper and build fixed native fixture before credentials
+        id: fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(uname -m)" = arm64
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml handoff::
+          cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test native_handoff
+          export ORBIT_DEV_BIN=$(bash scripts/orbit_dev.sh --build-only)
+          echo "ORBIT_DEV_BIN=$ORBIT_DEV_BIN" >> "$GITHUB_ENV"
+          bash scripts/check_signing_helper_macos.sh prepare
+      - name: Execute native Rust helper with protected identity
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TRUSTED_SHA256: ${{ steps.fixture.outputs.sha256 }}
+        run: bash scripts/check_signing_helper_macos.sh sign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signing-helper-receipt-${{ github.run_attempt }}
+          path: signing-helper-validation/receipt.json
+          if-no-files-found: error
+          retention-days: 7

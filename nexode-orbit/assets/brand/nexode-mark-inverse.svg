@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="32" rx="32" ry="11" transform="rotate(-28 32 32)" fill="none" stroke="#10dc79" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="23" fill="#071b14" stroke="#10dc79" stroke-width="1.5"/>
+  <g fill="none" stroke="#10dc79" stroke-width="1" opacity=".24">
+    <ellipse cx="32" cy="32" rx="11" ry="23"/>
+    <path d="M11 23Q32 33 53 23M11 41Q32 31 53 41"/>
+  </g>
+  <path d="M12.54,63.43H0V18.48H11.73v4.93c.21-.07.35-.07.39-.14a13.56,13.56,0,0,1,9.1-5.49c4.3-.74,8.54-.52,12.48,1.61C38.29,21.87,40.49,26,41.35,31a27.94,27.94,0,0,1,.44,4.65c.05,8.92,0,17.83,0,26.75,0,.32,0,.63,0,1H29.11V62c0-7.24,0-14.48,0-21.72a56.86,56.86,0,0,0-.43-6c-.58-4.83-4.6-7-9.23-6a8.25,8.25,0,0,0-6.6,7.33,27.14,27.14,0,0,0-.26,3.82c0,7.48,0,15,0,22.44Z" transform="translate(21.1 11.1) scale(.52)" fill="#fff"/>
+  <path d="M-32 0A32 11 0 0 0 32 0" transform="translate(32 32) rotate(-28)" fill="none" stroke="#10dc79" stroke-width="2.5"/>
+  <circle cx="6.3" cy="48" r="2.6" fill="#10dc79"/>
+</svg>

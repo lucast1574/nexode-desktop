@@ -1,0 +1,170 @@
+[package]
+name = "nexode-base"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Foundational layer of the nexode application core: the downward-closed set of
+# modules (provider, auth, config, session, message, memory, telemetry, ...)
+# that the server/tool/agent layer depends on. Split out of `nexode-app-core` so
+# the two halves compile as separate rustc units, halving peak compile memory.
+# `nexode-app-core` re-exports this crate (`pub use nexode_base::*`) so that every
+# existing `crate::<module>` path keeps resolving unchanged.
+
+[lib]
+name = "nexode_base"
+path = "src/lib.rs"
+
+[dependencies]
+# Memory allocator (reduces fragmentation for long-running server)
+tikv-jemalloc-ctl = { version = "0.6", optional = true }
+tikv-jemalloc-sys = { version = "0.6", optional = true }
+
+# Async runtime
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream", "blocking", "charset", "http2", "system-proxy", "rustls-tls", "rustls-tls-native-roots"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+serde_yaml = "0.9"
+toml = "0.8"
+toml_edit = "0.20"
+
+# File operations
+
+# Utilities
+dirs = "5"               # home directory
+anyhow = "1"
+libc = "0.2"             # Unix system calls (flock)
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+urlencoding = "2"        # URL encoding for web search
+uuid = { version = "1", features = ["v4", "v5"] }
+proctitle = "0.1"
+
+# Embeddings (local inference) - behind feature flag (163 crates, slow to compile)
+nexode-embedding = { path = "../nexode-embedding", optional = true }
+nexode-gateway-types = { path = "../nexode-gateway-types" }
+nexode-import-core = { path = "../nexode-import-core" }
+nexode-logging = { path = "../nexode-logging" }
+
+# OAuth
+base64 = "0.22"
+sha2 = "0.10"
+nexode-transport = { path = "../nexode-transport" }
+rand = "0.9.3"
+hex = "0.4"
+url = "2"
+open = "5"               # Open URLs in browser
+nexode-auth-types = { path = "../nexode-auth-types" }
+nexode-azure-auth = { path = "../nexode-azure-auth" }
+nexode-agent-runtime = { path = "../nexode-agent-runtime" }
+nexode-provider-metadata = { path = "../nexode-provider-metadata" }
+nexode-provider-env = { path = "../nexode-provider-env" }
+nexode-provider-core = { path = "../nexode-provider-core" }
+# default-features=false so this crate's `bedrock` feature (below) controls the
+# AWS SDK stack; the pure model-metadata/credential-detection layer is always on.
+nexode-provider-bedrock = { path = "../nexode-provider-bedrock", default-features = false }
+nexode-provider-antigravity = { path = "../nexode-provider-antigravity" }
+nexode-provider-copilot = { path = "../nexode-provider-copilot" }
+nexode-provider-openai = { path = "../nexode-provider-openai" }
+nexode-provider-openrouter = { path = "../nexode-provider-openrouter" }
+nexode-provider-gemini = { path = "../nexode-provider-gemini" }
+# NOTE: this foundation layer intentionally does NOT depend on any `nexode-tui-*`
+# crate. The two pure-data/string symbols it used to reach for (`ResumeTarget`,
+# `reasoning_line_markup`) were moved to `nexode-session-types` and
+# `nexode-render-core` respectively, so the layering inversion (foundation
+# depending on presentation) is gone.
+nexode-render-core = { path = "../nexode-render-core" }
+nexode-terminal-launch = { path = "../nexode-terminal-launch" }
+nexode-terminal-image = { path = "../nexode-terminal-image" }
+nexode-telemetry-core = { path = "../nexode-telemetry-core" }
+nexode-usage-types = { path = "../nexode-usage-types" }
+
+# NOTE: microphone capture and transcription live in `nexode-voice`, a
+# client-only crate. The shared runtime never opens a microphone.
+
+# Streaming
+
+# NOTE: no terminal crates (crossterm, ratatui, qrcode). Interactive login
+# prompts and QR rendering are client concerns: the CLI installs a presenter
+# from `nexode-terminal-prompt` into `auth::login_ui`.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "ico", "tiff"] }  # PNG/JPEG plus BMP/ICO/TIFF decoding so they can be re-encoded to PNG for providers (#1712). Skip avif/rav1e, exr, etc.
+
+# NOTE: PDF text extraction (nexode-pdf) lives in the upper nexode-app-core crate
+# (tool/read.rs), not here.
+nexode-background-types = { path = "../nexode-background-types" }
+nexode-batch-types = { path = "../nexode-batch-types" }
+nexode-build-meta = { path = "../nexode-build-meta" }
+nexode-compaction-core = { path = "../nexode-compaction-core" }
+nexode-config-types = { path = "../nexode-config-types" }
+nexode-core = { path = "../nexode-core" }
+nexode-memory-types = { path = "../nexode-memory-types" }
+nexode-message-types = { path = "../nexode-message-types" }
+nexode-plan = { path = "../nexode-plan" }
+nexode-protocol = { path = "../nexode-protocol" }
+nexode-session-types = { path = "../nexode-session-types" }
+nexode-selfdev-types = { path = "../nexode-selfdev-types" }
+nexode-storage = { path = "../nexode-storage" }
+nexode-task-types = { path = "../nexode-task-types" }
+nexode-todo-policy = { path = "../nexode-todo-policy" }
+nexode-tool-core = { path = "../nexode-tool-core" }
+nexode-tool-types = { path = "../nexode-tool-types" }
+nexode-side-panel-types = { path = "../nexode-side-panel-types" }
+nexode-applet-types = { path = "../nexode-applet-types" }
+
+# Gzip/deflate decoding (provider import helpers, browser extension unzip)
+flate2 = "1"
+tempfile = "3"
+
+[features]
+default = ["bedrock"]
+# Compiles the in-crate test helpers (storage::lock_test_env,
+# auth::test_sandbox, bus::reset_models_updated_publish_state_for_tests, ...) as
+# `pub` so downstream crates' test targets can reach them. Enabled as a
+# dev-dependency feature by nexode-app-core / nexode / etc.; never in normal
+# (non-test) builds.
+test-support = []
+jemalloc = [
+    "dep:tikv-jemalloc-ctl",
+    "dep:tikv-jemalloc-sys",
+    "tikv-jemalloc-ctl/stats",
+]
+jemalloc-prof = [
+    "jemalloc",
+    "tikv-jemalloc-ctl/profiling",
+]
+embeddings = ["dep:nexode-embedding"]
+# Live AWS Bedrock support (the ~20-crate AWS SDK stack) lives in
+# nexode-provider-bedrock (aws-sdk); forward there. Without it the Bedrock
+# provider still compiles but live calls return an explanatory error.
+bedrock = ["nexode-provider-bedrock/aws-sdk"]
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Power", "Win32_System_ProcessStatus", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+global-hotkey = "0.7"
+
+[dev-dependencies]
+# The browserless login integration test installs the real terminal presenter.
+nexode-terminal-prompt = { path = "../nexode-terminal-prompt" }
+# Dev-only cycle (cargo permits dev-dependencies on dependents): base's
+# MultiProvider routing tests exercise the real OpenRouter/OpenAI-compatible
+# runtime through the composition-root registry, exactly like the binary.
+nexode-provider-openrouter-runtime = { path = "../nexode-provider-openrouter-runtime" }
+# Paused-time (auto-advancing virtual clock) tests for the background stall watchdog.
+tokio = { version = "1", features = ["test-util"] }
+
+# Re-exec this native fixture without a libtest banner on the JSON-RPC stream.
+[[test]]
+name = "mcp_stdio_collision_integration"
+path = "tests/mcp_stdio_collision_integration.rs"
+harness = false

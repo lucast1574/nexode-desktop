@@ -1,0 +1,29 @@
+[package]
+name = "nexode-telemetry-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "nexode_telemetry_core"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+nexode-build-meta = { path = "../nexode-build-meta" }
+nexode-core = { path = "../nexode-core" }
+nexode-logging = { path = "../nexode-logging" }
+nexode-provider-core = { path = "../nexode-provider-core" }
+nexode-selfdev-types = { path = "../nexode-selfdev-types" }
+nexode-storage = { path = "../nexode-storage" }
+nexode-usage-types = { path = "../nexode-usage-types" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "charset", "http2", "system-proxy", "rustls-tls", "rustls-tls-native-roots"] }
+sha2 = "0.10"
+serde_json = "1"
+walkdir = "2"
+tokio = { version = "1", features = ["rt"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

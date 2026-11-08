@@ -1,0 +1,45 @@
+name: Release Recovery Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-recovery.yml'
+      - '.github/workflows/windows-companion.yml'
+      - '.github/scripts/verify_windows_install.ps1'
+      - 'scripts/*release*'
+      - 'tools/orbit-dev/**'
+      - 'scripts/install.sh'
+      - 'scripts/install_justrust_ci.sh'
+      - 'scripts/build_linux_compat.sh'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-recovery.yml'
+      - '.github/workflows/windows-companion.yml'
+      - '.github/scripts/verify_windows_install.ps1'
+      - 'scripts/*release*'
+      - 'tools/orbit-dev/**'
+      - 'scripts/install.sh'
+      - 'scripts/install_justrust_ci.sh'
+      - 'scripts/build_linux_compat.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Recovery regressions exercise historical tags in isolated clones.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test release maintenance and workflow contracts
+        run: cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml
+      - name: Test installer release metadata validation
+        run: bash scripts/test_install_release_metadata.sh

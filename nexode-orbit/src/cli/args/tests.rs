@@ -1,0 +1,1068 @@
+use super::*;
+use crate::cli::provider_init::ProviderChoice;
+
+#[test]
+fn cloud_lifecycle_commands_parse_their_contracts() {
+    for command in ["send", "status", "wait", "logs", "inspect", "run-detached"] {
+        let mut argv = vec!["nexode", "cloud", command, "--session", "session_test"];
+        if matches!(command, "send" | "run-detached") {
+            argv.push("continue the task");
+        }
+        assert!(Args::try_parse_from(argv).is_ok(), "{command}");
+        assert!(
+            Args::try_parse_from(["nexode", "cloud", command]).is_err(),
+            "{command} requires a session"
+        );
+    }
+    let args = Args::try_parse_from([
+        "nexode",
+        "cloud",
+        "wait",
+        "--session",
+        "s",
+        "--timeout",
+        "0",
+        "--messages",
+        "3",
+        "--json",
+    ])
+    .unwrap();
+    assert!(
+        matches!(args.command, Some(Command::Cloud(CloudCommand::Wait { session, timeout: 0, messages: 3, json: true })) if session == "s")
+    );
+    let args = Args::try_parse_from([
+        "nexode",
+        "cloud",
+        "fork",
+        "--session",
+        "parent",
+        "--prompt",
+        "child task",
+        "--host",
+        "my-box",
+        "--json",
+    ])
+    .unwrap();
+    assert!(
+        matches!(args.command, Some(Command::Cloud(CloudCommand::Fork { session: Some(parent), prompt: Some(prompt), target, json: true })) if parent == "parent" && prompt == "child task" && target.host.as_deref() == Some("my-box"))
+    );
+    assert!(Args::try_parse_from(["nexode", "cloud", "fork"]).is_ok());
+    assert!(Args::try_parse_from(["nexode", "cloud", "doctor", "--json"]).is_ok());
+    let args =
+        Args::try_parse_from(["nexode", "cloud", "problems", "--limit", "0", "--json"]).unwrap();
+    assert!(matches!(
+        args.command,
+        Some(Command::Cloud(CloudCommand::Problems {
+            limit: 0,
+            json: true
+        }))
+    ));
+}
+
+#[test]
+fn cloud_move_selection_defaults_to_swarm_and_independent_sessions_are_explicit() {
+    let args = Args::try_parse_from(["nexode", "cloud", "move"]).unwrap();
+    assert!(
+        matches!(args.command, Some(Command::Cloud(CloudCommand::Move {
+        include_sessions, session_only: false, ..
+    })) if include_sessions.is_empty())
+    );
+
+    let args = Args::try_parse_from([
+        "nexode",
+        "cloud",
+        "move",
+        "--include-session",
+        "first",
+        "--include-session",
+        "second",
+        "--dry-run",
+    ])
+    .unwrap();
+    assert!(
+        matches!(args.command, Some(Command::Cloud(CloudCommand::Move {
+        include_sessions, session_only: false, dry_run: true, ..
+    })) if include_sessions == ["first", "second"])
+    );
+
+    let args = Args::try_parse_from(["nexode", "cloud", "move", "--session-only"]).unwrap();
+    assert!(matches!(
+        args.command,
+        Some(Command::Cloud(CloudCommand::Move {
+            session_only: true,
+            ..
+        }))
+    ));
+    assert!(
+        Args::try_parse_from([
+            "nexode",
+            "cloud",
+            "move",
+            "--session-only",
+            "--include-session",
+            "other"
+        ])
+        .is_err()
+    );
+}
+
+#[test]
+fn update_channel_cli_is_explicit_and_limited_to_preview_and_stable() {
+    for channel in ["preview", "stable"] {
+        let args = Args::try_parse_from(["nexode", "update", "--channel", channel]).unwrap();
+        assert!(
+            matches!(args.command, Some(Command::Update { channel: Some(value) }) if value == channel)
+        );
+    }
+    let args = Args::try_parse_from(["nexode", "update"]).unwrap();
+    assert!(matches!(
+        args.command,
+        Some(Command::Update { channel: None })
+    ));
+    for channel in ["main", "nightly", "unknown"] {
+        assert!(Args::try_parse_from(["nexode", "update", "--channel", channel]).is_err());
+    }
+}
+
+#[test]
+fn credential_import_cli_requires_stdin_and_preserves_explicit_provider() {
+    for provider in ["openai", "claude"] {
+        let args = Args::try_parse_from([
+            "nexode",
+            "auth",
+            "import",
+            "--provider",
+            provider,
+            "--stdin",
+            "--json",
+        ])
+        .unwrap();
+        assert_eq!(args.provider.as_arg_value(), provider);
+        assert!(matches!(
+            args.command,
+            Some(Command::Auth(AuthCommand::Import {
+                stdin: true,
+                json: true
+            }))
+        ));
+    }
+    for args in [
+        vec!["nexode", "auth", "import", "--provider", "openai"],
+        vec!["nexode", "auth", "import", "--stdin", "--token", "secret"],
+        vec!["nexode", "auth", "import", "--stdin", "--overwrite"],
+    ] {
+        assert!(Args::try_parse_from(args).is_err());
+    }
+}
+
+#[test]
+fn native_ssh_attach_arguments_parse_and_do_not_steal_local_socket() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "--ssh",
+        "dev",
+        "--ssh-binary",
+        "/opt/nexode",
+        "--ssh-server-socket",
+        "/run/native/nexode.sock",
+        "--remote-working-dir",
+        "/srv/project",
+        "self-dev",
+    ])
+    .unwrap();
+    assert_eq!(args.ssh.as_deref(), Some("dev"));
+    assert_eq!(args.ssh_binary.as_deref(), Some("/opt/nexode"));
+    assert_eq!(
+        args.ssh_server_socket.as_deref(),
+        Some("/run/native/nexode.sock")
+    );
+    assert_eq!(args.remote_working_dir.as_deref(), Some("/srv/project"));
+    assert!(args.socket.is_none());
+    for argv in [
+        vec!["nexode", "--ssh", "dev", "--socket", "/local.sock"],
+        vec!["nexode", "--ssh-binary", "/opt/nexode"],
+        vec!["nexode", "--ssh-server-socket", "/remote.sock"],
+    ] {
+        assert!(Args::try_parse_from(argv).is_err());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn native_server_stdio_preserves_socket_override() {
+    let args = Args::try_parse_from(["nexode", "--socket", "/run/native.sock", "server", "stdio"])
+        .unwrap();
+    assert_eq!(args.socket.as_deref(), Some("/run/native.sock"));
+    assert!(matches!(
+        args.command,
+        Some(Command::Server {
+            action: ServerCommand::Stdio
+        })
+    ));
+}
+
+#[test]
+fn server_start_and_internal_keepalive_parse() {
+    let args = Args::try_parse_from(["nexode", "server", "start", "--json"])
+        .expect("server start should parse");
+    assert!(matches!(
+        args.command,
+        Some(Command::Server {
+            action: ServerCommand::Start { json: true }
+        })
+    ));
+
+    let keepalive = Args::try_parse_from(["nexode", "server", "keepalive"])
+        .expect("internal server keepalive should parse");
+    assert!(matches!(
+        keepalive.command,
+        Some(Command::Server {
+            action: ServerCommand::Keepalive
+        })
+    ));
+}
+
+#[test]
+fn server_promote_parses_default_and_explicit_version() {
+    let current = Args::try_parse_from(["nexode", "server", "promote", "--json"])
+        .expect("server promote should default to current");
+    assert!(matches!(
+        current.command,
+        Some(Command::Server {
+            action: ServerCommand::Promote {
+                version: None,
+                json: true,
+            }
+        })
+    ));
+
+    let explicit = Args::try_parse_from(["nexode", "server", "promote", "abc1234-dirty-deadbeef"])
+        .expect("server promote should accept an installed version label");
+    assert!(matches!(
+        explicit.command,
+        Some(Command::Server {
+            action: ServerCommand::Promote {
+                version: Some(ref version),
+                json: false,
+            }
+        }) if version == "abc1234-dirty-deadbeef"
+    ));
+}
+
+#[test]
+fn telemetry_subcommands_parse() {
+    let status = Args::try_parse_from(["nexode", "telemetry", "status", "--json"])
+        .expect("telemetry status should parse");
+    assert!(matches!(
+        status.command,
+        Some(Command::Telemetry(TelemetryCommand::Status { json: true }))
+    ));
+
+    let enable = Args::try_parse_from(["nexode", "telemetry", "enable"])
+        .expect("telemetry enable should parse");
+    assert!(matches!(
+        enable.command,
+        Some(Command::Telemetry(TelemetryCommand::Enable))
+    ));
+
+    let disable = Args::try_parse_from(["nexode", "telemetry", "disable"])
+        .expect("telemetry disable should parse");
+    assert!(matches!(
+        disable.command,
+        Some(Command::Telemetry(TelemetryCommand::Disable))
+    ));
+}
+
+#[test]
+fn test_provider_choice_aliases_parse() {
+    let args = Args::try_parse_from(["nexode", "--provider", "z.ai", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::Zai);
+
+    let args =
+        Args::try_parse_from(["nexode", "--provider", "kimi-for-coding", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::Kimi);
+
+    let args =
+        Args::try_parse_from(["nexode", "--provider", "cerebrascode", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::Cerebras);
+
+    let args = Args::try_parse_from(["nexode", "--provider", "compat", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::OpenaiCompatible);
+
+    let args = Args::try_parse_from(["nexode", "--provider", "bailian", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::AlibabaCodingPlan);
+
+    let args = Args::try_parse_from(["nexode", "--provider", "together", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::TogetherAi);
+
+    let args = Args::try_parse_from(["nexode", "--provider", "grok", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::Xai);
+
+    let args = Args::try_parse_from(["nexode", "--provider", "grok-build"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::GrokBuild);
+
+    let args = Args::try_parse_from(["nexode", "--provider", "cgc", "run", "smoke"]).unwrap();
+    assert_eq!(args.provider, ProviderChoice::Comtegra);
+}
+
+#[test]
+fn serve_server_name_option_parses() {
+    let args =
+        Args::try_parse_from(["nexode", "serve", "--server-name", "mount-cloud/fabian"]).unwrap();
+    match args.command {
+        Some(Command::Serve { server_name, .. }) => {
+            assert_eq!(server_name.as_deref(), Some("mount-cloud/fabian"));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn remote_working_dir_option_parses() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "--socket",
+        "/tmp/nexode.sock",
+        "--remote-working-dir",
+        "/home/agent/project",
+    ])
+    .unwrap();
+
+    assert_eq!(
+        args.remote_working_dir.as_deref(),
+        Some("/home/agent/project")
+    );
+}
+
+#[test]
+fn model_list_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "model", "list", "--json", "--verbose"]).unwrap();
+    match args.command {
+        Some(Command::Model(ModelCommand::List { json, verbose })) => {
+            assert!(json);
+            assert!(verbose);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn session_rename_subcommand_parses() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "session",
+        "rename",
+        "fox",
+        "release planning",
+        "--json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Session(SessionCommand::Rename {
+            session,
+            name,
+            clear,
+            json,
+        })) => {
+            assert_eq!(session, "fox");
+            assert_eq!(name.as_deref(), Some("release planning"));
+            assert!(!clear);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from(["nexode", "session", "rename", "fox", "--clear"]).unwrap();
+    match args.command {
+        Some(Command::Session(SessionCommand::Rename {
+            session,
+            name,
+            clear,
+            json,
+        })) => {
+            assert_eq!(session, "fox");
+            assert!(name.is_none());
+            assert!(clear);
+            assert!(!json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn retired_jade_session_commands_are_rejected() {
+    assert!(Args::try_parse_from(["nexode", "cloud", "sessions", "status"]).is_err());
+}
+
+#[test]
+fn cloud_return_preserves_local_auth_only_when_explicit() {
+    for explicit in [false, true] {
+        let mut argv = vec![
+            "nexode",
+            "cloud",
+            "return",
+            "--session",
+            "old-cloud-session",
+            "--refs-only",
+        ];
+        if explicit {
+            argv.push("--keep-local-auth");
+        }
+        let args = Args::try_parse_from(argv).unwrap();
+        match args.command {
+            Some(Command::Cloud(CloudCommand::Return {
+                session,
+                refs_only,
+                keep_local_auth,
+                ..
+            })) => {
+                assert_eq!(session.as_deref(), Some("old-cloud-session"));
+                assert!(refs_only);
+                assert_eq!(keep_local_auth, explicit);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn login_no_browser_flag_parses() {
+    let args = Args::try_parse_from(["nexode", "login", "--no-browser"]).unwrap();
+    match args.command {
+        Some(Command::Login {
+            provider,
+            account,
+            no_browser,
+            print_auth_url,
+            callback_url,
+            auth_code,
+            json,
+            complete,
+            google,
+            api_base,
+            api_key,
+            api_key_env,
+            no_validate,
+            flow_id,
+            cancel,
+        }) => {
+            assert!(provider.is_none());
+            assert!(account.is_none());
+            assert!(no_browser);
+            assert!(!print_auth_url);
+            assert!(callback_url.is_none());
+            assert!(auth_code.is_none());
+            assert!(!json);
+            assert!(!complete);
+            assert!(google.google_access_tier.is_none());
+            assert!(google.google_services.is_none());
+            assert!(!google.setup);
+            assert!(google.google_client_json.is_none());
+            assert!(api_base.is_none());
+            assert!(api_key.is_none());
+            assert!(api_key_env.is_none());
+            assert!(!no_validate);
+            assert!(flow_id.is_none());
+            assert!(!cancel);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from(["nexode", "login", "--headless"]).unwrap();
+    match args.command {
+        Some(Command::Login { no_browser, .. }) => assert!(no_browser),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn login_accepts_provider_positional() {
+    let args = Args::try_parse_from(["nexode", "login", "google"]).unwrap();
+    match args.command {
+        Some(Command::Login { provider, .. }) => {
+            assert_eq!(provider, Some(ProviderChoice::Google));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn login_scoped_flow_flags_parse_and_reject_unsafe_ids() {
+    for action in ["--print-auth-url", "--complete", "--cancel"] {
+        let args = Args::try_parse_from([
+            "nexode",
+            "login",
+            "--provider",
+            "openai",
+            "--flow-id",
+            "aB_09-safe",
+            action,
+            "--json",
+        ])
+        .unwrap();
+        assert!(
+            matches!(args.command, Some(Command::Login { flow_id: Some(id), .. }) if id == "aB_09-safe")
+        );
+    }
+    for id in [
+        "", ".", "..", "../other", "a/b", "a\\b", "a b", "a\n", "é", "a.json", "%2f", "x;touch",
+    ] {
+        assert!(
+            Args::try_parse_from(["nexode", "login", "--flow-id", id, "--print-auth-url"]).is_err(),
+            "accepted {id:?}"
+        );
+    }
+    assert!(Args::try_parse_from(["nexode", "login", "--flow-id", &"a".repeat(65)]).is_err());
+    assert!(Args::try_parse_from(["nexode", "login", "--flow-id", &"a".repeat(64)]).is_ok());
+    assert!(Args::try_parse_from(["nexode", "login", "openai", "--cancel"]).is_err());
+    for action in ["--print-auth-url", "--complete"] {
+        assert!(
+            Args::try_parse_from([
+                "nexode",
+                "login",
+                "openai",
+                "--flow-id",
+                "safe",
+                "--cancel",
+                action
+            ])
+            .is_err()
+        );
+    }
+    for input in ["--callback-url", "--auth-code"] {
+        assert!(
+            Args::try_parse_from([
+                "nexode",
+                "login",
+                "openai",
+                "--flow-id",
+                "safe",
+                "--cancel",
+                input,
+                "-"
+            ])
+            .is_err()
+        );
+        assert!(
+            Args::try_parse_from(["nexode", "login", "openai", "--flow-id", "safe", input, "-"])
+                .is_ok()
+        );
+    }
+}
+
+#[test]
+fn login_openai_compatible_scriptable_flags_parse() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "--provider",
+        "openai-compatible",
+        "--model",
+        "deepseek-v4-flash",
+        "login",
+        "--api-base",
+        "https://api.deepseek.com",
+        "--api-key-env",
+        "DEEPSEEK_API_KEY",
+    ])
+    .unwrap();
+    assert_eq!(args.provider, ProviderChoice::OpenaiCompatible);
+    assert_eq!(args.model.as_deref(), Some("deepseek-v4-flash"));
+    match args.command {
+        Some(Command::Login {
+            api_base,
+            api_key_env,
+            ..
+        }) => {
+            assert_eq!(api_base.as_deref(), Some("https://api.deepseek.com"));
+            assert_eq!(api_key_env.as_deref(), Some("DEEPSEEK_API_KEY"));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn login_openai_compatible_accepts_global_provider_and_model_after_subcommand() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "login",
+        "--provider",
+        "openai-compatible",
+        "--api-base",
+        "https://api.deepseek.com",
+        "--model",
+        "deepseek-v4-flash",
+    ])
+    .unwrap();
+
+    assert_eq!(args.provider, ProviderChoice::OpenaiCompatible);
+    assert_eq!(args.model.as_deref(), Some("deepseek-v4-flash"));
+    match args.command {
+        Some(Command::Login { api_base, .. }) => {
+            assert_eq!(api_base.as_deref(), Some("https://api.deepseek.com"));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn login_scriptable_flags_parse() {
+    let args = Args::try_parse_from(["nexode", "login", "--print-auth-url", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Login {
+            print_auth_url,
+            json,
+            callback_url,
+            auth_code,
+            complete,
+            google,
+            ..
+        }) => {
+            assert!(print_auth_url);
+            assert!(json);
+            assert!(callback_url.is_none());
+            assert!(auth_code.is_none());
+            assert!(!complete);
+            assert!(google.google_access_tier.is_none());
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "nexode",
+        "login",
+        "--callback-url",
+        "http://localhost:1455/auth/callback?code=x&state=y",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Login { callback_url, .. }) => {
+            assert_eq!(
+                callback_url.as_deref(),
+                Some("http://localhost:1455/auth/callback?code=x&state=y")
+            );
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from(["nexode", "login", "--auth-code", "abc123"]).unwrap();
+    match args.command {
+        Some(Command::Login { auth_code, .. }) => {
+            assert_eq!(auth_code.as_deref(), Some("abc123"));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "nexode",
+        "login",
+        "--complete",
+        "--google-access-tier",
+        "readonly",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Login {
+            complete, google, ..
+        }) => {
+            assert!(complete);
+            assert_eq!(
+                google.google_access_tier,
+                Some(GoogleAccessTierArg::Readonly)
+            );
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "nexode",
+        "login",
+        "--provider",
+        "google",
+        "--google-services",
+        "gmail,calendar",
+        "--setup",
+        "--google-client-json",
+        "auto",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Login { google, .. }) => {
+            assert_eq!(google.google_services.as_deref(), Some("gmail,calendar"));
+            assert!(google.setup);
+            assert_eq!(google.google_client_json.as_deref(), Some("auto"));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn account_subcommands_parse() {
+    let login = Args::try_parse_from(["nexode", "account", "login", "--no-browser"])
+        .expect("account login");
+    assert!(matches!(
+        login.command,
+        Some(Command::Account {
+            action: AccountCommand::Login { no_browser: true }
+        })
+    ));
+
+    let status =
+        Args::try_parse_from(["nexode", "account", "status", "--json"]).expect("account status");
+    assert!(matches!(
+        status.command,
+        Some(Command::Account {
+            action: AccountCommand::Status { json: true }
+        })
+    ));
+
+    let manage = Args::try_parse_from(["nexode", "account", "manage"]).expect("account manage");
+    assert!(matches!(
+        manage.command,
+        Some(Command::Account {
+            action: AccountCommand::Manage
+        })
+    ));
+
+    let logout = Args::try_parse_from(["nexode", "account", "logout"]).expect("account logout");
+    assert!(matches!(
+        logout.command,
+        Some(Command::Account {
+            action: AccountCommand::Logout
+        })
+    ));
+}
+
+#[test]
+fn quiet_global_flag_parses() {
+    let args = Args::try_parse_from(["nexode", "--quiet", "model", "list"]).unwrap();
+    assert!(args.quiet);
+}
+
+#[test]
+fn acp_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "acp"]).unwrap();
+    match args.command {
+        Some(Command::Acp) => {}
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn run_json_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "run", "--json", "hello"]).unwrap();
+    match args.command {
+        Some(Command::Run {
+            json,
+            ndjson,
+            message,
+        }) => {
+            assert!(json);
+            assert!(!ndjson);
+            assert_eq!(message, "hello");
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn run_ndjson_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "run", "--ndjson", "hello"]).unwrap();
+    match args.command {
+        Some(Command::Run {
+            json,
+            ndjson,
+            message,
+        }) => {
+            assert!(!json);
+            assert!(ndjson);
+            assert_eq!(message, "hello");
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn version_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "version", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Version { json }) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn usage_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "usage", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Usage { json }) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn auth_status_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "auth", "status", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Auth(AuthCommand::Status { json })) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn auth_doctor_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "auth", "doctor", "openai", "--validate", "--json"])
+        .unwrap();
+    match args.command {
+        Some(Command::Auth(AuthCommand::Doctor {
+            provider,
+            validate,
+            json,
+        })) => {
+            assert_eq!(provider.as_deref(), Some("openai"));
+            assert!(validate);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn provider_list_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "provider", "list", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Provider(ProviderCommand::List { json })) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn provider_current_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "provider", "current", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Provider(ProviderCommand::Current { json })) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn provider_add_subcommand_parses_agent_friendly_flags() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "provider",
+        "add",
+        "my-api",
+        "--base-url",
+        "https://llm.example.com/v1",
+        "--model",
+        "model-a",
+        "--context-window",
+        "128000",
+        "--api-key-stdin",
+        "--auth",
+        "bearer",
+        "--set-default",
+        "--json",
+    ])
+    .unwrap();
+
+    match args.command {
+        Some(Command::Provider(ProviderCommand::Add {
+            name,
+            base_url,
+            model,
+            context_window,
+            api_key_stdin,
+            auth,
+            set_default,
+            json,
+            ..
+        })) => {
+            assert_eq!(name, "my-api");
+            assert_eq!(base_url, "https://llm.example.com/v1");
+            assert_eq!(model, "model-a");
+            assert_eq!(context_window, Some(128000));
+            assert!(api_key_stdin);
+            assert_eq!(auth, Some(ProviderAuthArg::Bearer));
+            assert!(set_default);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn restart_save_subcommand_parses() {
+    let args = Args::try_parse_from(["nexode", "restart", "save"]).unwrap();
+    match args.command {
+        Some(Command::Restart {
+            action: RestartCommand::Save {
+                auto_restore: false,
+            },
+        }) => {}
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn restart_save_auto_restore_flag_parses() {
+    let args = Args::try_parse_from(["nexode", "restart", "save", "--auto-restore"]).unwrap();
+    match args.command {
+        Some(Command::Restart {
+            action: RestartCommand::Save { auto_restore: true },
+        }) => {}
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+/// Contract test for the onboarding agent-repair brief (see
+/// `nexode-tui::tui::app::onboarding_repair::build_repair_brief`). The brief
+/// tells a coding agent to run these exact commands to diagnose and fix a
+/// failed login. If any flag here stops parsing, the brief would hand the agent
+/// a broken command, so this guards the agent-facing CLI contract.
+#[test]
+fn onboarding_repair_brief_commands_are_valid_cli() {
+    // Diagnose.
+    Args::try_parse_from(["nexode", "auth-test", "--provider", "openai", "--json"])
+        .expect("auth-test --provider --json must parse");
+    Args::try_parse_from(["nexode", "auth-test", "--all-configured", "--json"])
+        .expect("auth-test --all-configured --json must parse");
+    Args::try_parse_from(["nexode", "auth", "doctor"]).expect("auth doctor must parse");
+
+    // Fix: OAuth and API-key logins.
+    Args::try_parse_from(["nexode", "login", "--provider", "openai"])
+        .expect("login --provider must parse");
+    Args::try_parse_from(["nexode", "login", "--provider", "openai", "--api-key", "k"])
+        .expect("login --provider --api-key must parse");
+
+    // Fix: custom OpenAI-compatible endpoint via provider add + key on stdin.
+    Args::try_parse_from([
+        "nexode",
+        "provider",
+        "add",
+        "my-endpoint",
+        "--base-url",
+        "https://api.example.com/v1",
+        "--model",
+        "some-model",
+        "--api-key-stdin",
+    ])
+    .expect("provider add --base-url --model --api-key-stdin must parse");
+}
+
+/// The bridge has two sockets and the global `--socket` already owns one of
+/// them. When the subcommand flag was also `--socket`, clap bound the global
+/// and the bridge listened on, and dialled, the same path: it came up looking
+/// healthy and every SDK client got ECONNREFUSED. Keep the names distinct.
+#[test]
+fn api_bridge_socket_flags_do_not_collide() {
+    let args = Args::try_parse_from([
+        "nexode",
+        "--socket",
+        "/tmp/daemon.sock",
+        "api-bridge",
+        "--api-socket",
+        "/tmp/api.sock",
+    ])
+    .expect("api-bridge should accept both socket flags");
+    assert_eq!(args.socket.as_deref(), Some("/tmp/daemon.sock"));
+    assert!(matches!(
+        args.command,
+        Some(Command::ApiBridge { api_socket: Some(ref path), stdio: false }) if path == "/tmp/api.sock"
+    ));
+
+    // The bare form must resolve both paths from the environment.
+    let bare =
+        Args::try_parse_from(["nexode", "api-bridge"]).expect("bare api-bridge should parse");
+    assert!(matches!(
+        bare.command,
+        Some(Command::ApiBridge {
+            api_socket: None,
+            stdio: false
+        })
+    ));
+
+    // `--socket` after the subcommand must not be silently accepted as the
+    // API socket, which is the exact confusion this test exists to prevent.
+    let ambiguous = Args::try_parse_from(["nexode", "api-bridge", "--socket", "/tmp/x.sock"]).ok();
+    assert!(
+        matches!(
+            ambiguous.map(|args| (args.socket, args.command)),
+            None | Some((
+                Some(_),
+                Some(Command::ApiBridge {
+                    api_socket: None,
+                    stdio: false
+                })
+            ))
+        ),
+        "`--socket` after api-bridge must bind the daemon socket, never the API socket"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn api_stdio_accepts_alias_and_daemon_socket_but_not_api_socket() {
+    for command in ["api", "api-bridge"] {
+        let args = Args::try_parse_from([
+            "nexode",
+            "--no-update",
+            "--socket",
+            "/isolated/daemon.sock",
+            command,
+            "--stdio",
+        ])
+        .expect("stdio bridge must accept the API alias and daemon override");
+        assert_eq!(args.socket.as_deref(), Some("/isolated/daemon.sock"));
+        assert!(args.no_update);
+        assert!(matches!(
+            args.command,
+            Some(Command::ApiBridge {
+                api_socket: None,
+                stdio: true
+            })
+        ));
+        assert!(
+            Args::try_parse_from([
+                "nexode",
+                command,
+                "--stdio",
+                "--api-socket",
+                "/isolated/api.sock",
+            ])
+            .is_err(),
+            "stdio must not silently ignore an API socket override"
+        );
+    }
+}
+#[test]
+fn cloud_credentials_preserves_provider_wire_flag_without_global_collision() {
+    for (name, expected) in [
+        ("openai", ProviderChoice::Openai),
+        ("claude", ProviderChoice::Claude),
+    ] {
+        let args = Args::try_parse_from([
+            "nexode",
+            "cloud",
+            "credentials",
+            "--provider",
+            name,
+            "--account",
+            "fixture",
+            "--export",
+        ])
+        .unwrap();
+        assert_eq!(args.provider, expected);
+        match args.command {
+            Some(Command::Cloud(super::CloudCommand::Credentials {
+                provider,
+                account,
+                export,
+            })) => {
+                assert_eq!(provider, expected);
+                assert_eq!(account, "fixture");
+                assert!(export);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+}

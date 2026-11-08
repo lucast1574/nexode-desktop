@@ -1,0 +1,16 @@
+{
+  "name": "nexode-sdk-demo-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@nexode/agent-sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://nexode.app"
+}

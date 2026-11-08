@@ -1,0 +1,11 @@
+[package]
+name = "nexode-tool-types"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "nexode_tool_types"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json = "1"

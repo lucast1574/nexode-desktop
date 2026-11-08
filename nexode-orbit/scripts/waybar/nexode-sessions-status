@@ -1,0 +1,3 @@
+#!/bin/sh
+# Install orbit-dev on PATH, or set ORBIT_DEV_BIN to its absolute path.
+exec "${ORBIT_DEV_BIN:-orbit-dev}" waybar-status "$@"

@@ -1,0 +1,126 @@
+[package]
+name = "nexode-tui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Presentation layer for nexode: the terminal UI (`tui`) and the offline replay
+# `video_export`, extracted out of the monolithic root `nexode` crate so they
+# compile as a separate rustc unit. This crate builds on top of the application
+# core (`nexode-app-core`) and re-exports it via `pub use nexode_app_core::*`, so
+# every existing `crate::<module>` path (e.g. `crate::config`, `crate::server`)
+# keeps resolving unchanged across the tui code that was moved here. The root
+# `nexode` crate (cli + bin) in turn re-exports this crate via
+# `pub use nexode_tui::*`.
+
+[lib]
+name = "nexode_tui"
+path = "src/lib.rs"
+
+[dependencies]
+# Application core (server, agent, provider, auth, session, tool, config, ...).
+# Re-exported via `pub use nexode_app_core::*` in lib.rs. default-features=false
+# so this crate (and ultimately the root crate) controls app-core's features.
+nexode-app-core = { path = "../nexode-app-core", default-features = false }
+
+# Pure math kernels for the idle animations (3D samplers, glyph chooser,
+# HSV->RGB). Pinned to opt-level = 3 in all profiles via workspace Cargo.toml so
+# the hot trig loops stay optimized even in debug/selfdev builds.
+nexode-tui-anim = { path = "../nexode-tui-anim" }
+
+# Async runtime
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+
+# Utilities
+anyhow = "1"
+libc = "0.2"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+dirs = "5"
+similar = "2"
+tempfile = "3"
+open = "5"
+
+# OAuth / hashing helpers used by the login + account UI
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.9.3"
+hex = "0.4"
+url = "2"
+urlencoding = "2"
+
+# TUI
+ratatui = "0.30"
+crossterm = { version = "0.29", features = ["event-stream"] }
+arboard = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+unicode-width = "0.2"
+unicode-segmentation = "1"
+
+# Presentation-layer workspace crates
+nexode-build-meta = { path = "../nexode-build-meta" }
+nexode-logging = { path = "../nexode-logging" }
+nexode-core = { path = "../nexode-core" }
+nexode-fuzzy = { path = "../nexode-fuzzy" }
+nexode-config-types = { path = "../nexode-config-types" }
+nexode-selfdev-types = { path = "../nexode-selfdev-types" }
+nexode-session-types = { path = "../nexode-session-types" }
+nexode-provider-core = { path = "../nexode-provider-core" }
+nexode-tui-markdown = { path = "../nexode-tui-markdown" }
+nexode-tui-messages = { path = "../nexode-tui-messages" }
+nexode-tui-core = { path = "../nexode-tui-core" }
+nexode-tui-mermaid = { path = "../nexode-tui-mermaid" }
+nexode-tui-account-picker = { path = "../nexode-tui-account-picker" }
+nexode-tui-render = { path = "../nexode-tui-render" }
+nexode-tui-visual-debug = { path = "../nexode-tui-visual-debug" }
+nexode-tui-session-picker = { path = "../nexode-tui-session-picker", features = ["serde"] }
+nexode-tui-style = { path = "../nexode-tui-style" }
+terminal-colorsaurus = "1.0"
+nexode-tui-permissions = { path = "../nexode-tui-permissions" }
+nexode-tui-tool-display = { path = "../nexode-tui-tool-display" }
+nexode-tui-usage-overlay = { path = "../nexode-tui-usage-overlay" }
+nexode-terminal-image = { path = "../nexode-terminal-image", features = ["display"] }
+nexode-terminal-prompt = { path = "../nexode-terminal-prompt" }
+nexode-voice = { path = "../nexode-voice" }
+nexode-productivity-core = { path = "../nexode-productivity-core" }
+nexode-tui-workspace = { path = "../nexode-tui-workspace" }
+
+[features]
+default = ["pdf", "bedrock"]
+# Exposes bench-only debug helpers (e.g. debug_copy_selection_text_for_bench)
+# consumed by the dev `tui_bench` binary in the root crate.
+dev-bins = []
+# Forwarded to app-core (and onward to nexode-base) so the root crate's feature
+# set fully controls the optional stacks.
+jemalloc = ["nexode-app-core/jemalloc"]
+jemalloc-prof = ["nexode-app-core/jemalloc-prof"]
+embeddings = ["nexode-app-core/embeddings"]
+pdf = ["nexode-app-core/pdf"]
+bedrock = ["nexode-app-core/bedrock"]
+linux-compat-vendored-openssl = ["nexode-app-core/linux-compat-vendored-openssl"]
+mmdr-size-api = ["nexode-tui-mermaid/mmdr-size-api"]
+# Forwards the application core's `test-support` feature (and onward to
+# nexode-base) so downstream crates' test targets can reach the whole stack's
+# test helpers. Never enabled in normal (non-test) builds.
+test-support = ["nexode-app-core/test-support"]
+
+[dev-dependencies]
+# Enables the downstream test-support helpers for *this* crate's own test
+# target. Feature unification applies this only to test/bench/example builds.
+nexode-app-core = { path = "../nexode-app-core", default-features = false, features = ["test-support"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+global-hotkey = "0.7"
+
+# Built-in voice input (/voice, Ctrl+Space). macOS and Windows capture natively
+# through CoreAudio / WASAPI (system frameworks, like Nexode Desktop). Linux uses
+# an external recorder (pw-record, parecord, arecord, ...) so release builds
+# need no ALSA development headers.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+nexode-voice = { path = "../nexode-voice", features = ["voice-capture"] }

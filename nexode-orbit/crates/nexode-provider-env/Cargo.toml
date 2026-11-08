@@ -1,0 +1,18 @@
+[package]
+name = "nexode-provider-env"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "nexode_provider_env"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+nexode-core = { path = "../nexode-core" }
+nexode-logging = { path = "../nexode-logging" }
+nexode-provider-metadata = { path = "../nexode-provider-metadata" }
+nexode-storage = { path = "../nexode-storage" }
+
+[dev-dependencies]
+tempfile = "3"

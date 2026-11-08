@@ -1,0 +1,483 @@
+{
+  "files": {
+    "logs/nexode-fixture.log": "reload recovery store: persisted intent reload_id=reload_1_1 session=session_1 role=worker\nreload recovery store: persisted intent reload_id=reload_2_1 session=session_2 role=worker\nreload recovery store: persisted intent reload_id=reload_3_1 session=session_3 role=worker\nreload recovery store: persisted intent reload_id=reload_4_1 session=session_4 role=worker\nreload recovery store: persisted intent reload_id=reload_5_1 session=session_5 role=worker\nreload recovery store: persisted intent reload_id=reload_6_1 session=session_6 role=worker\nreload recovery store: persisted intent reload_id=reload_7_1 session=session_7 role=worker\nreload recovery store: persisted intent reload_id=reload_8_1 session=session_8 role=worker\nreload recovery store: claimed intent reload_id=reload_1_1 session=session_1 role=worker\nreload recovery store: attached pending intent reload_id=reload_2_1 session=session_2 role=worker\nreload recovery store: delivered intent reload_id=reload_3_1 session=session_3 role=worker accepted_by=server_startup_headless\nHistory payload requested reload recovery continuation: session=session_4 was_interrupted=true\nreload recovery flow=client session_id=session_5 outcome=resumed detail=queued exact continuation\nhistory_reload_recovery_snapshot: attaching server-owned recovery intent for session=session_2\n[TIMING] send_history write: session=session_2, total=1ms\nnew_status=running old_status=idle phase=member_status_updated x=1 session_id=session_2\nreload recovery store: skipping non-pending intent session=session_1 reload_id=reload_1_1 status=Delivered\nSending hidden continuation reminder (84 chars)\nHistory payload requested reload recovery continuation: session=unknown was_interrupted=true\nreload recovery store: persisted intent reload_id=reload_9_1 session=session_reused role=worker\nreload recovery store: persisted intent reload_id=reload_10_1 session=session_reused role=worker\nHistory payload requested reload recovery continuation: session=session_reused was_interrupted=false\n",
+    "reload-recovery/one.json": "{\"reload_id\": \"reload_1_1\", \"session_id\": \"session_1\", \"status\": \"Delivered\", \"delivered_at\": \"2026-11-07T00:00:00Z\"}",
+    "reload-recovery/six.json": "{\"reload_id\": \"reload_6_1\", \"session_id\": \"session_6\", \"status\": \"Pending\"}",
+    "reload-recovery/only.json": "{\"reload_id\": \"reload_11_1\", \"session_id\": \"session_durable\", \"status\": \"Delivered\", \"role\": \"leader\"}",
+    "reload-recovery/bad.json": "{broken",
+    "reload-traces/reload_7_1.jsonl": "{\"phase\": \"intent_attached_to_history\", \"session_id\": \"session_7\", \"role\": \"worker\"}\n{\"phase\": \"intent_delivery_mismatch\", \"session_id\": \"session_7\", \"status\": \"pending\"}\nbroken\n{\"phase\": \"ignored\", \"session_id\": \"nope\"}\n",
+    "reload-traces/other.jsonl": "{\"phase\": \"intent_delivered\", \"reload_id\": \"reload_8_1\", \"session_id\": \"session_8\", \"accepted_by\": \"client_message_accepted\", \"status\": \"Delivered\"}\n",
+    "sessions/session_1.json": "{\"content\": \"Reload succeeded; Reload succeeded; interrupted by a server reload; Continue immediately from where you left off; Reload complete\"}"
+  },
+  "expected": {
+    "records": [
+      {
+        "reload_id": "reload_10_1",
+        "session_id": "session_reused",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 1,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "ok-client-queued",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 21,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_10_1",
+            "session_id": "session_reused",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_10_1 session=session_reused role=worker"
+          },
+          {
+            "kind": "history_queued",
+            "line": 22,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_10_1",
+            "session_id": "session_reused",
+            "role": null,
+            "detail": "was_interrupted=false",
+            "text": "History payload requested reload recovery continuation: session=session_reused was_interrupted=false"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_11_1",
+        "session_id": "session_durable",
+        "role": "leader",
+        "durable_status": "Delivered",
+        "durable_delivered_at": null,
+        "persisted": false,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "suspect-delivered-without-acceptance-log",
+        "events": []
+      },
+      {
+        "reload_id": "reload_1_1",
+        "session_id": "session_1",
+        "role": "worker",
+        "durable_status": "Delivered",
+        "durable_delivered_at": "2026-11-07T00:00:00Z",
+        "persisted": true,
+        "claimed": true,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {
+          "Reload succeeded": 2,
+          "interrupted by a server reload": 1,
+          "Continue immediately from where you left off": 1,
+          "Reload complete": 1
+        },
+        "verdict": "suspect-delivered-without-acceptance-log",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 1,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_1_1",
+            "session_id": "session_1",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_1_1 session=session_1 role=worker"
+          },
+          {
+            "kind": "claimed",
+            "line": 9,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_1_1",
+            "session_id": "session_1",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: claimed intent reload_id=reload_1_1 session=session_1 role=worker"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_2_1",
+        "session_id": "session_2",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 1,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 1,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 1,
+        "member_running_after_reload_count": 1,
+        "transcript_markers": {},
+        "verdict": "attached-not-accepted",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 2,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_2_1",
+            "session_id": "session_2",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_2_1 session=session_2 role=worker"
+          },
+          {
+            "kind": "attached",
+            "line": 10,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_2_1",
+            "session_id": "session_2",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: attached pending intent reload_id=reload_2_1 session=session_2 role=worker"
+          },
+          {
+            "kind": "history_snapshot",
+            "line": 14,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_2_1",
+            "session_id": "session_2",
+            "role": null,
+            "detail": null,
+            "text": "history_reload_recovery_snapshot: attaching server-owned recovery intent for session=session_2"
+          },
+          {
+            "kind": "send_history",
+            "line": 15,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_2_1",
+            "session_id": "session_2",
+            "role": null,
+            "detail": null,
+            "text": "[TIMING] send_history write: session=session_2, total=1ms"
+          },
+          {
+            "kind": "member_running",
+            "line": 16,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_2_1",
+            "session_id": "session_2",
+            "role": null,
+            "detail": null,
+            "text": "new_status=running old_status=idle phase=member_status_updated x=1 session_id=session_2"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_3_1",
+        "session_id": "session_3",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 1,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "ok-server-accepted",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 3,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_3_1",
+            "session_id": "session_3",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_3_1 session=session_3 role=worker"
+          },
+          {
+            "kind": "delivered",
+            "line": 11,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_3_1",
+            "session_id": "session_3",
+            "role": "worker",
+            "detail": "accepted_by=server_startup_headless",
+            "text": "reload recovery store: delivered intent reload_id=reload_3_1 session=session_3 role=worker accepted_by=server_startup_headless"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_4_1",
+        "session_id": "session_4",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 1,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "ok-client-queued",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 4,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_4_1",
+            "session_id": "session_4",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_4_1 session=session_4 role=worker"
+          },
+          {
+            "kind": "history_queued",
+            "line": 12,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_4_1",
+            "session_id": "session_4",
+            "role": null,
+            "detail": "was_interrupted=true",
+            "text": "History payload requested reload recovery continuation: session=session_4 was_interrupted=true"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_5_1",
+        "session_id": "session_5",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 1,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "ok-client-queued",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 5,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_5_1",
+            "session_id": "session_5",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_5_1 session=session_5 role=worker"
+          },
+          {
+            "kind": "tui_flow",
+            "line": 13,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_5_1",
+            "session_id": "session_5",
+            "role": null,
+            "detail": "flow=client outcome=resumed detail=queued exact continuation",
+            "text": "reload recovery flow=client session_id=session_5 outcome=resumed detail=queued exact continuation"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_6_1",
+        "session_id": "session_6",
+        "role": "worker",
+        "durable_status": "Pending",
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "pending",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 6,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_6_1",
+            "session_id": "session_6",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_6_1 session=session_6 role=worker"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_7_1",
+        "session_id": "session_7",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 1,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 1,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "attached-not-accepted",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 7,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_7_1",
+            "session_id": "session_7",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_7_1 session=session_7 role=worker"
+          },
+          {
+            "kind": "attached",
+            "line": 1,
+            "file": "reload_7_1.jsonl",
+            "reload_id": "reload_7_1",
+            "session_id": "session_7",
+            "role": "worker",
+            "detail": "phase=intent_attached_to_history",
+            "text": "{\"phase\": \"intent_attached_to_history\", \"session_id\": \"session_7\", \"role\": \"worker\"}"
+          },
+          {
+            "kind": "delivery_mismatch",
+            "line": 2,
+            "file": "reload_7_1.jsonl",
+            "reload_id": "reload_7_1",
+            "session_id": "session_7",
+            "role": null,
+            "detail": "status=pending phase=intent_delivery_mismatch",
+            "text": "{\"phase\": \"intent_delivery_mismatch\", \"session_id\": \"session_7\", \"status\": \"pending\"}"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_8_1",
+        "session_id": "session_8",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 1,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "ok-server-accepted",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 8,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_8_1",
+            "session_id": "session_8",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_8_1 session=session_8 role=worker"
+          },
+          {
+            "kind": "delivered",
+            "line": 1,
+            "file": "other.jsonl",
+            "reload_id": "reload_8_1",
+            "session_id": "session_8",
+            "role": null,
+            "detail": "accepted_by=client_message_accepted status=Delivered phase=intent_delivered",
+            "text": "{\"phase\": \"intent_delivered\", \"reload_id\": \"reload_8_1\", \"session_id\": \"session_8\", \"accepted_by\": \"client_message_accepted\", \"status\": \"Delivered\"}"
+          }
+        ]
+      },
+      {
+        "reload_id": "reload_9_1",
+        "session_id": "session_reused",
+        "role": "worker",
+        "durable_status": null,
+        "durable_delivered_at": null,
+        "persisted": true,
+        "claimed": false,
+        "attached_count": 0,
+        "delivered_count": 0,
+        "delivery_mismatch_count": 0,
+        "history_snapshot_count": 0,
+        "history_queued_count": 0,
+        "tui_flow_count": 0,
+        "send_history_count": 0,
+        "member_running_after_reload_count": 0,
+        "transcript_markers": {},
+        "verdict": "persisted-not-attached",
+        "events": [
+          {
+            "kind": "persisted",
+            "line": 20,
+            "file": "nexode-fixture.log",
+            "reload_id": "reload_9_1",
+            "session_id": "session_reused",
+            "role": "worker",
+            "detail": null,
+            "text": "reload recovery store: persisted intent reload_id=reload_9_1 session=session_reused role=worker"
+          }
+        ]
+      }
+    ],
+    "global_hidden_sends": [
+      {
+        "kind": "hidden_send",
+        "line": 18,
+        "file": "nexode-fixture.log",
+        "reload_id": null,
+        "session_id": null,
+        "role": null,
+        "detail": "chars=84",
+        "text": "Sending hidden continuation reminder (84 chars)"
+      }
+    ]
+  }
+}

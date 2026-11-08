@@ -1,0 +1,40 @@
+[package]
+name = "orbit-dev"
+version = "0.1.0"
+edition = "2024"
+publish = false
+default-run = "orbit-dev"
+
+[workspace]
+
+[dependencies]
+anyhow = "1"
+libc = "0.2"
+serde_json = { version = "1", features = ["preserve_order"] }
+toml = "0.8"
+roxmltree = "0.20"
+regex = "1"
+clap = { version = "4", features = ["derive"] }
+sha2 = "0.10"
+tar = "0.4"
+flate2 = "1"
+dirs = "5"
+chrono = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+tempfile = "3"
+tiny_http = "0.12"
+url = "2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+hmac = "0.12"
+base64 = "0.22"
+tokio = { version = "1", features = ["rt", "time", "net", "io-util", "macros"] }
+shlex = "2"
+getrandom = "0.4"
+tungstenite = "0.24"
+png = "0.17"
+vt100 = "0.18.1"
+subtle = "2.6"
+ring = "0.17"
+plotters = { version = "0.3.7", default-features = false, features = ["bitmap_backend", "bitmap_encoder", "svg_backend", "ab_glyph"] }

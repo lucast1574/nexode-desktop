@@ -1,0 +1,3493 @@
+[
+  {
+    "name": "healthy",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 104857600,
+          "os": {
+            "pss_bytes": 104857600,
+            "pss_anon_bytes": 104857600
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 62914560,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 2,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 83886080,
+        "final_pss_bytes": 104857600,
+        "net_pss_growth_bytes": 20971520,
+        "peak_pss_bytes": 104857600,
+        "peak_growth_vs_baseline_bytes": 20971520,
+        "median_pss_bytes": 94371840,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 62914560,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 2,
+        "pss_bytes": 104857600,
+        "pss_anon_bytes": 104857600,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 62914560,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 61865984,
+        "coverage_ratio_pss": 0.01,
+        "coverage_ratio_live_heap": 0.0167,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 103809024,
+        "explained_ratio": 0.01
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 2,
+        "baseline_live_sessions": 2,
+        "final_live_sessions": 3,
+        "peak_live_sessions": 3,
+        "peak_timestamp_ms": 2,
+        "net_live_session_growth": 1,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 2,
+        "baseline_allocator_live_bytes": 41943040,
+        "final_allocator_live_bytes": 62914560,
+        "net_allocator_live_growth_bytes": 20971520,
+        "allocator_growth_per_added_session_bytes": 20971520
+      },
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 100.0 MB",
+          "net PSS growth +20.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 2,
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [
+        {
+          "from": 1,
+          "to": 2,
+          "delta_pss_bytes": 20971520,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 1,
+          "to": 2,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 1,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 2
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "runaway",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 73400320,
+          "os": {
+            "pss_bytes": 73400320,
+            "pss_anon_bytes": 73400320
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 39845888,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 9,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 4089446400,
+          "os": {
+            "pss_bytes": 4089446400,
+            "pss_anon_bytes": 4089446400
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 3879731200,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 1140,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 2,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 73400320,
+        "final_pss_bytes": 4089446400,
+        "net_pss_growth_bytes": 4016046080,
+        "peak_pss_bytes": 4089446400,
+        "peak_growth_vs_baseline_bytes": 4016046080,
+        "median_pss_bytes": 2081423360,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 3879731200,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 2,
+        "pss_bytes": 4089446400,
+        "pss_anon_bytes": 4089446400,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 3879731200,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 3878682624,
+        "coverage_ratio_pss": 0.0003,
+        "coverage_ratio_live_heap": 0.0003,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 4088397824,
+        "explained_ratio": 0.0003
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 2,
+        "baseline_live_sessions": 9,
+        "final_live_sessions": 1140,
+        "peak_live_sessions": 1140,
+        "peak_timestamp_ms": 2,
+        "net_live_session_growth": 1131,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 1139,
+        "baseline_allocator_live_bytes": 39845888,
+        "final_allocator_live_bytes": 3879731200,
+        "net_allocator_live_growth_bytes": 3839885312,
+        "allocator_growth_per_added_session_bytes": 3395124
+      },
+      "incident": {
+        "severity": "critical",
+        "primary_cause": "runaway_live_session_population",
+        "confidence": "high",
+        "summary": "Live Agent population grew from 9 to 1140 while allocator live memory grew by 3662.0 MB.",
+        "evidence": [
+          "1140 live sessions vs 1 connected clients",
+          "+1131 live sessions during this process lifetime",
+          "3.2 MB allocator growth per added session",
+          "allocator live 3700.0 MB vs attributed session JSON 1.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Pause or cap the workload creating headless sessions.",
+            "why": "These are live allocations; allocator purge is not the first response.",
+            "commands": [
+              "nexode debug 'server:memory-incident'",
+              "nexode debug 'swarm:list'"
+            ]
+          },
+          {
+            "priority": 2,
+            "action": "Inspect the largest live swarm and clean only workers confirmed disposable by its owning coordinator.",
+            "commands": [
+              "Use `swarm list` and `swarm cleanup` from the owning coordinator"
+            ]
+          },
+          {
+            "priority": 3,
+            "action": "Re-measure and require live_sessions, allocator live, and PSS to fall together.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          },
+          {
+            "priority": 4,
+            "action": "Purge only after session cleanup if freed-but-held memory remains high.",
+            "commands": [
+              "nexode debug 'allocator:purge'"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 2,
+        "sessions": {
+          "live_count": 1140,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [
+        {
+          "from": 1,
+          "to": 2,
+          "delta_pss_bytes": 4016046080,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 1,
+          "to": 2,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 1131,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 2
+      },
+      "hints": [
+        "Live session population is high (1140 sessions, 1 connected clients). Reduce or cap session population before optimizing individual transcripts."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "retention",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1572864000,
+          "os": {
+            "pss_bytes": 1572864000,
+            "pss_anon_bytes": 1572864000
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 524288000,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 629145600
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 8,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 1,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 1,
+      "kinds": {
+        "attribution": 1
+      },
+      "process": {
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "baseline_pss_bytes": 1572864000,
+        "final_pss_bytes": 1572864000,
+        "net_pss_growth_bytes": 0,
+        "peak_pss_bytes": 1572864000,
+        "peak_growth_vs_baseline_bytes": 0,
+        "median_pss_bytes": 1572864000,
+        "peak_timestamp_ms": 1,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 524288000,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 1,
+        "pss_bytes": 1572864000,
+        "pss_anon_bytes": 1572864000,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 524288000,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 629145600,
+        "unattributed_live_heap_bytes": 523239424,
+        "coverage_ratio_pss": 0.0007,
+        "coverage_ratio_live_heap": 0.002,
+        "explained_pss_bytes": 630194176,
+        "unexplained_pss_bytes": 942669824,
+        "explained_ratio": 0.4007
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 1,
+        "baseline_live_sessions": 8,
+        "final_live_sessions": 8,
+        "peak_live_sessions": 8,
+        "peak_timestamp_ms": 1,
+        "net_live_session_growth": 0,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 7,
+        "baseline_allocator_live_bytes": 524288000,
+        "final_allocator_live_bytes": 524288000,
+        "net_allocator_live_growth_bytes": 0,
+        "allocator_growth_per_added_session_bytes": null
+      },
+      "incident": {
+        "severity": "warning",
+        "primary_cause": "allocator_retention",
+        "confidence": "high",
+        "summary": "Freed-but-held allocator pages are a material share of current PSS.",
+        "evidence": [
+          "retained resident estimate 600.0 MB",
+          "allocator live 500.0 MB vs PSS 1500.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Capture a before/after allocator purge and compare PSS.",
+            "commands": [
+              "nexode debug 'allocator:purge'",
+              "nexode debug 'server:memory-incident'"
+            ]
+          },
+          {
+            "priority": 2,
+            "action": "If retained pages repeatedly regrow, inspect allocation churn and allocator decay.",
+            "commands": [
+              "nexode debug 'allocator'",
+              "nexode debug 'allocator:decay:1000'"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 1,
+        "sessions": {
+          "live_count": 8,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 1
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "payload",
+    "rows": [
+      {
+        "timestamp_ms": 0,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1572864000,
+          "os": {
+            "pss_bytes": 1572864000,
+            "pss_anon_bytes": 1572864000
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1048576000,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 8,
+          "total_json_bytes": 838860800,
+          "total_payload_text_bytes": 524288000,
+          "total_provider_cache_json_bytes": 419430400,
+          "total_tool_result_bytes": 314572800,
+          "total_large_blob_bytes": 209715200,
+          "top_by_json_bytes": [
+            {
+              "session_id": "heaviest",
+              "json_bytes": 524288000,
+              "provider_cache_json_bytes": 209715200,
+              "tool_result_bytes": 104857600,
+              "large_blob_bytes": 41943040,
+              "payload_text_bytes": 157286400,
+              "provider": "fixture",
+              "model": "m",
+              "memory_enabled": true,
+              "message_count": 4
+            }
+          ]
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 2,
+      "first_timestamp_ms": 0,
+      "last_timestamp_ms": 1,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 0,
+        "last_timestamp_ms": 1,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 83886080,
+        "final_pss_bytes": 1572864000,
+        "net_pss_growth_bytes": 1488977920,
+        "peak_pss_bytes": 1572864000,
+        "peak_growth_vs_baseline_bytes": 1488977920,
+        "median_pss_bytes": 828375040,
+        "peak_timestamp_ms": 1,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 1048576000,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 1,
+        "pss_bytes": 1572864000,
+        "pss_anon_bytes": 1572864000,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 838860800,
+        "allocator_live_bytes": 1048576000,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 209715200,
+        "coverage_ratio_pss": 0.5333,
+        "coverage_ratio_live_heap": 0.8,
+        "explained_pss_bytes": 838860800,
+        "unexplained_pss_bytes": 734003200,
+        "explained_ratio": 0.5333
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 0,
+        "final_timestamp_ms": 1,
+        "baseline_live_sessions": 2,
+        "final_live_sessions": 8,
+        "peak_live_sessions": 8,
+        "peak_timestamp_ms": 1,
+        "net_live_session_growth": 6,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 7,
+        "baseline_allocator_live_bytes": 41943040,
+        "final_allocator_live_bytes": 1048576000,
+        "net_allocator_live_growth_bytes": 1006632960,
+        "allocator_growth_per_added_session_bytes": 167772160
+      },
+      "incident": {
+        "severity": "critical",
+        "primary_cause": "session_payload_growth",
+        "confidence": "high",
+        "summary": "Tracked transcript, provider-cache, tool-result, or blob state explains most live heap.",
+        "evidence": [
+          "attributed live 800.0 MB",
+          "live-heap attribution coverage 80.0%"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Start with the heaviest sessions and dominant payload category in this report.",
+            "commands": [
+              "nexode debug 'server:memory'"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 1,
+        "sessions": {
+          "live_count": 8,
+          "total_json_bytes": 838860800,
+          "total_payload_text_bytes": 524288000,
+          "total_provider_cache_json_bytes": 419430400,
+          "total_tool_result_bytes": 314572800,
+          "total_large_blob_bytes": 209715200,
+          "top_by_json_bytes": [
+            {
+              "session_id": "heaviest",
+              "json_bytes": 524288000,
+              "provider_cache_json_bytes": 209715200,
+              "tool_result_bytes": 104857600,
+              "large_blob_bytes": 41943040,
+              "payload_text_bytes": 157286400,
+              "provider": "fixture",
+              "model": "m",
+              "memory_enabled": true,
+              "message_count": 4
+            }
+          ]
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [
+        {
+          "from": 0,
+          "to": 1,
+          "delta_pss_bytes": 1488977920,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 0,
+          "to": 1,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 837812224,
+          "delta_payload_text_bytes": 524288000,
+          "delta_provider_cache_json_bytes": 419430400,
+          "delta_tool_result_bytes": 314572800,
+          "delta_large_blob_bytes": 209715200,
+          "delta_live_count": 6,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [
+        {
+          "session_id": "heaviest",
+          "provider": "fixture",
+          "model": "m",
+          "memory_enabled": true,
+          "peak_json_bytes": 524288000,
+          "peak_payload_text_bytes": 157286400,
+          "peak_provider_cache_json_bytes": 209715200,
+          "peak_tool_result_bytes": 104857600,
+          "peak_large_blob_bytes": 41943040,
+          "message_count": 4,
+          "last_seen_timestamp_ms": 1
+        }
+      ],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 2
+      },
+      "hints": [
+        "Provider cache is a large share of attributed state (50% of total JSON). Prioritize cache compaction, cache invalidation discipline, and avoiding redundant provider-message mirrors.",
+        "Tool results are heavy (38% of total JSON). Consider truncating stored tool output, summarizing verbose results, or storing large artifacts out-of-line.",
+        "Large blobs are materially retained (25% of total JSON). Focus on blob thresholds, attachment retention, and aggressive post-use slimming.",
+        "Transcript payload text dominates attributed state (62% of total JSON). Compaction and transcript summarization will likely pay off.",
+        "Heaviest observed session was heaviest at 500.0 MB attributed JSON. Start optimization work with that session’s transcript and tool-result profile."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 2,
+        "first_timestamp_ms": 0,
+        "last_timestamp_ms": 1,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "unattributed",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1572864000,
+          "os": {
+            "pss_bytes": 1572864000,
+            "pss_anon_bytes": 1572864000
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1258291200,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 4,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 1,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 1,
+      "kinds": {
+        "attribution": 1
+      },
+      "process": {
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "baseline_pss_bytes": 1572864000,
+        "final_pss_bytes": 1572864000,
+        "net_pss_growth_bytes": 0,
+        "peak_pss_bytes": 1572864000,
+        "peak_growth_vs_baseline_bytes": 0,
+        "median_pss_bytes": 1572864000,
+        "peak_timestamp_ms": 1,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 1258291200,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 1,
+        "pss_bytes": 1572864000,
+        "pss_anon_bytes": 1572864000,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 1258291200,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 1257242624,
+        "coverage_ratio_pss": 0.0007,
+        "coverage_ratio_live_heap": 0.0008,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 1571815424,
+        "explained_ratio": 0.0007
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 1,
+        "baseline_live_sessions": 4,
+        "final_live_sessions": 4,
+        "peak_live_sessions": 4,
+        "peak_timestamp_ms": 1,
+        "net_live_session_growth": 0,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 3,
+        "baseline_allocator_live_bytes": 1258291200,
+        "final_allocator_live_bytes": 1258291200,
+        "net_allocator_live_growth_bytes": 0,
+        "allocator_growth_per_added_session_bytes": null
+      },
+      "incident": {
+        "severity": "warning",
+        "primary_cause": "unattributed_live_heap",
+        "confidence": "medium",
+        "summary": "Live allocator bytes are high, but current application attribution is incomplete.",
+        "evidence": [
+          "allocator live 1200.0 MB",
+          "attributed live 1.0 MB",
+          "live-heap attribution coverage 0.1%"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Capture full server attribution and add counters for the missing owner.",
+            "commands": [
+              "nexode debug 'server:memory'"
+            ]
+          },
+          {
+            "priority": 2,
+            "action": "Use a jemalloc-prof build and heap dump if coverage remains below 50%.",
+            "commands": [
+              "nexode debug 'allocator:profile:on'",
+              "nexode debug 'allocator:profile:dump /tmp/nexode-server.heap'"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 1,
+        "sessions": {
+          "live_count": 4,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 1
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "mappings",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1572864000,
+          "os": {
+            "pss_bytes": 1572864000,
+            "pss_anon_bytes": 1572864000
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 419430400,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 4,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 1,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 1,
+      "kinds": {
+        "attribution": 1
+      },
+      "process": {
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "baseline_pss_bytes": 1572864000,
+        "final_pss_bytes": 1572864000,
+        "net_pss_growth_bytes": 0,
+        "peak_pss_bytes": 1572864000,
+        "peak_growth_vs_baseline_bytes": 0,
+        "median_pss_bytes": 1572864000,
+        "peak_timestamp_ms": 1,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 419430400,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 1,
+        "pss_bytes": 1572864000,
+        "pss_anon_bytes": 1572864000,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 419430400,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 418381824,
+        "coverage_ratio_pss": 0.0007,
+        "coverage_ratio_live_heap": 0.0025,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 1571815424,
+        "explained_ratio": 0.0007
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 1,
+        "baseline_live_sessions": 4,
+        "final_live_sessions": 4,
+        "peak_live_sessions": 4,
+        "peak_timestamp_ms": 1,
+        "net_live_session_growth": 0,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 3,
+        "baseline_allocator_live_bytes": 419430400,
+        "final_allocator_live_bytes": 419430400,
+        "net_allocator_live_growth_bytes": 0,
+        "allocator_growth_per_added_session_bytes": null
+      },
+      "incident": {
+        "severity": "warning",
+        "primary_cause": "non_heap_or_mapping_growth",
+        "confidence": "medium",
+        "summary": "PSS is high without matching allocator live bytes; inspect mappings and threads.",
+        "evidence": [
+          "PSS 1500.0 MB",
+          "allocator live 400.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Inspect smaps, pmap, thread count, and shared mappings.",
+            "commands": [
+              "cat /proc/<pid>/smaps_rollup",
+              "pmap -x <pid> | sort -k3 -nr | head"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 1,
+        "sessions": {
+          "live_count": 4,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 1
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "instances-latest",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1887436800,
+          "os": {
+            "pss_bytes": 1887436800,
+            "pss_anon_bytes": 1887436800
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1782579200,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "old"
+        },
+        "sessions": {
+          "live_count": 9,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1992294400,
+          "os": {
+            "pss_bytes": 1992294400,
+            "pss_anon_bytes": 1992294400
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1887436800,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "old"
+        },
+        "sessions": {
+          "live_count": 10,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 3,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "new"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 4,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 125829120,
+          "os": {
+            "pss_bytes": 125829120,
+            "pss_anon_bytes": 125829120
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 73400320,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "new"
+        },
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "latest",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "new",
+      "sample_count": 2,
+      "first_timestamp_ms": 3,
+      "last_timestamp_ms": 4,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 3,
+        "last_timestamp_ms": 4,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 83886080,
+        "final_pss_bytes": 125829120,
+        "net_pss_growth_bytes": 41943040,
+        "peak_pss_bytes": 125829120,
+        "peak_growth_vs_baseline_bytes": 41943040,
+        "median_pss_bytes": 104857600,
+        "peak_timestamp_ms": 4,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 73400320,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 4,
+        "pss_bytes": 125829120,
+        "pss_anon_bytes": 125829120,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 73400320,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 72351744,
+        "coverage_ratio_pss": 0.0083,
+        "coverage_ratio_live_heap": 0.0143,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 124780544,
+        "explained_ratio": 0.0083
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 3,
+        "final_timestamp_ms": 4,
+        "baseline_live_sessions": 2,
+        "final_live_sessions": 3,
+        "peak_live_sessions": 3,
+        "peak_timestamp_ms": 4,
+        "net_live_session_growth": 1,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 2,
+        "baseline_allocator_live_bytes": 41943040,
+        "final_allocator_live_bytes": 73400320,
+        "net_allocator_live_growth_bytes": 31457280,
+        "allocator_growth_per_added_session_bytes": 31457280
+      },
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 120.0 MB",
+          "net PSS growth +40.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 4,
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [
+        {
+          "from": 3,
+          "to": 4,
+          "delta_pss_bytes": 41943040,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 3,
+          "to": 4,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 1,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 2
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "new",
+        "sample_count": 2,
+        "first_timestamp_ms": 3,
+        "last_timestamp_ms": 4,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      },
+      {
+        "target": "server",
+        "instance_id": "old",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "instances-old",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1887436800,
+          "os": {
+            "pss_bytes": 1887436800,
+            "pss_anon_bytes": 1887436800
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1782579200,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "old"
+        },
+        "sessions": {
+          "live_count": 9,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1992294400,
+          "os": {
+            "pss_bytes": 1992294400,
+            "pss_anon_bytes": 1992294400
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1887436800,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "old"
+        },
+        "sessions": {
+          "live_count": 10,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 3,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "new"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 4,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 125829120,
+          "os": {
+            "pss_bytes": 125829120,
+            "pss_anon_bytes": 125829120
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 73400320,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "new"
+        },
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "old",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "old",
+      "sample_count": 2,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 1887436800,
+        "final_pss_bytes": 1992294400,
+        "net_pss_growth_bytes": 104857600,
+        "peak_pss_bytes": 1992294400,
+        "peak_growth_vs_baseline_bytes": 104857600,
+        "median_pss_bytes": 1939865600,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 1887436800,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 2,
+        "pss_bytes": 1992294400,
+        "pss_anon_bytes": 1992294400,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 1887436800,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 1886388224,
+        "coverage_ratio_pss": 0.0005,
+        "coverage_ratio_live_heap": 0.0006,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 1991245824,
+        "explained_ratio": 0.0005
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 2,
+        "baseline_live_sessions": 9,
+        "final_live_sessions": 10,
+        "peak_live_sessions": 10,
+        "peak_timestamp_ms": 2,
+        "net_live_session_growth": 1,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 9,
+        "baseline_allocator_live_bytes": 1782579200,
+        "final_allocator_live_bytes": 1887436800,
+        "net_allocator_live_growth_bytes": 104857600,
+        "allocator_growth_per_added_session_bytes": 104857600
+      },
+      "incident": {
+        "severity": "warning",
+        "primary_cause": "unattributed_live_heap",
+        "confidence": "medium",
+        "summary": "Live allocator bytes are high, but current application attribution is incomplete.",
+        "evidence": [
+          "allocator live 1800.0 MB",
+          "attributed live 1.0 MB",
+          "live-heap attribution coverage 0.1%"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Capture full server attribution and add counters for the missing owner.",
+            "commands": [
+              "nexode debug 'server:memory'"
+            ]
+          },
+          {
+            "priority": 2,
+            "action": "Use a jemalloc-prof build and heap dump if coverage remains below 50%.",
+            "commands": [
+              "nexode debug 'allocator:profile:on'",
+              "nexode debug 'allocator:profile:dump /tmp/nexode-server.heap'"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 2,
+        "sessions": {
+          "live_count": 10,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [
+        {
+          "from": 1,
+          "to": 2,
+          "delta_pss_bytes": 104857600,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 1,
+          "to": 2,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 1,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 2
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "new",
+        "sample_count": 2,
+        "first_timestamp_ms": 3,
+        "last_timestamp_ms": 4,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      },
+      {
+        "target": "server",
+        "instance_id": "old",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "instances-all",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1887436800,
+          "os": {
+            "pss_bytes": 1887436800,
+            "pss_anon_bytes": 1887436800
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1782579200,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "old"
+        },
+        "sessions": {
+          "live_count": 9,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1992294400,
+          "os": {
+            "pss_bytes": 1992294400,
+            "pss_anon_bytes": 1992294400
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 1887436800,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "old"
+        },
+        "sessions": {
+          "live_count": 10,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 3,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "new"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 4,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 125829120,
+          "os": {
+            "pss_bytes": 125829120,
+            "pss_anon_bytes": 125829120
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 73400320,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "new"
+        },
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "new",
+      "sample_count": 4,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 4,
+      "kinds": {
+        "attribution": 4
+      },
+      "process": {
+        "sample_count": 4,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 4,
+        "duration_ms": 3,
+        "baseline_pss_bytes": 1887436800,
+        "final_pss_bytes": 125829120,
+        "net_pss_growth_bytes": -1761607680,
+        "peak_pss_bytes": 1992294400,
+        "peak_growth_vs_baseline_bytes": 104857600,
+        "median_pss_bytes": 1006632960,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 73400320,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 4,
+        "pss_bytes": 125829120,
+        "pss_anon_bytes": 125829120,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 73400320,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 72351744,
+        "coverage_ratio_pss": 0.0083,
+        "coverage_ratio_live_heap": 0.0143,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 124780544,
+        "explained_ratio": 0.0083
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 4,
+        "baseline_live_sessions": 9,
+        "final_live_sessions": 3,
+        "peak_live_sessions": 10,
+        "peak_timestamp_ms": 2,
+        "net_live_session_growth": -6,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 2,
+        "baseline_allocator_live_bytes": 1782579200,
+        "final_allocator_live_bytes": 73400320,
+        "net_allocator_live_growth_bytes": -1709178880,
+        "allocator_growth_per_added_session_bytes": null
+      },
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 120.0 MB",
+          "net PSS growth -1680.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 4,
+        "sessions": {
+          "live_count": 3,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [
+        {
+          "from": 2,
+          "to": 3,
+          "delta_pss_bytes": -1908408320,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "delta_pss_bytes": 104857600,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "delta_pss_bytes": 41943040,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:heartbeat",
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 1,
+          "to": 2,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 1,
+          "delta_memory_enabled_session_count": 0
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": -8,
+          "delta_memory_enabled_session_count": 0
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "to_trigger_category": "attribution_heartbeat",
+          "to_trigger_reason": "periodic",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 1,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 4
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "new",
+        "sample_count": 2,
+        "first_timestamp_ms": 3,
+        "last_timestamp_ms": 4,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      },
+      {
+        "target": "server",
+        "instance_id": "old",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "client",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 1572864000,
+          "os": {
+            "pss_bytes": 1572864000,
+            "pss_anon_bytes": 1572864000
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 524288000,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 629145600
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "client": {
+          "client_instance_id": "client",
+          "session_id": "client-session",
+          "provider": "fixture",
+          "model": "m",
+          "is_remote": true
+        },
+        "totals": {
+          "total_attributed_bytes": 20971520,
+          "display_messages_estimate_bytes": 12582912,
+          "provider_messages_json_bytes": 5242880,
+          "side_panel_estimate_bytes": 3145728,
+          "remote_state_bytes": 2097152
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "client",
+      "instance_id": "client",
+      "sample_count": 1,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 1,
+      "kinds": {
+        "attribution": 1
+      },
+      "process": {
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "baseline_pss_bytes": 1572864000,
+        "final_pss_bytes": 1572864000,
+        "net_pss_growth_bytes": 0,
+        "peak_pss_bytes": 1572864000,
+        "peak_growth_vs_baseline_bytes": 0,
+        "median_pss_bytes": 1572864000,
+        "peak_timestamp_ms": 1,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 524288000,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 1,
+        "pss_bytes": 1572864000,
+        "pss_anon_bytes": 1572864000,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 20971520,
+        "allocator_live_bytes": 524288000,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 629145600,
+        "unattributed_live_heap_bytes": 503316480,
+        "coverage_ratio_pss": 0.0133,
+        "coverage_ratio_live_heap": 0.04,
+        "explained_pss_bytes": 650117120,
+        "unexplained_pss_bytes": 922746880,
+        "explained_ratio": 0.4133
+      },
+      "session_population": {},
+      "incident": {},
+      "last_attribution": {
+        "timestamp_ms": 1,
+        "sessions": null,
+        "totals": {
+          "total_attributed_bytes": 20971520,
+          "display_messages_estimate_bytes": 12582912,
+          "provider_messages_json_bytes": 5242880,
+          "side_panel_estimate_bytes": 3145728,
+          "remote_state_bytes": 2097152
+        },
+        "client": {
+          "client_instance_id": "client",
+          "session_id": "client-session",
+          "provider": "fixture",
+          "model": "m",
+          "is_remote": true
+        },
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [
+        {
+          "session_id": "client-session",
+          "client_instance_id": "client",
+          "provider": "fixture",
+          "model": "m",
+          "is_remote": true,
+          "peak_total_attributed_bytes": 20971520,
+          "peak_display_messages_estimate_bytes": 12582912,
+          "peak_provider_messages_json_bytes": 5242880,
+          "peak_side_panel_estimate_bytes": 3145728,
+          "peak_remote_state_bytes": 2097152,
+          "last_seen_timestamp_ms": 1
+        }
+      ],
+      "event_counts": {
+        "attribution_heartbeat": 1
+      },
+      "hints": [
+        "Display-message state is a large share of attributed client memory (60%). Tighten UI duplication and display-history retention first.",
+        "Resident provider-message copies are a meaningful share of client memory (25%). Prefer borrowing or lazy hydration where possible.",
+        "Side-panel state is materially retained (15% of attributed client memory). Focus on page content retention and render-cache discipline.",
+        "Remote session metadata is non-trivial (10% of attributed client memory). Review retained model/session lists and remote bootstrap state.",
+        "Allocator retention dominates PSS (40%, 600.0 MB). This is freed-but-held heap, not live app state; malloc_trim/purge cadence matters more than estimator coverage here.",
+        "Estimators miss 96% of live heap (480.0 MB). The real estimator gap is tokio/render/runtime structures, not allocator slack.",
+        "Heaviest observed client session was client-session at 20.0 MB attributed client memory. Start with that session’s display and provider-message layers."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "client",
+        "instance_id": "client",
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "mixed",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 125829120,
+          "os": {
+            "pss_bytes": 125829120,
+            "pss_anon_bytes": 125829120
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 83886080,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "client": {
+          "client_instance_id": "client",
+          "session_id": "client-session",
+          "provider": "fixture",
+          "model": "m",
+          "is_remote": true
+        },
+        "totals": {
+          "total_attributed_bytes": 20971520,
+          "display_messages_estimate_bytes": 12582912,
+          "provider_messages_json_bytes": 5242880,
+          "side_panel_estimate_bytes": 3145728,
+          "remote_state_bytes": 2097152
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "targets": {
+        "client": {
+          "target": "client",
+          "instance_id": "client",
+          "sample_count": 1,
+          "first_timestamp_ms": 2,
+          "last_timestamp_ms": 2,
+          "kinds": {
+            "attribution": 1
+          },
+          "process": {
+            "sample_count": 1,
+            "first_timestamp_ms": 2,
+            "last_timestamp_ms": 2,
+            "duration_ms": 0,
+            "baseline_pss_bytes": 125829120,
+            "final_pss_bytes": 125829120,
+            "net_pss_growth_bytes": 0,
+            "peak_pss_bytes": 125829120,
+            "peak_growth_vs_baseline_bytes": 0,
+            "median_pss_bytes": 125829120,
+            "peak_timestamp_ms": 2,
+            "peak_trigger_category": "attribution_heartbeat",
+            "peak_trigger_reason": "periodic",
+            "allocator_allocated_bytes": 83886080,
+            "allocator_resident_bytes": null,
+            "allocator_retained_bytes": 0
+          },
+          "coverage": {
+            "timestamp_ms": 2,
+            "pss_bytes": 125829120,
+            "pss_anon_bytes": 125829120,
+            "pss_file_bytes": null,
+            "pss_shmem_bytes": null,
+            "anon_huge_pages_bytes": null,
+            "rss_file_bytes": null,
+            "main_stack_bytes": null,
+            "thread_stack_estimate_bytes": null,
+            "thread_count": null,
+            "attributed_live_bytes": 20971520,
+            "allocator_live_bytes": 83886080,
+            "allocator_retained_bytes": 0,
+            "allocator_retained_resident_estimate_bytes": 0,
+            "unattributed_live_heap_bytes": 62914560,
+            "coverage_ratio_pss": 0.1667,
+            "coverage_ratio_live_heap": 0.25,
+            "explained_pss_bytes": 20971520,
+            "unexplained_pss_bytes": 104857600,
+            "explained_ratio": 0.1667
+          },
+          "session_population": {},
+          "incident": {},
+          "last_attribution": {
+            "timestamp_ms": 2,
+            "sessions": null,
+            "totals": {
+              "total_attributed_bytes": 20971520,
+              "display_messages_estimate_bytes": 12582912,
+              "provider_messages_json_bytes": 5242880,
+              "side_panel_estimate_bytes": 3145728,
+              "remote_state_bytes": 2097152
+            },
+            "client": {
+              "client_instance_id": "client",
+              "session_id": "client-session",
+              "provider": "fixture",
+              "model": "m",
+              "is_remote": true
+            },
+            "trigger_category": "attribution_heartbeat",
+            "trigger_reason": "periodic"
+          },
+          "top_spikes": [],
+          "top_attribution_deltas": [],
+          "top_sessions": [],
+          "top_clients": [
+            {
+              "session_id": "client-session",
+              "client_instance_id": "client",
+              "provider": "fixture",
+              "model": "m",
+              "is_remote": true,
+              "peak_total_attributed_bytes": 20971520,
+              "peak_display_messages_estimate_bytes": 12582912,
+              "peak_provider_messages_json_bytes": 5242880,
+              "peak_side_panel_estimate_bytes": 3145728,
+              "peak_remote_state_bytes": 2097152,
+              "last_seen_timestamp_ms": 2
+            }
+          ],
+          "event_counts": {
+            "attribution_heartbeat": 1
+          },
+          "hints": [
+            "Display-message state is a large share of attributed client memory (60%). Tighten UI duplication and display-history retention first.",
+            "Resident provider-message copies are a meaningful share of client memory (25%). Prefer borrowing or lazy hydration where possible.",
+            "Side-panel state is materially retained (15% of attributed client memory). Focus on page content retention and render-cache discipline.",
+            "Remote session metadata is non-trivial (10% of attributed client memory). Review retained model/session lists and remote bootstrap state.",
+            "Estimators miss 75% of live heap (60.0 MB). The real estimator gap is tokio/render/runtime structures, not allocator slack.",
+            "Heaviest observed client session was client-session at 20.0 MB attributed client memory. Start with that session’s display and provider-message layers."
+          ]
+        },
+        "server": {
+          "target": "server",
+          "instance_id": "server",
+          "sample_count": 1,
+          "first_timestamp_ms": 1,
+          "last_timestamp_ms": 1,
+          "kinds": {
+            "attribution": 1
+          },
+          "process": {
+            "sample_count": 1,
+            "first_timestamp_ms": 1,
+            "last_timestamp_ms": 1,
+            "duration_ms": 0,
+            "baseline_pss_bytes": 83886080,
+            "final_pss_bytes": 83886080,
+            "net_pss_growth_bytes": 0,
+            "peak_pss_bytes": 83886080,
+            "peak_growth_vs_baseline_bytes": 0,
+            "median_pss_bytes": 83886080,
+            "peak_timestamp_ms": 1,
+            "peak_trigger_category": "attribution_heartbeat",
+            "peak_trigger_reason": "periodic",
+            "allocator_allocated_bytes": 41943040,
+            "allocator_resident_bytes": null,
+            "allocator_retained_bytes": 0
+          },
+          "coverage": {
+            "timestamp_ms": 1,
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080,
+            "pss_file_bytes": null,
+            "pss_shmem_bytes": null,
+            "anon_huge_pages_bytes": null,
+            "rss_file_bytes": null,
+            "main_stack_bytes": null,
+            "thread_stack_estimate_bytes": null,
+            "thread_count": null,
+            "attributed_live_bytes": 1048576,
+            "allocator_live_bytes": 41943040,
+            "allocator_retained_bytes": 0,
+            "allocator_retained_resident_estimate_bytes": 0,
+            "unattributed_live_heap_bytes": 40894464,
+            "coverage_ratio_pss": 0.0125,
+            "coverage_ratio_live_heap": 0.025,
+            "explained_pss_bytes": 1048576,
+            "unexplained_pss_bytes": 82837504,
+            "explained_ratio": 0.0125
+          },
+          "session_population": {
+            "baseline_timestamp_ms": 1,
+            "final_timestamp_ms": 1,
+            "baseline_live_sessions": 2,
+            "final_live_sessions": 2,
+            "peak_live_sessions": 2,
+            "peak_timestamp_ms": 1,
+            "net_live_session_growth": 0,
+            "final_connected_clients": 1,
+            "detached_or_headless_live_sessions": 1,
+            "baseline_allocator_live_bytes": 41943040,
+            "final_allocator_live_bytes": 41943040,
+            "net_allocator_live_growth_bytes": 0,
+            "allocator_growth_per_added_session_bytes": null
+          },
+          "incident": {
+            "severity": "healthy",
+            "primary_cause": "within_normal_operating_range",
+            "confidence": "high",
+            "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+            "evidence": [
+              "final PSS 80.0 MB",
+              "net PSS growth +0.0 MB"
+            ],
+            "recommended_actions": [
+              {
+                "priority": 1,
+                "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+                "commands": [
+                  "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+                ]
+              }
+            ],
+            "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+          },
+          "last_attribution": {
+            "timestamp_ms": 1,
+            "sessions": {
+              "live_count": 2,
+              "total_json_bytes": 1048576,
+              "total_payload_text_bytes": 0,
+              "total_provider_cache_json_bytes": 0,
+              "total_tool_result_bytes": 0,
+              "total_large_blob_bytes": 0,
+              "top_by_json_bytes": []
+            },
+            "totals": null,
+            "client": null,
+            "trigger_category": "attribution_heartbeat",
+            "trigger_reason": "periodic"
+          },
+          "top_spikes": [],
+          "top_attribution_deltas": [],
+          "top_sessions": [],
+          "top_clients": [],
+          "event_counts": {
+            "attribution_heartbeat": 1
+          },
+          "hints": [
+            "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+          ]
+        }
+      }
+    },
+    "inventory": [
+      {
+        "target": "client",
+        "instance_id": "client",
+        "sample_count": 1,
+        "first_timestamp_ms": 2,
+        "last_timestamp_ms": 2,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      },
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "diagnostics",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:event:embedding_loaded",
+        "process": {
+          "rss_bytes": 209715200,
+          "os": {
+            "pss_bytes": 209715200,
+            "pss_anon_bytes": 209715200,
+            "pss_file_bytes": 20971520,
+            "pss_shmem_bytes": 2097152,
+            "anon_huge_pages_bytes": 4194304,
+            "rss_file_bytes": 31457280,
+            "vm_stk_bytes": 1048576,
+            "threads": 8
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 125829120,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0,
+          "allocator_resident_minus_active_bytes": 73400320,
+          "pss_minus_allocator_allocated_bytes": 83886080
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 7,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 2,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 83886080,
+        "final_pss_bytes": 209715200,
+        "net_pss_growth_bytes": 125829120,
+        "peak_pss_bytes": 209715200,
+        "peak_growth_vs_baseline_bytes": 125829120,
+        "median_pss_bytes": 146800640,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "embedding_loaded",
+        "peak_trigger_reason": "event",
+        "allocator_allocated_bytes": 125829120,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 2,
+        "pss_bytes": 209715200,
+        "pss_anon_bytes": 209715200,
+        "pss_file_bytes": 20971520,
+        "pss_shmem_bytes": 2097152,
+        "anon_huge_pages_bytes": 4194304,
+        "rss_file_bytes": 31457280,
+        "main_stack_bytes": 1048576,
+        "thread_stack_estimate_bytes": 1048576,
+        "thread_count": 8,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 125829120,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 124780544,
+        "coverage_ratio_pss": 0.005,
+        "coverage_ratio_live_heap": 0.0083,
+        "explained_pss_bytes": 23068672,
+        "unexplained_pss_bytes": 186646528,
+        "explained_ratio": 0.11
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 2,
+        "baseline_live_sessions": 2,
+        "final_live_sessions": 7,
+        "peak_live_sessions": 7,
+        "peak_timestamp_ms": 2,
+        "net_live_session_growth": 5,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 6,
+        "baseline_allocator_live_bytes": 41943040,
+        "final_allocator_live_bytes": 125829120,
+        "net_allocator_live_growth_bytes": 83886080,
+        "allocator_growth_per_added_session_bytes": 16777216
+      },
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 200.0 MB",
+          "net PSS growth +120.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 2,
+        "sessions": {
+          "live_count": 7,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "embedding_loaded",
+        "trigger_reason": "event"
+      },
+      "top_spikes": [
+        {
+          "from": 1,
+          "to": 2,
+          "delta_pss_bytes": 125829120,
+          "from_source": "attribution:heartbeat",
+          "to_source": "attribution:event:embedding_loaded",
+          "to_trigger_category": "embedding_loaded",
+          "to_trigger_reason": "event"
+        }
+      ],
+      "top_attribution_deltas": [
+        {
+          "from": 1,
+          "to": 2,
+          "to_trigger_category": "embedding_loaded",
+          "to_trigger_reason": "event",
+          "delta_total_json_bytes": 0,
+          "delta_payload_text_bytes": 0,
+          "delta_provider_cache_json_bytes": 0,
+          "delta_tool_result_bytes": 0,
+          "delta_large_blob_bytes": 0,
+          "delta_live_count": 5,
+          "delta_memory_enabled_session_count": 0
+        }
+      ],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 1,
+        "embedding_loaded": 1
+      },
+      "hints": [
+        "Allocator resident slack is high (70.0 MB above active). Some memory pressure may be allocator retention rather than live app state.",
+        "PSS is materially above allocator allocated (80.0 MB delta), suggesting shared mappings, allocator overhead, or retained pages are worth checking alongside app-owned structures.",
+        "Embedding lifecycle events were observed (1 samples). Compare memory before/after those windows to decide whether local embeddings should unload more aggressively."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "legacy-process",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "startup",
+        "process": {
+          "os": {
+            "pss_bytes": 0
+          }
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "server:runtime-log:interval",
+        "process": {
+          "os": {
+            "pss_bytes": 20971520
+          }
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "legacy",
+      "sample_count": 2,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "legacy": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 0,
+        "final_pss_bytes": 20971520,
+        "net_pss_growth_bytes": 20971520,
+        "peak_pss_bytes": 20971520,
+        "peak_growth_vs_baseline_bytes": 20971520,
+        "median_pss_bytes": 10485760,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "interval",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": null,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": null
+      },
+      "coverage": null,
+      "session_population": {},
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 20.0 MB",
+          "net PSS growth +20.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": null,
+      "top_spikes": [
+        {
+          "from": 1,
+          "to": 2,
+          "delta_pss_bytes": 20971520,
+          "from_source": "startup",
+          "to_source": "server:runtime-log:interval",
+          "to_trigger_category": "interval",
+          "to_trigger_reason": "periodic"
+        }
+      ],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "startup": 1,
+        "interval": 1
+      },
+      "hints": [
+        "Need at least one attribution sample before generating optimization hints."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "legacy",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "legacy": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "no-process",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "process:event:resize"
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "legacy",
+      "sample_count": 1,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 1,
+      "kinds": {
+        "process": 1
+      },
+      "process": {},
+      "coverage": null,
+      "session_population": {},
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 0.0 MB",
+          "net PSS growth +0.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": null,
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "resize": 1
+      },
+      "hints": [
+        "Need at least one attribution sample before generating optimization hints."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "legacy",
+        "sample_count": 1,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 1,
+        "duration_ms": 0,
+        "kinds": {
+          "process": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "zero-denominators",
+    "rows": [
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 0,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 0,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 0,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 8,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 1,
+      "first_timestamp_ms": 2,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "attribution": 1
+      },
+      "process": {
+        "sample_count": 1,
+        "first_timestamp_ms": 2,
+        "last_timestamp_ms": 2,
+        "duration_ms": 0,
+        "baseline_pss_bytes": 0,
+        "final_pss_bytes": 0,
+        "net_pss_growth_bytes": 0,
+        "peak_pss_bytes": 0,
+        "peak_growth_vs_baseline_bytes": 0,
+        "median_pss_bytes": 0,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 0,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 2,
+        "pss_bytes": 0,
+        "pss_anon_bytes": 83886080,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 0,
+        "allocator_live_bytes": 0,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 0,
+        "coverage_ratio_pss": 0.0,
+        "coverage_ratio_live_heap": 0.0,
+        "explained_pss_bytes": 0,
+        "unexplained_pss_bytes": 0,
+        "explained_ratio": 0.0
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 2,
+        "final_timestamp_ms": 2,
+        "baseline_live_sessions": 2,
+        "final_live_sessions": 2,
+        "peak_live_sessions": 2,
+        "peak_timestamp_ms": 2,
+        "net_live_session_growth": 0,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 1,
+        "baseline_allocator_live_bytes": 0,
+        "final_allocator_live_bytes": 0,
+        "net_allocator_live_growth_bytes": 0,
+        "allocator_growth_per_added_session_bytes": null
+      },
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 0.0 MB",
+          "net PSS growth +0.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 2,
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 0,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 1
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 1,
+        "first_timestamp_ms": 2,
+        "last_timestamp_ms": 2,
+        "duration_ms": 0,
+        "kinds": {
+          "attribution": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "top-zero",
+    "rows": [
+      {
+        "timestamp_ms": 1,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 83886080,
+          "os": {
+            "pss_bytes": 83886080,
+            "pss_anon_bytes": 83886080
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      },
+      {
+        "timestamp_ms": 2,
+        "source": "attribution:heartbeat",
+        "process": {
+          "rss_bytes": 94371840,
+          "os": {
+            "pss_bytes": 94371840,
+            "pss_anon_bytes": 94371840
+          },
+          "allocator": {
+            "stats": {
+              "allocated_bytes": 41943040,
+              "retained_bytes": 0
+            }
+          }
+        },
+        "process_diagnostics": {
+          "allocator_retained_resident_estimate_bytes": 0
+        },
+        "clients": {
+          "connected_count": 1
+        },
+        "server": {
+          "id": "server"
+        },
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        }
+      }
+    ],
+    "mode": "all",
+    "top": 0,
+    "expected": {
+      "target": "server",
+      "instance_id": "server",
+      "sample_count": 2,
+      "first_timestamp_ms": 1,
+      "last_timestamp_ms": 2,
+      "kinds": {
+        "attribution": 2
+      },
+      "process": {
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "baseline_pss_bytes": 83886080,
+        "final_pss_bytes": 94371840,
+        "net_pss_growth_bytes": 10485760,
+        "peak_pss_bytes": 94371840,
+        "peak_growth_vs_baseline_bytes": 10485760,
+        "median_pss_bytes": 89128960,
+        "peak_timestamp_ms": 2,
+        "peak_trigger_category": "attribution_heartbeat",
+        "peak_trigger_reason": "periodic",
+        "allocator_allocated_bytes": 41943040,
+        "allocator_resident_bytes": null,
+        "allocator_retained_bytes": 0
+      },
+      "coverage": {
+        "timestamp_ms": 2,
+        "pss_bytes": 94371840,
+        "pss_anon_bytes": 94371840,
+        "pss_file_bytes": null,
+        "pss_shmem_bytes": null,
+        "anon_huge_pages_bytes": null,
+        "rss_file_bytes": null,
+        "main_stack_bytes": null,
+        "thread_stack_estimate_bytes": null,
+        "thread_count": null,
+        "attributed_live_bytes": 1048576,
+        "allocator_live_bytes": 41943040,
+        "allocator_retained_bytes": 0,
+        "allocator_retained_resident_estimate_bytes": 0,
+        "unattributed_live_heap_bytes": 40894464,
+        "coverage_ratio_pss": 0.0111,
+        "coverage_ratio_live_heap": 0.025,
+        "explained_pss_bytes": 1048576,
+        "unexplained_pss_bytes": 93323264,
+        "explained_ratio": 0.0111
+      },
+      "session_population": {
+        "baseline_timestamp_ms": 1,
+        "final_timestamp_ms": 2,
+        "baseline_live_sessions": 2,
+        "final_live_sessions": 2,
+        "peak_live_sessions": 2,
+        "peak_timestamp_ms": 1,
+        "net_live_session_growth": 0,
+        "final_connected_clients": 1,
+        "detached_or_headless_live_sessions": 1,
+        "baseline_allocator_live_bytes": 41943040,
+        "final_allocator_live_bytes": 41943040,
+        "net_allocator_live_growth_bytes": 0,
+        "allocator_growth_per_added_session_bytes": null
+      },
+      "incident": {
+        "severity": "healthy",
+        "primary_cause": "within_normal_operating_range",
+        "confidence": "high",
+        "summary": "No server memory incident threshold is exceeded in this process lifetime.",
+        "evidence": [
+          "final PSS 90.0 MB",
+          "net PSS growth +10.0 MB"
+        ],
+        "recommended_actions": [
+          {
+            "priority": 1,
+            "action": "Continue normal monitoring and preserve this process-lifetime baseline.",
+            "commands": [
+              "scripts/orbit_dev.sh analyze-runtime-memory-log --days 1"
+            ]
+          }
+        ],
+        "runbook": "docs/MEMORY_INCIDENT_RUNBOOK.md"
+      },
+      "last_attribution": {
+        "timestamp_ms": 2,
+        "sessions": {
+          "live_count": 2,
+          "total_json_bytes": 1048576,
+          "total_payload_text_bytes": 0,
+          "total_provider_cache_json_bytes": 0,
+          "total_tool_result_bytes": 0,
+          "total_large_blob_bytes": 0,
+          "top_by_json_bytes": []
+        },
+        "totals": null,
+        "client": null,
+        "trigger_category": "attribution_heartbeat",
+        "trigger_reason": "periodic"
+      },
+      "top_spikes": [],
+      "top_attribution_deltas": [],
+      "top_sessions": [],
+      "top_clients": [],
+      "event_counts": {
+        "attribution_heartbeat": 2
+      },
+      "hints": [
+        "No single dominant culprit stood out yet. Collect more runtime history and compare multiple attribution samples after heavier real usage."
+      ]
+    },
+    "inventory": [
+      {
+        "target": "server",
+        "instance_id": "server",
+        "sample_count": 2,
+        "first_timestamp_ms": 1,
+        "last_timestamp_ms": 2,
+        "duration_ms": 1,
+        "kinds": {
+          "attribution": 2
+        }
+      }
+    ]
+  }
+]

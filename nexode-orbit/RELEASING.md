@@ -1,0 +1,246 @@
+# Releasing nexode
+
+Official releases have two gates: **successful CI for the exact tagged commit** and **a complete platform asset set before publication**. Local preparation can save build time, but it does not bypass either gate. `.github/workflows/release.yml` owns final publication.
+
+## Opt-in v1 preview channel
+
+The separate `.github/workflows/preview.yml` pipeline is **enabled by default** on
+canonical master. No repository variable setup is required. For an emergency
+opt-out, set repository Actions variable `NEXODE_V1_PREVIEW_ENABLED=false` and
+cancel any running preview workflow. Removing the variable or setting it to
+anything other than the literal `false` restores publication. The publisher also
+stops automatically once the exact stable `v1.0.0` tag exists, including builds
+already in flight. At v1 launch, keep the variable `false` and retire this
+preview workflow. Publication being enabled does not opt users in.
+
+**First-time bootstrap:** current stable binaries do not implement `--channel`.
+Download the matching OS/architecture archive from a preview's GitHub release,
+verify it against `SHA256SUMS`, and extract the entire archive into a separate
+directory. Keep the Linux wrapper, `.bin`, and any shared libraries together.
+Run the extracted binary explicitly by its full path (the `.exe` on Windows),
+not the old stable `nexode` on PATH. Using that preview binary's path in place of
+`nexode`, run `nexode update --channel preview` to persist the opt-in. Future
+preview updates can use the same command. To roll back, run the preview binary
+with `update --channel stable`, or reinstall the current stable release. Stable
+users are never automatically upgraded to previews.
+
+Each push to canonical `nexode-agent/unconfigured`'s `master` starts a cancellable **15-minute
+quiet period**. A newer push cancels the old wait and any obsolete builds. After
+the quiet period, the workflow rejects superseded SHAs and uses the same
+`cargo xtask check-release-ci` exact-commit push-CI gate as stable releases. It
+builds six required archives: Linux, macOS, and Windows, each x86_64 and aarch64.
+Linux x86_64 reuses the glibc 2.17 compatibility builder, Linux ARM64 preserves
+emulated TLS, and macOS retains stable ad-hoc signing identity. Windows preview
+binaries are currently **unsigned experimental builds**, not signed stable
+releases. FreeBSD is not included in the preview platform set.
+
+The binary version is `v1.0.0-preview.N`, supplied through the existing
+`NEXODE_BUILD_SEMVER` release-build environment, without changing Cargo package
+versions. Every native binary must report that preview version before upload.
+`N` is the workflow run number, so cancellations/failures leave intentional gaps.
+Rerunning a workflow does not allocate another number. If its tag already exists,
+publication refuses to overwrite it. Push a new commit to obtain a new number.
+
+Only after **all six builds succeed**, the publisher rechecks exact-SHA CI,
+creates a new tag on that SHA using only `GITHUB_TOKEN`, and stages all archives
+plus `SHA256SUMS` on a draft prerelease. It verifies the complete remote asset
+inventory and sizes, then checks the current master SHA **immediately before**
+publishing with `--prerelease --latest=false`. A failed, cancelled, stale, or
+incomplete attempt cannot publish. An interrupted attempt may leave its own
+unpublished draft/tag, which is not reused or silently deleted.
+
+Preview publishing never updates stable download metadata, Cargo versions,
+package registries, Homebrew, or the stable release pipeline. Stable `release.yml`
+excludes preview tags at both its tag trigger and its entry job, including manual
+dispatches. `GITHUB_TOKEN`-created tags/releases do not recursively trigger
+workflows. Following successful publication only, an explicit dispatch invokes
+the existing Discord announcement workflow. Previews use a separate clearly
+labeled **v1 Preview · opt-in** message containing the release download link,
+opt-in command, and stable-return command. Stable announcement formatting is
+unchanged, and per-tag concurrency and recorded announcement markers still
+prevent normal duplicate posts.
+
+Run the publication and workflow regression checks without network writes:
+
+```bash
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test preview_workflow
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml discord_release
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev release::ci
+actionlint -shellcheck= .github/workflows/preview.yml .github/workflows/release.yml
+```
+
+## Normal release procedure
+
+1. Prepare and commit the version bump in `Cargo.toml`, `Cargo.lock`, and the changelog. Commit any source changes before preparing a cached fast-release binary.
+2. Push the release commit to `master` (or `main` where applicable) **without pushing a release tag**.
+3. Wait for `.github/workflows/ci.yml` to succeed for that exact commit. A green parent, pull request run, different SHA, or older successful attempt is not sufficient.
+4. Run the release helper. Its fail-fast preflight checks CI before creating or pushing the tag:
+
+   ```bash
+   git push origin master
+   cargo xtask check-release-ci "$(git rev-parse HEAD)" \
+     --repo nexode-agent/unconfigured --timeout 0
+   scripts/quick-release.sh --remote v0.98.1
+   ```
+
+   The explicit native CI check is optional because the helper repeats it. If CI is pending, missing, failed, cancelled, or cannot be queried, the helper exits without pushing the tag. Wait for successful CI and retry. It also rejects a tag version that differs from the committed `Cargo.toml` package version, conflicting tags, failed remote lookups, and HEAD changes during preparation/preflight.
+5. Watch the tag-triggered release workflow. Do not announce or manually publish a partial draft. Publication waits for all required platform builds, Windows signing, checksums, and provenance.
+
+   Use `scripts/watch_release_run.sh <run-id>` to monitor it to completion. Its default four-hour budget covers the 150-minute Windows build timeout plus finalization and runner queues. A successful v0.97 recovery run took about 71 minutes, so a short wait is not evidence that a release is stuck. Every completed non-success conclusion is reported immediately.
+
+Use the helper instead of manually pushing `v*` tags. Git itself cannot enforce this client-side preflight, so the workflow independently repeats the exact-SHA CI check before building or creating its draft. A tag pushed by hand does not bypass that workflow gate.
+
+### Exact-SHA CI evidence
+
+`cargo xtask check-release-ci` selects the latest exact-SHA `push` run of `ci.yml` on `main`/`master`, checks the latest attempt, and requires the run and these mandatory jobs to have completed successfully:
+
+- Quality Guardrails
+- Build & Test (ubuntu-latest)
+- Build & Test (macos-latest)
+- Build & Test (windows-latest)
+- Windows ARM64 Release Configuration
+
+It checks run identity, paginated job results, and confirms the attempt did not change during verification. Missing or skipped mandatory jobs, ambiguous evidence, API failures, and unsuccessful conclusions cannot authorize a release. The helper uses `--timeout 0` to reject immediately rather than tagging while CI is pending. The workflow uses a bounded wait for its own independent gate.
+
+### Why the pre-tag gate is necessary
+
+On October 14, 2026, release commit `5205cdf6fde97e07775b9a491bdd4153ab25f095` was created at **18:44:10 UTC**, and `v0.98.0` was tagged at **18:44:12 UTC**. Its exact-SHA CI run `38617673934` was not created until **18:44:13 UTC** and ultimately failed. The release workflow run `38617680965` started at **18:44:16 UTC** and failed as well.
+
+The helper previously allowed immediate tag pushes, relying only on the later workflow publication gate. That prevented successful normal publication but did not prevent premature tagging. All publishing modes now share the successful exact-SHA preflight before tag creation/push, including retries with an existing tag. Existing tags are not moved or deleted by this procedure.
+
+## Release helper modes
+
+| Mode | Local work | Publication |
+|------|------------|-------------|
+| `--remote` / `--ci-only` | None | CI builds and publishes the complete release |
+| Default | Build Linux x86_64 and macOS aarch64 in parallel | Stage on a draft, then CI completes and publishes |
+| `--prepare-fast` | Refresh and record the Linux selfdev binary before the metadata commit | No tag or release |
+| `--fast-local` / `--fast` | Validate and package that prepared Linux binary | Stage on a draft, then CI replaces it with the portable build |
+| `--prepare-fast-macos` | Refresh and record the osxcross macOS aarch64 binary before the metadata commit | No tag or release |
+| `--fast-macos-local` / `--fast-macos` | Validate, sign, and package that prepared macOS binary | Stage on a draft, then CI replaces it with the signoff build |
+| `--dry-run` with a local packaging mode | Build/validate/package only | No CI preflight, tag, upload, or publication |
+
+```bash
+scripts/quick-release.sh --remote v0.98.1 "Release title"
+scripts/quick-release.sh v0.98.1
+scripts/quick-release.sh --dry-run v0.98.1
+```
+
+Fast modes require the recorded binary hash to be unchanged and the preparation commit to be the release commit's parent. The release commit may modify only `Cargo.toml`, `Cargo.lock`, and `changelog/`. Push that metadata commit and wait for its own CI before running the packaging mode. The staged Linux selfdev binary targets the build host's runtime baseline until CI replaces it.
+
+All local preparation/build modes require a clean working tree. Remote mode tags only committed HEAD and warns that working-tree changes are excluded. Non-dry-run release modes require authenticated `gh` and the native `orbit-dev` tool, including remote mode. The launcher builds it with Cargo unless `ORBIT_DEV_BIN` selects an existing binary. The repository used for the preflight is resolved from `origin`, not an unrelated `GH_REPO` default. Local staging refuses to overwrite an already-public release.
+
+The fast paths no longer make single-platform releases public immediately. They leave publication to the complete-platform workflow, just like the default path. Build durations depend on cache warmth and runner availability. Exact-SHA CI must finish before tag push, then release builds and signing must finish before publication.
+
+## CI release workflow
+
+A pushed `v*` tag triggers `.github/workflows/release.yml` in the canonical `nexode-agent/unconfigured` repository:
+
+```text
+Tag push (after successful exact-SHA main/master CI)
+    |
+    +--> create-release
+    |      Validate immutable tag/source identity
+    |      Recheck exact-SHA CI and mandatory jobs
+    |      Verify frozen dependency resolution (Cargo.lock)
+    |      Create/update hidden draft and release notes
+    |
+    +--> build-linux-macos (parallel platform matrix)
+    |      Linux x86_64 and aarch64
+    |      macOS aarch64 and x86_64
+    |
+    +--> build-windows --> publish-windows
+    |      Windows x86_64 and ARM64 builds
+    |      Azure Artifact Signing and Authenticode verification
+    |      Upload signed executables and archives to draft
+    |
+    +--> build-freebsd
+    |      FreeBSD x86_64
+    |
+    +--> release (after platform jobs reach terminal states)
+           Require the complete platform asset set
+           Attach all final assets
+           Generate/upload SHA256SUMS and release-provenance.json
+           Publish the completed release
+           Download/verify every public asset, checksum, and provenance
+           Install the public Linux archive in an isolated home and verify its version
+           Queue Discord announcement
+           Update Homebrew and AUR when credentials are configured
+```
+
+### Required assets
+
+Publication requires all nine platform files:
+
+- `nexode-linux-x86_64.tar.gz`
+- `nexode-linux-aarch64.tar.gz`
+- `nexode-macos-aarch64.tar.gz`
+- `nexode-macos-x86_64.tar.gz`
+- `nexode-windows-x86_64.exe` and `nexode-windows-x86_64.tar.gz`
+- `nexode-windows-aarch64.exe` and `nexode-windows-aarch64.tar.gz`
+- `nexode-freebsd-x86_64.tar.gz`
+
+A missing platform asset fails finalization and keeps a new release as a draft. Platforms build independently, but **they are not independently publishable**. Successful platforms alone are not enough. `SHA256SUMS` covers the final archives, Windows executables, and provenance file.
+
+After making the complete release public, the finalizer downloads the actual public assets and verifies their hashes and exact-SHA unpatched provenance before announcements or package-manager updates. Repeat that verification when checking a release manually:
+
+```bash
+cargo xtask verify-public-release v0.98.1 --repo nexode-agent/unconfigured \
+  --sha "$(git rev-parse 'refs/tags/v0.98.1^{commit}')"
+```
+
+The verifier requires all nine platform files plus `SHA256SUMS` and `release-provenance.json`, nonempty uploaded assets, a checksum manifest covering exactly the published files, and provenance matching the expected immutable tag commit. It never executes or extracts downloaded binaries. Use `--directory <new-directory>` to retain the verified downloads. A failed post-publication verification blocks the workflow's downstream announcement/package steps, but does not automatically make an already-public release private.
+
+Homebrew needs the four Linux/macOS archives. AUR needs Linux x86_64. These package-manager checks do not weaken the complete-platform publication gate. Updates run after publication and also require their configured deployment credentials.
+
+### Windows signing prerequisites
+
+The one-time setup is documented in [docs/WINDOWS.md](docs/WINDOWS.md#enable-authenticode-signing). The release repository needs:
+
+- Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+- Variables: `WINDOWS_SIGNING_ENDPOINT`, `WINDOWS_SIGNING_ACCOUNT`, `WINDOWS_SIGNING_CERTIFICATE_PROFILE`
+- Emergency override only: `WINDOWS_SIGNING_REQUIRED=false`, which is not suitable for an official signed Windows build
+
+Before announcing Defender or SmartScreen remediation, download both public Windows executables and confirm `Get-AuthenticodeSignature` reports `Valid`.
+
+At v0.98.1 publication, the repository had `WINDOWS_SIGNING_REQUIRED=false` and no Azure signing credentials or account configuration. Its Windows executables are unsigned, not Authenticode-verified. Release notes now disclose the actual signing mode, including this override. To enable signed future releases, an administrator must provision the Azure identity and signing account/profile listed above and remove the override. Do not claim that a successful packaging job proves signing occurred.
+
+### Existing-tag recovery
+
+Normal retries still require successful CI on the existing tag's exact SHA. A newer green master commit does not authorize an older failed tag. Reviewed source recovery is a separate, explicitly constrained workflow-dispatch path with provenance, not a bypass available in `quick-release.sh`. Do not retag an existing version or broaden recovery permissions as part of a routine release.
+
+For a **workflow-only defect** with an unpublished draft and already-green exact tagged source, commit and review the workflow fix on `master`, then dispatch the corrected workflow against the unchanged tag with `recovery=none`:
+
+```bash
+gh workflow run release.yml --ref master -f tag=v0.98.1 -f recovery=none
+```
+
+This rebuilds all platforms from the original tag, repeats the exact-tag-SHA CI check, and records the separate workflow commit in provenance. It refuses a public release or a version older than an already-public successor. A rerun of the old failed run uses its old workflow definition, so it cannot pick up a committed workflow fix. Wait for signing, complete assets, public downloads, and installer checks before calling the retry successful.
+
+The optional `recovery-preflight` job is intentionally skipped for unpatched releases. Every downstream job that must still run needs an explicit status-check expression. In particular, Windows signing uses `always()` plus successful direct dependency results, preventing a skipped recovery ancestor from suppressing signing without allowing failed Windows builds through.
+
+## Local cross-compilation prerequisites
+
+The default local mode needs Docker for the portable Linux build and osxcross for macOS, plus `cargo`, `file`, and `rcodesign`. The current osxcross setup uses the macOS 14.5 SDK at `~/.osxcross/`, with the `aarch64-apple-darwin23.5-clang` linker. Install the Rust `aarch64-apple-darwin` target and configure `~/.cargo/config.toml`:
+
+```toml
+[target.aarch64-apple-darwin]
+linker = "aarch64-apple-darwin23.5-clang"
+
+[env]
+CC_aarch64_apple_darwin = "aarch64-apple-darwin23.5-clang"
+CXX_aarch64_apple_darwin = "aarch64-apple-darwin23.5-clang++"
+```
+
+macOS binaries are ad-hoc signed with the stable identifier `com.nexode.cli`, using `codesign` when available and `rcodesign` otherwise. System framework dependencies such as AppKit and Security require real macOS SDK headers/framework stubs, which osxcross provides.
+
+## Release gate regression checks
+
+```bash
+bash -n scripts/quick-release.sh
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test quick_release
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --bin orbit-dev release::ci
+cargo test --locked --manifest-path tools/orbit-dev/Cargo.toml --test public_release
+```
+
+The quick-release tests exercise the real remote and standard-mode script with disposable Git repositories and bare remotes plus a simulated GitHub API. Standard-mode binary builders and signing are stubbed, while CI gating, tagging, packaging, and draft-only staging run through the real script. They cover successful exact-SHA tagging, non-green/missing/wrong-SHA evidence, existing/conflicting tags, API/remote failures, and concurrent HEAD/tag changes without writing to GitHub. Helper unit tests cover latest-run/attempt selection, mandatory jobs, and bounded waiting.

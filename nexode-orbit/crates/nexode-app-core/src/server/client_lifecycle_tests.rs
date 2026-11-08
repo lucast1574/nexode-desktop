@@ -1,0 +1,1658 @@
+#![cfg_attr(test, allow(clippy::await_holding_lock))]
+use super::*;
+use crate::message::{ContentBlock, Message, StreamEvent, ToolDefinition};
+use crate::provider::{EventStream, Provider};
+use async_trait::async_trait;
+use futures::stream;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+#[test]
+fn identity_transport_negotiation_preserves_legacy_payload_shape() {
+    let identity = crate::protocol::TurnIdentity {
+        runtime_generation: "runtime".into(),
+        turn_id: 7,
+    };
+    let wrapped = ServerEvent::TurnEvent {
+        identity: identity.clone(),
+        event: Box::new(ServerEvent::Done { id: 99 }),
+    };
+    assert!(matches!(
+        event_for_transport(wrapped.clone(), false),
+        Some(ServerEvent::Done { id: 99 })
+    ));
+    assert!(matches!(
+        event_for_transport(wrapped, true),
+        Some(ServerEvent::TurnEvent { .. })
+    ));
+    let started = ServerEvent::TurnStarted { identity };
+    assert!(event_for_transport(started.clone(), false).is_none());
+    assert!(matches!(
+        event_for_transport(started, true),
+        Some(ServerEvent::TurnStarted { .. })
+    ));
+    assert!(
+        event_for_transport(
+            ServerEvent::TurnState {
+                session_id: "session".into(),
+                runtime_generation: "runtime".into(),
+                turn_id: None,
+                latest_turn_id: 7
+            },
+            false
+        )
+        .is_none()
+    );
+}
+
+fn turn_payload(event: ServerEvent) -> ServerEvent {
+    match event {
+        ServerEvent::TurnEvent { event, .. } => *event,
+        event => event,
+    }
+}
+
+async fn recv_turn_payload(rx: &mut mpsc::UnboundedReceiver<ServerEvent>) -> Option<ServerEvent> {
+    loop {
+        let event = rx.recv().await?;
+        if !matches!(event, ServerEvent::TurnStarted { .. }) {
+            return Some(turn_payload(event));
+        }
+    }
+}
+
+struct IsolatedRuntimeDir {
+    _prev_runtime: Option<std::ffi::OsString>,
+    _temp: tempfile::TempDir,
+}
+
+struct IsolatedReloadRecoveryEnv {
+    prev_home: Option<std::ffi::OsString>,
+    prev_runtime: Option<std::ffi::OsString>,
+    _home: tempfile::TempDir,
+    _runtime: tempfile::TempDir,
+}
+
+#[path = "client_lifecycle_tests/control_requests.rs"]
+mod control_requests;
+
+impl IsolatedRuntimeDir {
+    fn new() -> Self {
+        let temp = tempfile::TempDir::new().expect("runtime dir");
+        let prev_runtime = std::env::var_os("NEXODE_RUNTIME_DIR");
+        crate::env::set_var("NEXODE_RUNTIME_DIR", temp.path());
+        crate::server::clear_reload_marker();
+        Self {
+            _prev_runtime: prev_runtime,
+            _temp: temp,
+        }
+    }
+}
+
+impl IsolatedReloadRecoveryEnv {
+    fn new() -> Self {
+        let home = tempfile::TempDir::new().expect("nexode home");
+        let runtime = tempfile::TempDir::new().expect("runtime dir");
+        let prev_home = std::env::var_os("NEXODE_HOME");
+        let prev_runtime = std::env::var_os("NEXODE_RUNTIME_DIR");
+        crate::env::set_var("NEXODE_HOME", home.path());
+        crate::env::set_var("NEXODE_RUNTIME_DIR", runtime.path());
+        crate::server::clear_reload_marker();
+        Self {
+            prev_home,
+            prev_runtime,
+            _home: home,
+            _runtime: runtime,
+        }
+    }
+}
+
+impl Drop for IsolatedReloadRecoveryEnv {
+    fn drop(&mut self) {
+        crate::server::clear_reload_marker();
+        if let Some(prev_home) = self.prev_home.take() {
+            crate::env::set_var("NEXODE_HOME", prev_home);
+        } else {
+            crate::env::remove_var("NEXODE_HOME");
+        }
+        if let Some(prev_runtime) = self.prev_runtime.take() {
+            crate::env::set_var("NEXODE_RUNTIME_DIR", prev_runtime);
+        } else {
+            crate::env::remove_var("NEXODE_RUNTIME_DIR");
+        }
+    }
+}
+
+impl Drop for IsolatedRuntimeDir {
+    fn drop(&mut self) {
+        crate::server::clear_reload_marker();
+        if let Some(prev_runtime) = self._prev_runtime.take() {
+            crate::env::set_var("NEXODE_RUNTIME_DIR", prev_runtime);
+        } else {
+            crate::env::remove_var("NEXODE_RUNTIME_DIR");
+        }
+    }
+}
+
+/// Regression for issue #428: a turn actively streaming in this session but
+/// NOT owned by the cancelling connection (no local task handle: post-reload
+/// reattach, server-initiated wake turns, headless recovery) must abort
+/// promptly even when the control handle's stop signal is a *different
+/// instance* from the streaming agent's own `graceful_shutdown` signal.
+///
+/// Before the fix, `cancel_processing_message` hit the NO_LOCAL_TASK branch,
+/// fired the stale handle-local signal (which nothing was listening to),
+/// emitted `Interrupted` immediately, and the provider stream kept generating
+/// for minutes ("Interrupting..." disappears, model keeps going, eventually
+/// "Interrupted [x66]").
+#[test]
+fn cancel_aborts_detached_streaming_turn_with_stale_stop_signal() -> anyhow::Result<()> {
+    let _lock = crate::storage::lock_test_env();
+    let _env = IsolatedReloadRecoveryEnv::new();
+    let session_id = "session_detached_streaming_cancel_428";
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    rt.block_on(async {
+        let provider: Arc<dyn Provider> = Arc::new(NeverEndingStreamProvider);
+        let registry = Registry::new(Arc::clone(&provider)).await;
+        let mut session =
+            crate::session::Session::create_with_id(session_id.to_string(), None, None);
+        session.model = Some("never-ending-stream".to_string());
+        let agent = Arc::new(Mutex::new(Agent::new_with_session(
+            provider, registry, session, None,
+        )));
+
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+
+        // Start the turn the way server-initiated paths do: no entry in any
+        // connection's processing-task map.
+        let turn_agent = Arc::clone(&agent);
+        let turn = tokio::spawn(async move {
+            process_message_streaming_mpsc(turn_agent, "stream forever", Vec::new(), None, event_tx)
+                .await
+        });
+
+        // Wait until the provider stream is actively producing output.
+        loop {
+            match tokio::time::timeout(Duration::from_secs(5), event_rx.recv()).await {
+                Ok(Some(ServerEvent::TextDelta { .. })) => break,
+                Ok(Some(_)) => continue,
+                Ok(None) => panic!("event channel closed before streaming started"),
+                Err(_) => panic!("turn never started streaming"),
+            }
+        }
+
+        // Esc arrives on a connection that does not own the task. Its control
+        // handle holds a stop signal instance that is NOT the streaming
+        // agent's graceful_shutdown signal (stale/lost registration).
+        let stale_stop_signal = InterruptSignal::new();
+        let control = SessionControlHandle::cancel_only(
+            session_id,
+            Arc::new(std::sync::Mutex::new(Vec::new())),
+            stale_stop_signal.clone(),
+        );
+        let (client_event_tx, _client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+        let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (swarm_event_tx, _) = broadcast::channel(8);
+        let mut client_is_processing = false;
+        let mut message_id = None;
+        let mut cancel_session_id = None;
+        let mut task = None;
+
+        cancel_processing_message(
+            &mut ProcessingState {
+                client_is_processing: &mut client_is_processing,
+                message_id: &mut message_id,
+                session_id: &mut cancel_session_id,
+                task: &mut task,
+            },
+            &control,
+            &client_event_tx,
+            &SwarmStatusRefs {
+                members: &swarm_members,
+                swarms_by_id: &swarms_by_id,
+                event_history: &event_history,
+                event_counter: &event_counter,
+                event_tx: &swarm_event_tx,
+            },
+            Some(1),
+            None,
+            None,
+        )
+        .await;
+
+        // The streaming turn must observe the cancel and stop promptly, not
+        // minutes later when the provider happens to finish (issue #428).
+        let result = tokio::time::timeout(Duration::from_secs(2), turn)
+            .await
+            .expect("streaming turn must abort promptly after cancel (issue #428)")
+            .expect("turn task join");
+        result.expect("cancelled turn should checkpoint cleanly");
+
+        // The turn is over, so its cancel registration must be gone and the
+        // agent's own signal must be reset so the *next* turn is not aborted
+        // by the consumed cancel.
+        assert!(
+            crate::turn_cancel_registry::active_turn_signals(session_id).is_empty(),
+            "finished turn must unregister its cancel signal"
+        );
+        let agent_signal = {
+            let agent_guard = agent.lock().await;
+            agent_guard.graceful_shutdown_signal()
+        };
+        assert!(
+            !agent_signal.is_set(),
+            "consumed cancel must not leak into the next turn"
+        );
+    });
+    Ok(())
+}
+
+/// A cancel that arrives while the session is idle must not arm the cancel
+/// signal at all.
+///
+/// The no-local-task branch cannot tell an idle session from one whose turn
+/// another connection owns, so it used to fire the signal and clear it on a
+/// 500ms timer. Any message sent inside that window began with the flag
+/// already set and was aborted the instant it started: no reply, no error,
+/// just a message that vanished. Pressing Esc on an idle prompt and typing
+/// immediately is an ordinary thing to do, so this must be a true no-op.
+#[test]
+fn idle_cancel_does_not_arm_the_signal_for_the_next_turn() -> anyhow::Result<()> {
+    let _lock = crate::storage::lock_test_env();
+    let _env = IsolatedReloadRecoveryEnv::new();
+    let session_id = "session_idle_cancel_noop";
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    rt.block_on(async {
+        let stop_signal = InterruptSignal::new();
+        let control = SessionControlHandle::cancel_only(
+            session_id,
+            Arc::new(std::sync::Mutex::new(Vec::new())),
+            stop_signal.clone(),
+        );
+        let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+        let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (swarm_event_tx, _) = broadcast::channel(8);
+        let mut client_is_processing = false;
+        let mut message_id = None;
+        let mut cancel_session_id = None;
+        let mut task = None;
+
+        assert!(
+            !crate::turn_cancel_registry::has_active_turn(session_id),
+            "test precondition: the session must be idle"
+        );
+
+        cancel_processing_message(
+            &mut ProcessingState {
+                client_is_processing: &mut client_is_processing,
+                message_id: &mut message_id,
+                session_id: &mut cancel_session_id,
+                task: &mut task,
+            },
+            &control,
+            &client_event_tx,
+            &SwarmStatusRefs {
+                members: &swarm_members,
+                swarms_by_id: &swarms_by_id,
+                event_history: &event_history,
+                event_counter: &event_counter,
+                event_tx: &swarm_event_tx,
+            },
+            Some(1),
+            None,
+            None,
+        )
+        .await;
+
+        assert!(
+            !stop_signal.is_set(),
+            "an idle cancel must not arm the stop signal; the next turn would die instantly"
+        );
+        // The client still learns the cancel was handled, so a UI showing
+        // "Interrupting..." resolves rather than hanging.
+        match client_event_rx.try_recv() {
+            Ok(ServerEvent::Interrupted) => {}
+            other => panic!("idle cancel must still report Interrupted, got {other:?}"),
+        }
+    });
+    Ok(())
+}
+
+struct PanicOnForkProvider {
+    forked: Arc<AtomicBool>,
+}
+
+/// Streams text deltas forever (one every 20ms) until dropped. Stands in for
+/// a live provider stream that only stops when the turn observes a cancel.
+struct NeverEndingStreamProvider;
+
+#[async_trait]
+impl Provider for NeverEndingStreamProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        Ok(Box::pin(stream::unfold(0u64, |n| async move {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            Some((Ok(StreamEvent::TextDelta(format!("token{} ", n))), n + 1))
+        })))
+    }
+
+    fn name(&self) -> &str {
+        "never-ending-stream"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
+#[derive(Clone, Default)]
+struct CompleteImmediatelyProvider;
+
+#[async_trait]
+impl Provider for CompleteImmediatelyProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        Ok(Box::pin(stream::iter(vec![Ok(StreamEvent::MessageEnd {
+            stop_reason: None,
+        })])))
+    }
+
+    fn name(&self) -> &str {
+        "complete-immediately"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
+#[derive(Clone, Default)]
+struct FanoutStreamProvider;
+
+#[async_trait]
+impl Provider for FanoutStreamProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        Ok(Box::pin(stream::unfold(0_u8, |step| async move {
+            match step {
+                0 => Some((Ok(StreamEvent::TextDelta("before attach".to_string())), 1)),
+                1 => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    Some((Ok(StreamEvent::TextDelta("after attach".to_string())), 2))
+                }
+                2 => Some((
+                    Ok(StreamEvent::MessageEnd {
+                        stop_reason: Some("end_turn".to_string()),
+                    }),
+                    3,
+                )),
+                _ => None,
+            }
+        })))
+    }
+
+    fn name(&self) -> &str {
+        "fanout-stream"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
+#[async_trait]
+impl Provider for PanicOnForkProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        panic!("complete should never run in lightweight control test")
+    }
+
+    fn name(&self) -> &str {
+        "panic-on-fork"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        self.forked.store(true, Ordering::SeqCst);
+        panic!("fork should not run for lightweight control requests")
+    }
+}
+
+#[test]
+fn ping_request_is_lightweight_control_request() {
+    assert!((Request::Ping { id: 1 }).is_lightweight_control_request());
+}
+
+fn subscribe_request(working_dir: Option<&str>) -> Request {
+    Request::Subscribe {
+        system_prompt: None,
+        supports_pdf_panels: false,
+        supports_user_response: false,
+        supports_server_failover: false,
+        supports_turn_identity: false,
+        id: 1,
+        working_dir: working_dir.map(str::to_string),
+        selfdev: None,
+        target_session_id: None,
+        client_instance_id: None,
+        client_has_local_history: false,
+        history_base: None,
+        allow_session_takeover: false,
+        crash_on_disconnect: false,
+        continue_on_disconnect: false,
+        terminal_env: Vec::new(),
+        client_name: None,
+    }
+}
+
+#[test]
+fn initial_subscribe_requires_an_absolute_client_working_dir() {
+    for invalid in [None, Some(""), Some("relative/project")] {
+        let error = initial_subscribe_working_dir(&subscribe_request(invalid))
+            .expect_err("invalid client cwd must be rejected before session creation");
+        assert!(error.contains("working_dir") || error.contains("working directory"));
+    }
+
+    let absolute = std::env::temp_dir().join("nexode-client-project");
+    assert_eq!(
+        initial_subscribe_working_dir(&subscribe_request(absolute.to_str()))
+            .expect("absolute client cwd"),
+        absolute.to_string_lossy()
+    );
+
+    let error = initial_subscribe_working_dir(&Request::GetState { id: 2 })
+        .expect_err("stateful requests must not create an unbound session");
+    assert!(error.contains("must Subscribe"));
+}
+
+#[test]
+fn remote_subscribe_requires_an_existing_server_directory() -> anyhow::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let file = directory.path().join("not-a-directory");
+    std::fs::write(&file, "file")?;
+    let missing = directory.path().join("missing");
+    for path in [&file, &missing] {
+        let mut request = subscribe_request(path.to_str());
+        assert!(
+            initial_subscribe_working_dir(&request).is_ok(),
+            "local subscription behavior remains unchanged"
+        );
+        if let Request::Subscribe {
+            continue_on_disconnect,
+            ..
+        } = &mut request
+        {
+            *continue_on_disconnect = true;
+        }
+        assert!(
+            initial_subscribe_working_dir(&request)
+                .unwrap_err()
+                .contains("must exist and be a directory on the server")
+        );
+    }
+    assert_eq!(
+        validated_subscribe_working_dir(directory.path().to_str(), true)
+            .expect("existing directory"),
+        directory.path().to_str().unwrap()
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn new_client_agent_stamps_client_cwd_into_initial_context() {
+    let provider: Arc<dyn Provider> = Arc::new(CompleteImmediatelyProvider);
+    let registry = Registry::new(Arc::clone(&provider)).await;
+    let client_cwd = std::env::temp_dir().join("nexode-authoritative-client-project");
+    let client_cwd = client_cwd.to_string_lossy();
+    let agent = Agent::new_with_initial_working_dir(provider, registry, Some(&client_cwd));
+
+    assert_eq!(agent.working_dir(), Some(client_cwd.as_ref()));
+    let context = agent.messages()[0].content_preview();
+    assert!(
+        context.contains(&format!("Working directory: {client_cwd}")),
+        "initial context must be created from the client cwd: {context}"
+    );
+}
+
+#[test]
+fn server_reload_starting_is_true_only_for_recent_starting_marker() {
+    let _guard = crate::storage::lock_test_env();
+    let _runtime = IsolatedRuntimeDir::new();
+
+    assert!(!server_reload_starting());
+
+    crate::server::write_reload_state(
+        "reload-lifecycle-test",
+        "test-hash",
+        crate::server::ReloadPhase::Starting,
+        Some("session_test_reload".to_string()),
+    );
+    assert!(server_reload_starting());
+
+    crate::server::write_reload_state(
+        "reload-lifecycle-test",
+        "test-hash",
+        crate::server::ReloadPhase::SocketReady,
+        Some("session_test_reload".to_string()),
+    );
+    assert!(!server_reload_starting());
+}
+
+#[test]
+fn reload_starting_rejects_new_turn_without_spawning_processing_task() {
+    let _guard = crate::storage::lock_test_env();
+    let _runtime = IsolatedRuntimeDir::new();
+    crate::server::write_reload_state(
+        "reload-lifecycle-starting",
+        "test-hash",
+        crate::server::ReloadPhase::Starting,
+        Some("session_guard".to_string()),
+    );
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    rt.block_on(async {
+        let forked = Arc::new(AtomicBool::new(false));
+        let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
+            forked: Arc::clone(&forked),
+        });
+        let registry = Registry::new(Arc::clone(&provider)).await;
+        let mut session =
+            crate::session::Session::create_with_id("session_guard".to_string(), None, None);
+        session.model = Some("panic-on-fork".to_string());
+        let agent = Arc::new(Mutex::new(Agent::new_with_session(
+            provider, registry, session, None,
+        )));
+
+        let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+        let (processing_done_tx, mut processing_done_rx) = mpsc::unbounded_channel();
+        let mut client_is_processing = false;
+        let mut processing_message_id = None;
+        let mut processing_session_id = None;
+        let mut processing_task = None;
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+        let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (swarm_event_tx, _) = broadcast::channel(8);
+
+        start_processing_message(
+            ProcessingMessage {
+                id: 42,
+                content: "do not start during reload".to_string(),
+                images: Vec::new(),
+                system_reminder: None,
+                active_skill: None,
+                server_failover: false,
+            },
+            "session_guard",
+            &mut ProcessingState {
+                client_is_processing: &mut client_is_processing,
+                message_id: &mut processing_message_id,
+                session_id: &mut processing_session_id,
+                task: &mut processing_task,
+            },
+            &agent,
+            &client_event_tx,
+            &processing_done_tx,
+            Vec::new(),
+            &SwarmStatusRefs {
+                members: &swarm_members,
+                swarms_by_id: &swarms_by_id,
+                event_history: &event_history,
+                event_counter: &event_counter,
+                event_tx: &swarm_event_tx,
+            },
+        )
+        .await;
+
+        let event = client_event_rx
+            .recv()
+            .await
+            .expect("reload event should be sent to client");
+        assert!(matches!(event, ServerEvent::Reloading { new_socket: None }));
+        assert!(
+            client_event_rx.try_recv().is_err(),
+            "reload guard should only emit the reload notification"
+        );
+        assert!(!client_is_processing);
+        assert_eq!(processing_message_id, None);
+        assert_eq!(processing_session_id, None);
+        assert!(processing_task.is_none());
+        assert!(processing_done_rx.try_recv().is_err());
+        assert!(
+            !forked.load(Ordering::SeqCst),
+            "rejecting during reload should not fork or invoke provider work"
+        );
+    });
+}
+
+#[tokio::test]
+async fn client_initiated_turn_fans_out_stream_and_terminal_events_to_live_attachments() {
+    let _guard = crate::storage::lock_test_env();
+    let _runtime = IsolatedRuntimeDir::new();
+    let session_id = "session_live_attachment_fanout";
+
+    let provider: Arc<dyn Provider> = Arc::new(FanoutStreamProvider);
+    let registry = Registry::new(Arc::clone(&provider)).await;
+    let mut session = crate::session::Session::create_with_id(session_id.to_string(), None, None);
+    session.model = Some("fanout-stream".to_string());
+    let agent = Arc::new(Mutex::new(Agent::new_with_session(
+        provider, registry, session, None,
+    )));
+
+    let (origin_tx, mut origin_rx) = mpsc::unbounded_channel::<ServerEvent>();
+    let (attached_tx, mut attached_rx) = mpsc::unbounded_channel::<ServerEvent>();
+    let swarm_members = Arc::new(RwLock::new(HashMap::from([(
+        session_id.to_string(),
+        SwarmMember {
+            session_id: session_id.to_string(),
+            event_tx: origin_tx.clone(),
+            event_txs: HashMap::from([("origin".to_string(), origin_tx.clone())]),
+            working_dir: None,
+            swarm_id: None,
+            swarm_enabled: false,
+            status: "ready".to_string(),
+            detail: None,
+            task_label: None,
+            friendly_name: None,
+            report_back_to_session_id: None,
+            latest_completion_report: None,
+            role: "agent".to_string(),
+            joined_at: Instant::now(),
+            last_status_change: Instant::now(),
+            is_headless: false,
+            output_tail: None,
+            todo_progress: None,
+            todo_items: Vec::new(),
+            runtime: crate::protocol::SwarmMemberRuntime::default(),
+        },
+    )])));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+    let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+    let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let (swarm_event_tx, _) = broadcast::channel(8);
+    let (processing_done_tx, mut processing_done_rx) = mpsc::unbounded_channel();
+    let mut client_is_processing = false;
+    let mut processing_message_id = None;
+    let mut processing_session_id = None;
+    let mut processing_task = None;
+
+    start_processing_message(
+        ProcessingMessage {
+            id: 479,
+            content: "stream to every attachment".to_string(),
+            images: Vec::new(),
+            system_reminder: None,
+            active_skill: None,
+            server_failover: false,
+        },
+        session_id,
+        &mut ProcessingState {
+            client_is_processing: &mut client_is_processing,
+            message_id: &mut processing_message_id,
+            session_id: &mut processing_session_id,
+            task: &mut processing_task,
+        },
+        &agent,
+        &origin_tx,
+        &processing_done_tx,
+        Vec::new(),
+        &SwarmStatusRefs {
+            members: &swarm_members,
+            swarms_by_id: &swarms_by_id,
+            event_history: &event_history,
+            event_counter: &event_counter,
+            event_tx: &swarm_event_tx,
+        },
+    )
+    .await;
+
+    loop {
+        let event = tokio::time::timeout(Duration::from_secs(2), recv_turn_payload(&mut origin_rx))
+            .await
+            .expect("origin should receive the initial stream event promptly")
+            .expect("origin event channel should remain open");
+        if matches!(event, ServerEvent::TextDelta { ref text } if text == "before attach") {
+            break;
+        }
+    }
+
+    crate::server::register_session_event_sender(
+        &swarm_members,
+        session_id,
+        "attached",
+        attached_tx,
+    )
+    .await;
+
+    for rx in [&mut origin_rx, &mut attached_rx] {
+        let mut saw_post_attach_delta = false;
+        let mut saw_message_end = false;
+        let mut saw_done = false;
+        while !saw_post_attach_delta || !saw_message_end || !saw_done {
+            let event = tokio::time::timeout(Duration::from_secs(2), recv_turn_payload(rx))
+                .await
+                .expect("attachment should receive streamed event promptly")
+                .expect("attachment event channel should remain open");
+            saw_post_attach_delta |= matches!(
+                event,
+                ServerEvent::TextDelta { ref text } if text == "after attach"
+            );
+            if matches!(event, ServerEvent::MessageEnd { .. }) {
+                assert!(!saw_done, "MessageEnd must precede the terminal Done event");
+                saw_message_end = true;
+            }
+            saw_done |= matches!(event, ServerEvent::Done { id: 479 });
+        }
+    }
+
+    let (done_id, result, _, _, _) =
+        tokio::time::timeout(Duration::from_secs(2), processing_done_rx.recv())
+            .await
+            .expect("processing should complete promptly")
+            .expect("processing completion channel should remain open");
+    assert_eq!(done_id, 479);
+    result.expect("turn should complete successfully");
+
+    if let Some(handle) = processing_task.take() {
+        handle.await.expect("processing task join");
+    }
+}
+
+#[tokio::test]
+async fn turn_publication_reserves_runtime_until_aborted_or_finished_queue_drains() {
+    let _guard = crate::storage::lock_test_env();
+    let _env = IsolatedReloadRecoveryEnv::new();
+    let provider: Arc<dyn Provider> = Arc::new(CompleteImmediatelyProvider);
+    let registry = Registry::new(Arc::clone(&provider)).await;
+    let mut agent = Agent::new(provider, registry);
+    let initial_messages = agent.message_count();
+    let reserved = agent.claim_server_turn().unwrap();
+    let (output, _) = mpsc::unbounded_channel();
+    assert!(agent.run_once("forbidden direct turn").await.is_err());
+    assert!(agent.run_once_capture("forbidden capture").await.is_err());
+    assert!(
+        agent
+            .run_once_streaming_mpsc("forbidden stream", Vec::new(), None, output)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        agent.message_count(),
+        initial_messages,
+        "rejected entries must not touch transcript"
+    );
+    drop(reserved);
+    for abort in [false, true] {
+        let members = Arc::new(RwLock::new(HashMap::new()));
+        // Block delivery so the forbidden handoff is deterministic.
+        let blocked_delivery = members.write().await;
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let lease = agent.claim_server_turn().unwrap();
+        let events = super::super::state::TurnEventChannel::new(
+            agent.session_id().into(),
+            Arc::clone(&members),
+            tx,
+            &lease,
+        );
+        let retained_sender = events.sender();
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let producer = tokio::spawn(async move {
+            events
+                .sender()
+                .send(ServerEvent::TextDelta {
+                    text: "old output".into(),
+                })
+                .unwrap();
+            events.sender().send(ServerEvent::Done { id: 7 }).unwrap();
+            ready_tx.send(()).unwrap();
+            if abort {
+                std::future::pending::<()>().await;
+            }
+            events.finish().await;
+            drop(lease);
+        });
+        ready_rx.await.unwrap();
+        if abort {
+            producer.abort();
+            assert!(producer.await.unwrap_err().is_cancelled());
+        } else {
+            // Drop the handle, not the task. Normal finalization must also
+            // remain reserved while the publication queue is blocked.
+            drop(producer);
+        }
+        assert!(
+            agent.claim_server_turn().is_err(),
+            "queue still owns the old turn"
+        );
+        assert!(rx.try_recv().is_err());
+        drop(blocked_delivery);
+        assert!(matches!(
+            rx.recv().await,
+            Some(ServerEvent::TurnStarted { .. })
+        ));
+        assert!(
+            matches!(rx.recv().await, Some(ServerEvent::TurnEvent { event, .. })
+            if matches!(&*event, ServerEvent::TextDelta { text } if text == "old output"))
+        );
+        assert!(
+            matches!(rx.recv().await, Some(ServerEvent::TurnEvent { event, .. })
+            if matches!(*event, ServerEvent::Done { id: 7 }))
+        );
+        let next = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if let Ok(lease) = agent.claim_server_turn() {
+                    break lease;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("drained queue releases the runtime");
+        assert!(
+            retained_sender.send(ServerEvent::Done { id: 7 }).is_err(),
+            "late producer clones cannot inject terminals into the new turn"
+        );
+        assert!(rx.try_recv().is_err());
+        drop(next);
+    }
+}
+
+#[tokio::test]
+async fn terminal_done_then_immediate_message_reconciles_finished_turn() {
+    let _guard = crate::storage::lock_test_env();
+    let _env = IsolatedReloadRecoveryEnv::new();
+    let session_id = "session_terminal_then_message";
+    let provider: Arc<dyn Provider> = Arc::new(CompleteImmediatelyProvider);
+    let registry = Registry::new(Arc::clone(&provider)).await;
+    let mut session = crate::session::Session::create_with_id(session_id.into(), None, None);
+    session.model = Some("complete-immediately".into());
+    let agent = Arc::new(Mutex::new(Agent::new_with_session(
+        provider, registry, session, None,
+    )));
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+    let (done_tx, mut done_rx) = mpsc::unbounded_channel();
+    let (request_tx, mut request_rx) = mpsc::unbounded_channel();
+    let connections = Arc::new(RwLock::new(HashMap::new()));
+    let members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms = Arc::new(RwLock::new(HashMap::new()));
+    let history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+    let counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let (swarm_tx, _) = broadcast::channel(8);
+    let swarm = SwarmStatusRefs {
+        members: &members,
+        swarms_by_id: &swarms,
+        event_history: &history,
+        event_counter: &counter,
+        event_tx: &swarm_tx,
+    };
+    let mut processing = false;
+    let mut message_id = None;
+    let mut processing_session = None;
+    let mut task = None;
+    let mut state = ProcessingState {
+        client_is_processing: &mut processing,
+        message_id: &mut message_id,
+        session_id: &mut processing_session,
+        task: &mut task,
+    };
+
+    // Another connection has accepted a turn but has not spawned its provider
+    // task yet. Connection-local flags are idle and the Agent mutex is free.
+    // Only the runtime reservation can reject this competing acceptance.
+    let initial_messages = agent.lock().await.message_count();
+    let other_connection = agent.lock().await.claim_server_turn().unwrap();
+    start_processing_message(
+        ProcessingMessage {
+            id: 1,
+            content: "must not enter transcript".into(),
+            images: Vec::new(),
+            system_reminder: None,
+            active_skill: None,
+            server_failover: false,
+        },
+        session_id,
+        &mut state,
+        &agent,
+        &event_tx,
+        &done_tx,
+        Vec::new(),
+        &swarm,
+    )
+    .await;
+    assert!(matches!(event_rx.recv().await.unwrap(),
+        ServerEvent::Error { id: 1, message, .. } if message == "Already processing a message"));
+    assert!(!*state.client_is_processing);
+    assert!(state.task.is_none());
+    assert!(done_rx.try_recv().is_err());
+    assert_eq!(agent.lock().await.message_count(), initial_messages);
+    drop(other_connection);
+
+    for (id, content) in [(1, "first turn"), (2, "acceptance back on laptop")] {
+        request_tx
+            .send(ProcessingMessage {
+                id,
+                content: content.into(),
+                images: Vec::new(),
+                system_reminder: None,
+                active_skill: None,
+                server_failover: false,
+            })
+            .unwrap();
+        // Force the real actor's worst-case ordering: after Done, both input
+        // and completion are ready, but biased select chooses input first.
+        let message = tokio::select! {
+            biased;
+            message = request_rx.recv() => message.unwrap(),
+            _ = done_rx.recv() => panic!("input must win the biased select"),
+        };
+        if id == 2 {
+            assert!(
+                *state.client_is_processing,
+                "old local state is still busy after Done"
+            );
+            assert_eq!(*state.message_id, Some(1));
+        }
+        reconcile_processing_completions(
+            None,
+            &mut done_rx,
+            &mut state,
+            "connection",
+            &connections,
+            &swarm,
+        )
+        .await;
+        assert!(!*state.client_is_processing);
+        assert!(state.message_id.is_none());
+        assert!(state.session_id.is_none());
+        assert!(state.task.is_none());
+        start_processing_message(
+            message,
+            session_id,
+            &mut state,
+            &agent,
+            &event_tx,
+            &done_tx,
+            Vec::new(),
+            &swarm,
+        )
+        .await;
+        assert!(*state.client_is_processing);
+        assert_eq!(*state.message_id, Some(id));
+
+        if id == 2 {
+            // Delayed duplicates, including errors, must not clear the new
+            // turn's handle or session and must not emit duplicate terminals.
+            let stale_owner = tokio::spawn(async {}).id();
+            done_tx.send((2, Ok(()), None, stale_owner, None)).unwrap();
+            done_tx
+                .send((
+                    2,
+                    Err(anyhow::anyhow!("late error")),
+                    None,
+                    stale_owner,
+                    None,
+                ))
+                .unwrap();
+            reconcile_processing_completions(
+                None,
+                &mut done_rx,
+                &mut state,
+                "connection",
+                &connections,
+                &swarm,
+            )
+            .await;
+            assert!(*state.client_is_processing);
+            assert_eq!(*state.message_id, Some(2));
+            assert_eq!(state.session_id.as_deref(), Some(session_id));
+            assert!(state.task.is_some());
+        }
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                match recv_turn_payload(&mut event_rx).await.unwrap() {
+                    ServerEvent::Done { id: done_id } => {
+                        assert_eq!(done_id, id, "no duplicate terminal from the previous turn");
+                        break;
+                    }
+                    ServerEvent::Error { message, .. } => {
+                        panic!("new turn was rejected: {message}")
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("each prompt must reach the provider and complete");
+        // Deliberately do not poll completion here. The next Message must
+        // reconcile it, rather than becoming a lost interleave.
+    }
+    reconcile_processing_completions(
+        None,
+        &mut done_rx,
+        &mut state,
+        "connection",
+        &connections,
+        &swarm,
+    )
+    .await;
+    assert!(!*state.client_is_processing);
+    let persisted = crate::session::Session::load(session_id).unwrap();
+    for expected in ["first turn", "acceptance back on laptop"] {
+        assert!(
+            persisted.messages.iter().any(|message| {
+                message.content.iter().any(
+                    |block| matches!(block, ContentBlock::Text { text, .. } if text == expected),
+                )
+            }),
+            "prompt must be persisted as a real model turn: {expected}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn terminal_reconciliation_waits_for_terminal_enqueue_for_done_and_error() {
+    let _guard = crate::storage::lock_test_env();
+    let _env = IsolatedReloadRecoveryEnv::new();
+    for failed in [false, true] {
+        let (done_tx, mut done_rx) = mpsc::unbounded_channel();
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let mut task = Some(tokio::spawn(async move {
+            let result = if failed {
+                Err(anyhow::anyhow!("terminal test error"))
+            } else {
+                Ok(())
+            };
+            done_tx
+                .send((7, result, None, tokio::task::id(), None))
+                .unwrap();
+            // Deterministically simulate preemption between the two sends.
+            release_rx.await.unwrap();
+            let terminal = if failed {
+                ServerEvent::Error {
+                    id: 7,
+                    message: "terminal test error".into(),
+                    retry_after_secs: Some(3),
+                }
+            } else {
+                ServerEvent::Done { id: 7 }
+            };
+            event_tx.send(terminal).unwrap();
+        }));
+        let completion = done_rx.recv().await.unwrap();
+        let mut processing = true;
+        let mut message_id = Some(7);
+        let mut session_id = Some("session_terminal_enqueue_gap".to_string());
+        let mut state = ProcessingState {
+            client_is_processing: &mut processing,
+            message_id: &mut message_id,
+            session_id: &mut session_id,
+            task: &mut task,
+        };
+        let (disconnect_tx, _) = mpsc::unbounded_channel();
+        let connections = Arc::new(RwLock::new(HashMap::from([(
+            "connection".into(),
+            ClientConnectionInfo {
+                client_id: "connection".into(),
+                session_id: "session_terminal_enqueue_gap".into(),
+                client_instance_id: None,
+                debug_client_id: None,
+                connected_at: Instant::now(),
+                last_seen: Instant::now(),
+                is_processing: true,
+                current_tool_name: Some("old tool".into()),
+                terminal_env: Vec::new(),
+                disconnect_tx,
+            },
+        )])));
+        let members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms = Arc::new(RwLock::new(HashMap::new()));
+        let history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (swarm_tx, _) = broadcast::channel(8);
+        let swarm = SwarmStatusRefs {
+            members: &members,
+            swarms_by_id: &swarms,
+            event_history: &history,
+            event_counter: &counter,
+            event_tx: &swarm_tx,
+        };
+        {
+            let reconcile = reconcile_processing_completions(
+                Some(completion),
+                &mut done_rx,
+                &mut state,
+                "connection",
+                &connections,
+                &swarm,
+            );
+            tokio::pin!(reconcile);
+            assert!(
+                futures::poll!(&mut reconcile).is_pending(),
+                "must not retire before terminal enqueue"
+            );
+            assert!(event_rx.try_recv().is_err());
+            release_tx.send(()).unwrap();
+            reconcile.await;
+        }
+        assert!(!*state.client_is_processing);
+        assert!(state.message_id.is_none());
+        assert!(state.session_id.is_none());
+        assert!(state.task.is_none());
+        let connections = connections.read().await;
+        assert!(!connections["connection"].is_processing);
+        assert!(connections["connection"].current_tool_name.is_none());
+        let terminal = event_rx
+            .try_recv()
+            .expect("terminal is queued before new turn can start");
+        if failed {
+            assert!(matches!(
+                terminal,
+                ServerEvent::Error {
+                    id: 7,
+                    retry_after_secs: Some(3),
+                    ..
+                }
+            ));
+        } else {
+            assert!(matches!(terminal, ServerEvent::Done { id: 7 }));
+        }
+        assert!(event_rx.try_recv().is_err(), "one terminal event only");
+    }
+}
+
+#[test]
+fn accepted_reload_recovery_continuation_marks_intent_delivered() -> anyhow::Result<()> {
+    let _lock = crate::storage::lock_test_env();
+    let _env = IsolatedReloadRecoveryEnv::new();
+    let session_id = "session_accepted_reload_recovery";
+    let continuation = "stored continuation accepted by server";
+
+    super::super::reload_recovery::persist_intent(
+        "reload-accepted-continuation",
+        session_id,
+        super::super::reload_recovery::ReloadRecoveryRole::InterruptedPeer,
+        crate::tool::selfdev::ReloadRecoveryDirective {
+            reconnect_notice: Some("stored notice".to_string()),
+            continuation_message: continuation.to_string(),
+        },
+        "synthetic accepted continuation test",
+    )?;
+    assert!(super::super::reload_recovery::has_pending_for_session(
+        session_id
+    ));
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    rt.block_on(async {
+        let provider: Arc<dyn Provider> = Arc::new(CompleteImmediatelyProvider);
+        let registry = Registry::new(Arc::clone(&provider)).await;
+        let mut session =
+            crate::session::Session::create_with_id(session_id.to_string(), None, None);
+        session.model = Some("complete-immediately".to_string());
+        let agent = Arc::new(Mutex::new(Agent::new_with_session(
+            provider, registry, session, None,
+        )));
+
+        let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+        let (processing_done_tx, mut processing_done_rx) = mpsc::unbounded_channel();
+        let mut client_is_processing = false;
+        let mut processing_message_id = None;
+        let mut processing_session_id = None;
+        let mut processing_task = None;
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+        let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (swarm_event_tx, _) = broadcast::channel(8);
+
+        start_processing_message(
+            ProcessingMessage {
+                id: 77,
+                content: "continue after reload".to_string(),
+                images: Vec::new(),
+                system_reminder: Some(continuation.to_string()),
+                active_skill: None,
+                server_failover: false,
+            },
+            session_id,
+            &mut ProcessingState {
+                client_is_processing: &mut client_is_processing,
+                message_id: &mut processing_message_id,
+                session_id: &mut processing_session_id,
+                task: &mut processing_task,
+            },
+            &agent,
+            &client_event_tx,
+            &processing_done_tx,
+            Vec::new(),
+            &SwarmStatusRefs {
+                members: &swarm_members,
+                swarms_by_id: &swarms_by_id,
+                event_history: &event_history,
+                event_counter: &event_counter,
+                event_tx: &swarm_event_tx,
+            },
+        )
+        .await;
+
+        assert!(client_is_processing);
+        assert_eq!(processing_message_id, Some(77));
+        assert_eq!(processing_session_id.as_deref(), Some(session_id));
+        assert!(processing_task.is_some());
+        assert!(
+            !super::super::reload_recovery::has_pending_for_session(session_id),
+            "server acceptance of the exact hidden continuation should consume the durable intent"
+        );
+
+        let (done_id, result, _report, _, _) =
+            tokio::time::timeout(std::time::Duration::from_secs(5), processing_done_rx.recv())
+                .await
+                .expect("processing task should finish")
+                .expect("processing task should report completion");
+        assert_eq!(done_id, 77);
+        result?;
+        if let Some(handle) = processing_task.take() {
+            handle.await.expect("processing task join");
+        }
+        client_is_processing = false;
+        processing_message_id = None;
+        processing_session_id = None;
+        while client_event_rx.try_recv().is_ok() {}
+        let message_count = agent.lock().await.message_count();
+        let event_count = event_counter.load(std::sync::atomic::Ordering::Relaxed);
+
+        // A stale History continuation arriving after the final answer is a
+        // no-op even if it carries an invalid skill. No turn/skill/status edits.
+        start_processing_message(
+            ProcessingMessage {
+                id: 78,
+                content: "continue after reload".to_string(),
+                images: Vec::new(),
+                system_reminder: Some(continuation.to_string()),
+                active_skill: Some("nonexistent-replay-skill".to_string()),
+                server_failover: false,
+            },
+            session_id,
+            &mut ProcessingState {
+                client_is_processing: &mut client_is_processing,
+                message_id: &mut processing_message_id,
+                session_id: &mut processing_session_id,
+                task: &mut processing_task,
+            },
+            &agent,
+            &client_event_tx,
+            &processing_done_tx,
+            Vec::new(),
+            &SwarmStatusRefs {
+                members: &swarm_members,
+                swarms_by_id: &swarms_by_id,
+                event_history: &event_history,
+                event_counter: &event_counter,
+                event_tx: &swarm_event_tx,
+            },
+        )
+        .await;
+        assert!(!client_is_processing);
+        assert!(processing_message_id.is_none());
+        assert!(processing_session_id.is_none());
+        assert!(processing_task.is_none());
+        assert_eq!(agent.lock().await.message_count(), message_count);
+        assert_eq!(
+            event_counter.load(std::sync::atomic::Ordering::Relaxed),
+            event_count
+        );
+        assert!(processing_done_rx.try_recv().is_err());
+        assert!(matches!(
+            client_event_rx.try_recv(),
+            Ok(ServerEvent::Done { id: 78 })
+        ));
+        assert!(client_event_rx.try_recv().is_err());
+
+        // Unrelated reminders and ordinary prompts (even the exact body) are
+        // not replays. A fresh intent in this session is accepted as well.
+        for (id, reminder) in [
+            (79, Some("ordinary reminder")),
+            (80, None),
+            (81, Some(continuation)),
+        ] {
+            if id == 81 {
+                super::super::reload_recovery::persist_intent(
+                    "reload-next",
+                    session_id,
+                    super::super::reload_recovery::ReloadRecoveryRole::InterruptedPeer,
+                    crate::tool::selfdev::ReloadRecoveryDirective {
+                        reconnect_notice: None,
+                        continuation_message: continuation.to_string(),
+                    },
+                    "next reload",
+                )?;
+            }
+            start_processing_message(
+                ProcessingMessage {
+                    id,
+                    content: continuation.to_string(),
+                    images: Vec::new(),
+                    system_reminder: reminder.map(str::to_string),
+                    active_skill: None,
+                    server_failover: false,
+                },
+                session_id,
+                &mut ProcessingState {
+                    client_is_processing: &mut client_is_processing,
+                    message_id: &mut processing_message_id,
+                    session_id: &mut processing_session_id,
+                    task: &mut processing_task,
+                },
+                &agent,
+                &client_event_tx,
+                &processing_done_tx,
+                Vec::new(),
+                &SwarmStatusRefs {
+                    members: &swarm_members,
+                    swarms_by_id: &swarms_by_id,
+                    event_history: &event_history,
+                    event_counter: &event_counter,
+                    event_tx: &swarm_event_tx,
+                },
+            )
+            .await;
+            assert!(client_is_processing);
+            assert_eq!(processing_message_id, Some(id));
+            let (done_id, result, _, _, _) =
+                tokio::time::timeout(std::time::Duration::from_secs(5), processing_done_rx.recv())
+                    .await?
+                    .expect("accepted turn completion");
+            assert_eq!(done_id, id);
+            result?;
+            processing_task.take().unwrap().await?;
+            client_is_processing = false;
+            processing_message_id = None;
+            processing_session_id = None;
+        }
+        Ok::<(), anyhow::Error>(())
+    })?;
+
+    Ok(())
+}
+
+#[test]
+fn reload_starting_rejects_new_turns_for_multiple_sessions() {
+    let _guard = crate::storage::lock_test_env();
+    let _runtime = IsolatedRuntimeDir::new();
+    crate::server::write_reload_state(
+        "reload-lifecycle-multi-starting",
+        "test-hash",
+        crate::server::ReloadPhase::Starting,
+        Some("session_alpha".to_string()),
+    );
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    rt.block_on(async {
+        let forked = Arc::new(AtomicBool::new(false));
+        let provider: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
+            forked: Arc::clone(&forked),
+        });
+        let registry = Registry::new(Arc::clone(&provider)).await;
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+        let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (swarm_event_tx, _) = broadcast::channel(8);
+
+        for (message_id, session_id) in [
+            (101, "session_alpha"),
+            (102, "session_beta"),
+            (103, "session_gamma"),
+        ] {
+            let mut session =
+                crate::session::Session::create_with_id(session_id.to_string(), None, None);
+            session.model = Some("panic-on-fork".to_string());
+            let agent = Arc::new(Mutex::new(Agent::new_with_session(
+                Arc::clone(&provider),
+                registry.clone(),
+                session,
+                None,
+            )));
+
+            let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+            let (processing_done_tx, mut processing_done_rx) = mpsc::unbounded_channel();
+            let mut client_is_processing = false;
+            let mut processing_message_id = None;
+            let mut processing_session_id = None;
+            let mut processing_task = None;
+
+            start_processing_message(
+                ProcessingMessage {
+                    id: message_id,
+                    content: format!("do not start {session_id} during reload"),
+                    images: Vec::new(),
+                    system_reminder: None,
+                    active_skill: None,
+                    server_failover: false,
+                },
+                session_id,
+                &mut ProcessingState {
+                    client_is_processing: &mut client_is_processing,
+                    message_id: &mut processing_message_id,
+                    session_id: &mut processing_session_id,
+                    task: &mut processing_task,
+                },
+                &agent,
+                &client_event_tx,
+                &processing_done_tx,
+                Vec::new(),
+                &SwarmStatusRefs {
+                    members: &swarm_members,
+                    swarms_by_id: &swarms_by_id,
+                    event_history: &event_history,
+                    event_counter: &event_counter,
+                    event_tx: &swarm_event_tx,
+                },
+            )
+            .await;
+
+            let event = tokio::time::timeout(
+                std::time::Duration::from_millis(250),
+                client_event_rx.recv(),
+            )
+            .await
+            .expect("reload guard should emit promptly for every session")
+            .expect("reload event should be sent to client");
+            assert!(
+                matches!(event, ServerEvent::Reloading { new_socket: None }),
+                "expected Reloading event for {session_id}, got {event:?}"
+            );
+            assert!(
+                client_event_rx.try_recv().is_err(),
+                "reload guard should only emit one reload notification for {session_id}"
+            );
+            assert!(
+                !client_is_processing,
+                "{session_id} should not enter processing during reload"
+            );
+            assert_eq!(processing_message_id, None);
+            assert_eq!(processing_session_id, None);
+            assert!(
+                processing_task.is_none(),
+                "{session_id} should not spawn a processing task during reload"
+            );
+            assert!(processing_done_rx.try_recv().is_err());
+        }
+
+        assert!(
+            !forked.load(Ordering::SeqCst),
+            "rejecting multiple sessions during reload should not fork or invoke provider work"
+        );
+    });
+}
+
+#[tokio::test]
+async fn lightweight_comm_request_skips_full_session_initialization() {
+    let (server_stream, client_stream) = crate::transport::Stream::pair().expect("socket pair");
+    let forked = Arc::new(AtomicBool::new(false));
+    let provider_template: Arc<dyn Provider> = Arc::new(PanicOnForkProvider {
+        forked: Arc::clone(&forked),
+    });
+
+    let sessions: SessionAgents =
+        Arc::new(crate::server::SessionManager::from_agents(HashMap::new()));
+    let global_session_id = Arc::new(RwLock::new(String::new()));
+    let client_count = Arc::new(RwLock::new(0usize));
+    let client_connections = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+    let shared_context = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_plans = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_coordinators = Arc::new(RwLock::new(HashMap::new()));
+    let file_touch = FileTouchService::new();
+    let channel_subscriptions = Arc::new(RwLock::new(HashMap::new()));
+    let channel_subscriptions_by_session = Arc::new(RwLock::new(HashMap::new()));
+    let client_debug_state = Arc::new(RwLock::new(ClientDebugState::default()));
+    let (_debug_response_tx, _) = broadcast::channel(8);
+    let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+    let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let (swarm_event_tx, _) = broadcast::channel(8);
+    let (_global_event_tx, _) = broadcast::channel(8);
+    let global_is_processing = Arc::new(RwLock::new(false));
+    let shutdown_signals = Arc::new(RwLock::new(HashMap::new()));
+    let soft_interrupt_queues: SessionInterruptQueues = Arc::new(RwLock::new(HashMap::new()));
+    let mcp_pool = Arc::new(crate::mcp::SharedMcpPool::from_default_config());
+
+    let server_task = tokio::spawn(handle_client(
+        server_stream,
+        Arc::clone(&sessions),
+        _global_event_tx,
+        provider_template,
+        global_is_processing,
+        global_session_id,
+        client_count,
+        Arc::clone(&client_connections),
+        swarm_members,
+        swarms_by_id,
+        shared_context,
+        swarm_plans,
+        swarm_coordinators,
+        file_touch,
+        channel_subscriptions,
+        channel_subscriptions_by_session,
+        client_debug_state,
+        _debug_response_tx,
+        event_history,
+        event_counter,
+        swarm_event_tx,
+        "nexode-test".to_string(),
+        "🧪".to_string(),
+        mcp_pool,
+        shutdown_signals,
+        soft_interrupt_queues,
+        AwaitMembersRuntime::default(),
+        SwarmMutationRuntime::default(),
+    ));
+
+    let (client_reader, mut client_writer) = client_stream.into_split();
+    let mut client_reader = BufReader::new(client_reader);
+    let request = Request::CommList {
+        id: 7,
+        session_id: "not-in-swarm".to_string(),
+    };
+    let payload = serde_json::to_string(&request).expect("serialize request") + "\n";
+    client_writer
+        .write_all(payload.as_bytes())
+        .await
+        .expect("write request");
+
+    let mut line = String::new();
+    client_reader
+        .read_line(&mut line)
+        .await
+        .expect("read ack bytes");
+    let ack = decode_request_or_event(&line);
+    assert!(matches!(ack, ServerEvent::Ack { id: 7 }));
+
+    line.clear();
+    client_reader
+        .read_line(&mut line)
+        .await
+        .expect("read terminal response");
+    let response = decode_request_or_event(&line);
+    match response {
+        ServerEvent::Error { id, message, .. } => {
+            assert_eq!(id, 7);
+            assert!(message.contains("Not in a swarm"));
+        }
+        other => panic!("expected error response, got {other:?}"),
+    }
+
+    line.clear();
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), client_reader.read_line(&mut line))
+            .await
+            .expect("non-Ping lightweight command must close its one-shot connection")
+            .expect("read EOF"),
+        0,
+    );
+    drop(client_writer);
+    server_task
+        .await
+        .expect("server task join")
+        .expect("server task result");
+
+    assert!(
+        !forked.load(Ordering::SeqCst),
+        "lightweight control request should not fork a provider"
+    );
+    assert!(
+        client_connections.read().await.is_empty(),
+        "lightweight control request should not register a live client session"
+    );
+    assert!(
+        sessions.read().await.is_empty(),
+        "lightweight control request should not allocate a live agent session"
+    );
+}
+
+fn decode_request_or_event(line: &str) -> ServerEvent {
+    serde_json::from_str(line.trim()).expect("decode server event")
+}
+
+#[test]
+fn soft_interrupt_dispatch_starts_idle_session_and_queues_busy_session() {
+    assert!(should_start_idle_soft_interrupt(false, false, false));
+    assert!(!should_start_idle_soft_interrupt(true, false, false));
+    assert!(!should_start_idle_soft_interrupt(false, true, false));
+    assert!(!should_start_idle_soft_interrupt(false, false, true));
+}
+
+#[path = "client_lifecycle_socket_tests.rs"]
+mod socket_workflows;
+
+#[path = "client_lifecycle_tests/system_prompt.rs"]
+mod system_prompt;

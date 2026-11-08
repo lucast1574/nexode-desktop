@@ -1,0 +1,23 @@
+{
+  "total": 18,
+  "files": {
+    "crates/nexode-app-core/src/lib.rs": 1,
+    "crates/nexode-app-core/src/setup_hints.rs": 1,
+    "crates/nexode-base/src/env.rs": 1,
+    "crates/nexode-base/src/id.rs": 1,
+    "crates/nexode-base/src/lib.rs": 1,
+    "crates/nexode-base/src/logging.rs": 1,
+    "crates/nexode-base/src/memory_types.rs": 1,
+    "crates/nexode-base/src/plan.rs": 1,
+    "crates/nexode-base/src/protocol.rs": 1,
+    "crates/nexode-base/src/provider_catalog.rs": 1,
+    "crates/nexode-base/src/stdin_detect.rs": 1,
+    "crates/nexode-base/src/storage.rs": 1,
+    "crates/nexode-base/src/todo.rs": 1,
+    "crates/nexode-base/src/transport/mod.rs": 1,
+    "crates/nexode-base/src/util.rs": 1,
+    "crates/nexode-tui/src/lib.rs": 1,
+    "crates/nexode-tui/src/tui/mod.rs": 1,
+    "src/lib.rs": 1
+  }
+}

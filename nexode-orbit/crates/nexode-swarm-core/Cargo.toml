@@ -1,0 +1,9 @@
+[package]
+name = "nexode-swarm-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nexode-plan = { path = "../nexode-plan" }
+serde = { version = "1", features = ["derive"] }
