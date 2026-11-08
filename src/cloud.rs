@@ -151,7 +151,9 @@ impl Cloud {
             checkout: None,
             selected_plan: None,
         };
-        if std::env::var_os("ORBIT_NATIVE_TEST").is_none() { cloud.start(Action::Restore, ctx); }
+        if std::env::var_os("ORBIT_NATIVE_TEST").is_none() {
+            cloud.start(Action::Restore, ctx);
+        }
         cloud
     }
     fn start(&mut self, action: Action, ctx: &egui::Context) {
