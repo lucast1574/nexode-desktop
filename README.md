@@ -18,7 +18,8 @@ contiene la aplicación de escritorio en la raíz y el motor, CLI/TUI y SDK en
 `nexode-orbit/`. Son archivos normales de Git, sin submódulos ni descargas de otro
 repositorio durante la compilación. El historial original de ambos se conserva.
 Los cambios futuros de Desktop y Orbit se realizan aquí, en la misma revisión.
-El repositorio público original se conserva sin eliminar ni modificar su contenido.
+El repositorio público original se eliminó tras verificar la importación completa
+y la conservación de su historial. Este es el repositorio único de desarrollo.
 La CI activa está en `.github/workflows/` de la raíz: prueba Desktop, SDK y
 soporte del motor, y construye los paquetes desde este único checkout. Los
 workflows importados bajo `nexode-orbit/.github/` se conservan como referencia

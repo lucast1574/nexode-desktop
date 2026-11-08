@@ -4,6 +4,9 @@
 
 Desktop y el motor/SDK se desarrollan en este repositorio privado. El árbol de
 Orbit se importó completo en `nexode-orbit/`, conservando su historial Git.
+Antes de eliminar el repositorio público se verificó que el hash de su árbol
+completo coincide con el árbol importado y que su commit es ancestro de main
+en el privado. No tenía otras ramas, tags, releases ni issues.
 `cargo metadata --locked` resuelve los 15 paquetes locales de Desktop dentro de
 este checkout. No hay submódulos ni checkout de Orbit en la CI activa.
 
